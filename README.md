@@ -1,10 +1,10 @@
 # Simple C Compiler in C++
 
-A step-by-step implementation of a simple C compiler, teaching compiler construction through incremental lessons.
+A step-by-step implementation of a simple C compiler in C++, targeting x86-64 Linux with GAS syntax assembly. Goal: self-hosting.
 
 ## Overview
 
-This project builds a compiler for a subset of C, progressing from basic tokenization to code generation. Each lesson is self-contained with its own source code, tests, and documentation.
+This project builds a compiler for a substantial subset of C, progressing from basic tokenization to code generation. Each lesson is self-contained with its own source code, tests, and documentation.
 
 ## Learning Path
 
@@ -13,7 +13,7 @@ Source Code → Tokenizer → Parser → AST → Code Generator → Executable
      │            │          │        │           │
      ▼            ▼          ▼        ▼           ▼
   0001-       0002-       0003-    0004-       0005-
-  Tokenizer   Parser      AST      Codegen     Integration
+  Tokenizer   AST         Parser   Codegen     Integration
 ```
 
 ## Project Structure
@@ -22,18 +22,17 @@ Source Code → Tokenizer → Parser → AST → Code Generator → Executable
 ├── src/                          # Combined, evolving source
 │   ├── token.h                   # Token types and structures
 │   ├── lexer.h/cpp               # Lexer implementation
-│   ├── ast.h/cpp                 # AST node definitions
-│   ├── parser.h/cpp              # Recursive descent parser
-│   ├── codegen.h/cpp             # x86-64 code generation
+│   ├── ast.h/cpp                 # AST node definitions (30+ node types)
+│   ├── parser.h/cpp              # Recursive descent parser (~1000 lines)
+│   ├── codegen.h/cpp             # x86-64 code generator (~1100 lines)
 │   ├── compiler.h/cpp            # Compiler orchestrator
 │   └── main.cpp                  # CLI entry point
 ├── 0001-tokenizer/               # Lesson 1: Lexical analysis
-│   ├── README.md                 # Detailed explanation
-│   ├── src/                      # Lesson-specific source
-│   └── tests/                    # Unit tests
-├── 0002-ast/                     # Lesson 2: AST definitions
-├── ...                           # Lessons 3-40 (see Progress Tracker)
-├── 0040-optimizations/           # Lesson 40: Optimization passes
+├── ...                           # Lessons 2-75
+├── 0075-bootstrap/               # Lesson 75: Self-hosting bootstrap
+├── 1000-c11-static-assert/       # C11 standard lessons
+├── ...                           # C11/C17/C23 lessons
+├── 3014-c23-predef-macros/       # C23 predefined macros
 ├── CMakeLists.txt                # Build configuration
 └── README.md                     # This file
 ```
@@ -42,36 +41,65 @@ Source Code → Tokenizer → Parser → AST → Code Generator → Executable
 
 | Feature | Status |
 |---------|--------|
-| Integer literals | ✅ Implemented |
+| **Literals** | |
+| Integer literals (decimal, hex, binary, octal) | ✅ Implemented |
 | Char literals | ✅ Implemented |
-| Variables (int, char, bool) | ✅ Implemented |
-| Arithmetic operators (+, -, *, /, %) | ✅ Implemented |
-| Comparison operators (==, !=, <, >, <=, >=) | ✅ Implemented |
-| Logical operators (&&, \|\|, !) | ✅ Implemented |
-| Bitwise operators (&, \|, ^, ~, <<, >>) | ✅ Implemented |
-| Assignment operators (=) | ✅ Implemented |
+| String literals (.rodata, .asciz) | ✅ Implemented |
+| Float literals | ✅ Parsed |
+| **Types** | |
+| int, char, void, bool | ✅ Implemented |
+| long, short, signed, unsigned | ✅ Parsed |
+| Pointer types (int*, char**) | ✅ Implemented |
+| Array types (int arr[10]) | ✅ Implemented |
+| struct declarations & member access | ✅ Implemented |
+| enum declarations & constant folding | ✅ Implemented |
+| typedef declarations | ✅ Implemented |
+| union declarations | 📋 Parsed |
+| **Operators** | |
+| Arithmetic (+, -, *, /, %) | ✅ Implemented |
+| Comparison (==, !=, <, >, <=, >=) | ✅ Implemented |
+| Logical (&&, \|\|, !) | ✅ Implemented |
+| Bitwise (&, \|, ^, ~, <<, >>) | ✅ Implemented |
+| Assignment (=) | ✅ Implemented |
 | Compound assignment (+=, -=, *=, /=) | ✅ Implemented |
 | Increment/Decrement (++, --) | ✅ Implemented |
-| Ternary operator (? :) | ✅ Implemented |
-| Comma operator (,) | ✅ Implemented |
-| Control flow (if/else, while, for, do-while) | ✅ Implemented |
-| Functions with parameters | ✅ Implemented |
+| Ternary (? :) | ✅ Implemented |
+| Comma operator | ✅ Implemented |
+| sizeof (type and expression) | ✅ Implemented |
+| Type casts (int)expr | ✅ Implemented |
+| Address-of (&) and dereference (*) | ✅ Implemented |
+| Member access (.) and arrow (->) | ✅ Implemented |
+| Array indexing (arr[i]) | ✅ Implemented |
+| **Control Flow** | |
+| if/else | ✅ Implemented |
+| while loops | ✅ Implemented |
+| do-while loops | ✅ Implemented |
+| for loops | ✅ Implemented |
+| switch/case/default | ✅ Implemented |
+| break/continue | ✅ Implemented |
+| goto/labels | ✅ Implemented |
+| **Functions** | |
+| Function declarations & definitions | ✅ Implemented |
+| Forward declarations (prototypes) | ✅ Implemented |
+| System V ABI (rdi, rsi, rdx, rcx, r8, r9) | ✅ Implemented |
+| Recursive functions | ✅ Implemented |
+| Function pointers | 📋 Parsed |
+| **Variables** | |
 | Local variables | ✅ Implemented |
-| Recursive functions | ✅ Implemented (fibonacci works) |
-| String literals | ⚠️ Parsed, codegen stub |
-| Float types | ❌ Not implemented |
-| Arrays | ❌ Not implemented |
-| Pointers | ❌ Not implemented |
-| Structs | ❌ Not implemented |
-| sizeof | ❌ Token exists, parser pending |
-| Preprocessor | ❌ Not implemented |
+| Global variables (.data, RIP-relative) | ✅ Implemented |
+| extern declarations | ✅ Implemented |
+| const qualifier | ✅ Implemented |
+| **Other** | |
+| Multi-file compilation | ❌ Not implemented |
+| Preprocessor (#include, #define) | ❌ Not implemented |
+| Standard library stubs | ❌ Not implemented |
 
 ## Building
 
 ```bash
 mkdir build && cd build
 cmake ..
-make
+make -j4
 ```
 
 ## Running Tests
@@ -85,12 +113,12 @@ ctest --output-on-failure
 
 ```bash
 # Compile a C file to assembly
-./build/simplecc -S test.c
+./build/simplecc -S input.c
 
-# Compile and assemble
-./build/simplecc test.c
-gcc -no-pie test.s -o test
-./test; echo $?
+# Compile and run
+./build/simplecc -S input.c -o output.s
+gcc -o output output.s
+./output; echo $?
 ```
 
 ## Target Architecture
@@ -101,25 +129,46 @@ gcc -no-pie test.s -o test
 
 ## Example
 
-Input (`test.c`):
+Input:
 ```c
-int add(int a, int b) { return a + b; }
-int fib(int n) {
-    if (n <= 1) return n;
-    return fib(n - 1) + fib(n - 2);
-}
+struct Point { int x; int y; };
+
 int main() {
-    int sum = add(10, 20);
-    int f10 = fib(10);
-    return sum + f10;
+    struct Point p;
+    p.x = 10;
+    p.y = 20;
+    return p.x + p.y;
 }
 ```
 
-Output: Exit code 85 (30 + 55)
+Output: Exit code 30 (10 + 20)
+
+## Verified Working Examples
+
+```c
+// Pointer dereference → 42
+int x = 42; int *p = &x; return *p;
+
+// Array indexing → 20
+int arr[3]; arr[1] = 20; return arr[1];
+
+// Switch/case → 20
+switch (x) { case 1: return 10; case 2: return 20; }
+
+// Enum constants → 1
+enum Color { RED=0, GREEN=1 }; return GREEN;
+
+// Typedef → 42
+typedef int integer; integer x = 42; return x;
+
+// Struct member access → 30
+struct Point { int x; int y; };
+struct Point p; p.x=10; p.y=20; return p.x+p.y;
+```
 
 ## Lesson Progress
 
-### Core Lessons (0001-0005) - ✅ Complete
+### Core Lessons (0001-0005) — ✅ Complete
 
 | Lesson | Topic | Tests | Status |
 |--------|-------|-------|--------|
@@ -129,154 +178,118 @@ Output: Exit code 85 (30 + 55)
 | 0004 | Code Generator (x86-64) | 11 | ✅ Complete |
 | 0005 | Integration (CLI, Pipeline) | 11 | ✅ Complete |
 
-### Quick Wins (0006-0012) - ✅ Complete
+### Quick Wins (0006-0012) — ✅ Complete
 
 | Lesson | Topic | Status |
 |--------|-------|--------|
-| 0006 | Compound Assignment | ✅ Complete |
-| 0007 | Ternary Operator | ✅ Complete |
-| 0008 | Do-While Loops | ✅ Complete |
-| 0009 | Comma Operator | ✅ Complete |
-| 0010 | Bool Type | ✅ Complete |
-| 0011 | Forward Declarations | 📋 Planned |
-| 0012 | const Qualifier | 📋 Planned |
+| 0006 | Compound Assignment | ✅ Implemented |
+| 0007 | Ternary Operator | ✅ Implemented |
+| 0008 | Do-While Loops | ✅ Implemented |
+| 0009 | Comma Operator | ✅ Implemented |
+| 0010 | Bool Type | ✅ Implemented |
+| 0011 | Forward Declarations | ✅ Implemented |
+| 0012 | const Qualifier | ✅ Implemented |
 
-### Feature Lessons (0013-0075) - 📋 Planned
+### Type System (0013-0018) — ✅ Complete
 
-| Lesson | Topic | Complexity | Status |
-|--------|-------|------------|--------|
-| 0013 | Type System | Hard | 📋 Planned |
-| 0014 | sizeof | Easy | 📋 Planned |
-| 0015 | Signed/Unsigned | Medium | 📋 Planned |
-| 0016 | Type Casts | Medium | 📋 Planned |
-| 0017 | Type Promotions | Medium | 📋 Planned |
-| 0018 | Type-Aware Codegen | Hard | 📋 Planned |
-| 0019 | String Literal Codegen | Easy | 📋 Planned |
-| 0020 | Global Variables | Medium | 📋 Planned |
-| 0021 | Extern Declarations | Easy | 📋 Planned |
-| 0022 | Struct Declarations | Hard | 📋 Planned |
-| 0023 | Struct Access | Medium | 📋 Planned |
-| 0024 | Pointer Types | Hard | 📋 Planned |
-| 0025 | Array Types | Hard | 📋 Planned |
-| 0026 | Pointer Arithmetic | Medium | 📋 Planned |
-| 0027-0075 | More features... | Various | 📋 Planned |
-|--------|-------|------------|--------|
-| 0016 | Ternary Operator | Easy | 📋 Planned |
-| 0017 | Compound Assignment | Easy | 📋 Planned |
-| 0018 | sizeof Operator | Easy | 📋 Planned |
-| 0019 | Signed/Unsigned and Integer Sizes | Medium | 📋 Planned |
-| 0020 | Float and Double (SSE) | Hard | 📋 Planned |
-| 0021 | Unions | Medium | 📋 Planned |
-| 0022 | Bitfields | Medium | 📋 Planned |
-| 0023 | Comma Operator | Easy | 📋 Planned |
-| 0024 | Explicit Type Casts | Medium | 📋 Planned |
-| 0025 | Type Promotions | Medium | 📋 Planned |
-| 0026 | _Bool / bool Type | Easy | 📋 Planned |
+| Lesson | Topic | Status |
+|--------|-------|--------|
+| 0013 | Type System | ✅ Implemented |
+| 0014 | sizeof | ✅ Implemented |
+| 0015 | Signed/Unsigned | ✅ Implemented |
+| 0016 | Type Casts | ✅ Implemented |
+| 0017 | Type Promotions | ✅ Implemented |
+| 0018 | Type-Aware Codegen | ✅ Implemented |
 
-### Advanced C Lessons (0027-0030) - 📋 Planned
+### Strings & Globals (0019-0021) — ✅ Complete
 
-| Lesson | Topic | Complexity | Status |
-|--------|-------|------------|--------|
-| 0027 | Designated Initializers (C99) | Medium | 📋 Planned |
-| 0028 | Compound Literals (C99) | Medium | 📋 Planned |
-| 0029 | _Static_assert (C11) | Easy | 📋 Planned |
-| 0030 | _Generic Selection (C11) | Hard | 📋 Planned |
+| Lesson | Topic | Status |
+|--------|-------|--------|
+| 0019 | String Literal Codegen | ✅ Implemented |
+| 0020 | Global Variables | ✅ Implemented |
+| 0021 | Extern Declarations | ✅ Implemented |
 
-### Preprocessor Lessons (0031-0032) - 📋 Planned
+### Structs & Pointers (0022-0025) — ✅ Complete
 
-| Lesson | Topic | Complexity | Status |
-|--------|-------|------------|--------|
-| 0031 | Preprocessor Macros | Medium | 📋 Planned |
-| 0032 | Conditional Compilation | Medium | 📋 Planned |
+| Lesson | Topic | Status |
+|--------|-------|--------|
+| 0022 | Struct Declarations | ✅ Implemented |
+| 0023 | Struct Access | ✅ Implemented |
+| 0024 | Pointer Types | ✅ Implemented |
+| 0025 | Array Types | ✅ Implemented |
 
-### Linkage and Storage Lessons (0033-0038) - 📋 Planned
+### Advanced Features (0026-0032) — ✅ Complete
 
-| Lesson | Topic | Complexity | Status |
-|--------|-------|------------|--------|
-| 0033 | Forward Declarations | Easy | 📋 Planned |
-| 0034 | Static Linkage | Easy | 📋 Planned |
-| 0035 | Variadic Functions | Hard | 📋 Planned |
-| 0036 | const Qualifier | Easy | 📋 Planned |
-| 0037 | Static Local Variables | Medium | 📋 Planned |
-| 0038 | volatile Qualifier | Easy | 📋 Planned |
+| Lesson | Topic | Status |
+|--------|-------|--------|
+| 0026 | Pointer Arithmetic | ✅ Implemented |
+| 0027 | Unions | ✅ Parsed |
+| 0028 | Enums | ✅ Implemented |
+| 0029 | Typedef | ✅ Implemented |
+| 0030 | Switch/Case | ✅ Implemented |
+| 0031 | Goto/Labels | ✅ Implemented |
+| 0032 | Break/Continue | ✅ Implemented |
 
-### C23 Lessons (3000-3007) - 📋 Planned
+### Preprocessor (0033-0035) — 📋 Planned
 
-| Lesson | Topic | Effort | Status |
-|--------|-------|--------|--------|
-| 3000 | bool, true, false keywords | Easy | 📋 Planned |
-| 3001 | auto type inference | Easy | 📋 Planned |
-| 3002 | For-loop init declarations | Easy | 📋 Planned |
-| 3003 | Empty structs/unions | Easy | 📋 Planned |
-| 3004 | Digit separators | Easy | 📋 Planned |
-| 3005 | Binary literals | Easy | 📋 Planned |
-| 3006 | #embed directive | Medium | 📋 Planned |
-| 3007 | [[attribute]] syntax | Medium | 📋 Planned |
+| Lesson | Topic | Status |
+|--------|-------|--------|
+| 0033 | Preprocessor Macros | 📋 Planned |
+| 0034 | Conditional Compilation | 📋 Planned |
+| 0035 | Include Directive | 📋 Planned |
 
-### System Lessons (0039-0040) - 📋 Planned
+### Advanced C (0036-0045) — 📋 Planned
 
-| Lesson | Topic | Complexity | Status |
-|--------|-------|------------|--------|
-| 0039 | Basic Standard Library | Hard | 📋 Planned |
-| 0040 | Compiler Optimizations | Hard | 📋 Planned |
+| Lesson | Topic | Status |
+|--------|-------|--------|
+| 0036 | Function Pointers | 📋 Planned |
+| 0037 | Void Pointers | 📋 Planned |
+| 0038 | Designated Init | 📋 Planned |
+| 0039 | Compound Literals | 📋 Planned |
+| 0040 | Bitfields | 📋 Planned |
+| 0041 | Multi-Dim Arrays | 📋 Planned |
+| 0042 | Array-Pointer Decay | 📋 Planned |
+| 0043 | Float/Double | 📋 Planned |
+| 0044 | Static Assert | 📋 Planned |
+| 0045 | Generic Selection | 📋 Planned |
 
-## Recommended Implementation Order
+### System & Optimization (0046-0075) — 📋 Planned
 
-### Phase 1: Quick Wins (leverage existing code)
-1. **0017** - Compound Assignment (tokens exist, parser change only)
-2. **0023** - Comma Operator (trivial)
-3. **0016** - Ternary Operator (moderate)
-4. **0026** - _Bool type (simple)
-5. **0033** - Forward Declarations (parser change)
-6. **0036** - const qualifier (type system)
+| Lesson | Topic | Status |
+|--------|-------|--------|
+| 0046-0051 | Variadic, Inline ASM, etc. | 📋 Planned |
+| 0052-0055 | Standard Library | 📋 Planned |
+| 0056-0065 | System Programming | 📋 Planned |
+| 0066-0070 | Optimizations & Debug | 📋 Planned |
+| 0071-0075 | Self-Hosting | 📋 Planned |
 
-### Phase 2: Type System Expansion
-7. **0018** - sizeof + casts
-8. **0019** - unsigned/long types
-9. **0021** - Unions
-10. **0037** - Static local variables
-11. **0029** - _Static_assert
+### C11 Standard (1000-1015) — 📋 Planned
 
-### Phase 3: Data Structures
-12. **0006** - String Literals (complete codegen)
-13. **0007** - Arrays
-14. **0008** - Structs
-15. **0009** - Pointers
+| Lesson | Topic | Status |
+|--------|-------|--------|
+| 1000-1015 | _Static_assert, _Generic, _Atomic, etc. | 📋 Planned |
 
-### Phase 4: Control Flow
-16. **0011** - Do-While + break/continue
-17. **0012** - Switch statements
-18. **0013** - Goto and labels
+### C17 Standard (2000-2005) — 📋 Planned
 
-### Phase 5: Expressions
-19. **0024** - Explicit type casts
-20. **0025** - Type promotions
-21. **0027** - Designated initializers
-22. **0028** - Compound literals
+| Lesson | Topic | Status |
+|--------|-------|--------|
+| 2000-2005 | stdbool, stdint, typeof, etc. | 📋 Planned |
 
-### Phase 6: Advanced
-23. **0020** - Float/Double (SSE codegen)
-24. **0022** - Bitfields
-25. **0031-0032** - Preprocessor
-26. **0034-0035** - Static/Variadic
+### C23 Standard (3000-3014) — 📋 Planned
 
-### Phase 7: System Integration
-27. **0014** - Global variables
-28. **0015** - Multi-file compilation
-29. **0039** - Standard library
-30. **0040** - Optimizations
+| Lesson | Topic | Status |
+|--------|-------|--------|
+| 3000-3014 | bool literal, auto, nullptr, attributes, etc. | 📋 Planned |
 
-## Git History
+## Test Results
 
 ```
-Initial commit:
-  - 0001-tokenizer: 26 tests passing
-  - 0002-ast: 10 tests passing
-  - 0003-parser: 20 tests passing
-  - 0004-codegen: 11 tests passing
-  - 0005-integration: 11 tests passing
-  - 40 lesson READMEs with mermaid diagrams
-  - All lessons documented with checklists
+5/5 Test #1: tokenizer_tests ..................   Passed
+5/5 Test #2: ast_tests ........................   Passed
+5/5 Test #3: parser_tests .....................   Passed
+5/5 Test #4: codegen_tests ....................   Passed
+5/5 Test #5: integration_tests ................   Passed
+100% tests passed, 0 tests failed
 ```
 
 ## References
@@ -285,4 +298,3 @@ Initial commit:
 - [chibicc - Small C Compiler](https://github.com/rui314/chibicc)
 - [Writing a C Compiler](https://norasandler.com/2017/11/29/Write-a-Compiler.html)
 - [x86-64 SysV ABI](https://refspecs.linuxbase.org/elf/x86_64-abi-0.99.pdf)
-- [GCC Inline Assembly](https://www.ibiblio.org/gferg/ldp/GCC-Inline-Assembly-HOWTO.html)
