@@ -17,6 +17,18 @@ Secure versions of string/memory functions with bounds checking.
 | `scanf_s(fmt, ...)` | `scanf` |
 | `fopen_s(pFile, filename, mode)` | `fopen` |
 
+## Bounds Checking Flow
+
+```mermaid
+graph TD
+    A["strcpy_s(dest, destsz, src)"] --> B{strlen of src < destsz?}
+    B -->|Yes| C["Copy src to dest"]
+    B -->|No| D["Invoke constraint handler / abort"]
+    E["sprintf_s(buf, bufsz, fmt, ...)"] --> F{Output < bufsz?}
+    F -->|Yes| G["Format into buf"]
+    F -->|No| D
+```
+
 ## Implementation Checklist
 
 - [ ] Implement `strcpy_s` with bounds check

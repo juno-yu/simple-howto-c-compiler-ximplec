@@ -6,6 +6,17 @@
 
 Evaluate constant expressions at compile time.
 
+## Constant Folding Pipeline
+
+```mermaid
+graph LR
+    A[Source: 2+3] --> B[Tokenizer]
+    B --> C[Parser: BinaryExpr]
+    C --> D[Constant Folding Pass]
+    D --> E[Integer Literal: 5]
+    E --> F[Codegen: mov $5, %eax]
+```
+
 ## Examples
 
 ```c

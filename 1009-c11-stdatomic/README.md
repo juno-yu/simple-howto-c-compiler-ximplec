@@ -34,6 +34,19 @@ atomic_ptrdiff_t
 | `atomic_fetch_and(obj, arg)` | Bitwise AND |
 | `atomic_fetch_xor(obj, arg)` | Bitwise XOR |
 
+## Atomic Operation Flow
+
+```mermaid
+graph TD
+    A["atomic_store(&obj, val)"] --> B["Store value to obj"]
+    C["atomic_load(&obj)"] --> D["Read value from obj"]
+    E["atomic_exchange(&obj, val)"] --> F["Swap obj and val, return old"]
+    G["atomic_compare_exchange_strong(&obj, &exp, des)"] --> H{obj == exp?}
+    H -->|Yes| I["obj = des, return true"]
+    H -->|No| J["exp = obj, return false"]
+    K["atomic_fetch_add(&obj, arg)"] --> L["obj += arg, return old"]
+```
+
 ## Implementation Checklist
 
 - [ ] Define `atomic_*` types (wrap underlying type)

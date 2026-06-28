@@ -21,3 +21,27 @@ constexpr int square(int x) { return x * x; }
 - [ ] Use in array sizes and switch cases
 - [ ] Support constexpr functions
 - [ ] Test: `constexpr int x = 42;` → compile-time constant
+
+## Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Source: constexpr int x = 42] --> B[Lexer]
+    B --> C{constexpr keyword?}
+    C -->|Yes| D[Parse constexpr declaration]
+    C -->|No| E[Normal declaration]
+    D --> F[Validate initializer]
+    F --> G{Is constant expression?}
+    G -->|Yes| H[Mark as compile-time constant]
+    G -->|No| I[Error: not constant]
+    H --> J[Store in symbol table]
+    J --> K[Use in array sizes]
+    J --> L[Use in switch cases]
+    J --> M[Evaluate at compile time]
+    K --> N[Parser]
+    L --> N
+    M --> N
+    N --> O[AST: ConstexprDecl]
+    O --> P[Codegen]
+    P --> Q[Assembly with constants]
+```

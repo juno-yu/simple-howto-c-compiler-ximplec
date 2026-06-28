@@ -22,6 +22,21 @@ const char* token_type_name(TokenType type) {
         case TokenType::KW_BREAK: return "break";
         case TokenType::KW_CONTINUE: return "continue";
         case TokenType::KW_SIZEOF: return "sizeof";
+        case TokenType::KW_SWITCH: return "switch";
+        case TokenType::KW_CASE: return "case";
+        case TokenType::KW_DEFAULT: return "default";
+        case TokenType::KW_ENUM: return "enum";
+        case TokenType::KW_TYPEDEF: return "typedef";
+        case TokenType::KW_STATIC: return "static";
+        case TokenType::KW_UNSIGNED: return "unsigned";
+        case TokenType::KW_SIGNED: return "signed";
+        case TokenType::KW_LONG: return "long";
+        case TokenType::KW_SHORT: return "short";
+        case TokenType::KW_FLOAT: return "float";
+        case TokenType::KW_DOUBLE: return "double";
+        case TokenType::KW_GOTO: return "goto";
+        case TokenType::QUESTION: return "?";
+        case TokenType::MINUS_GT: return "->";
         case TokenType::PLUS: return "+";
         case TokenType::MINUS: return "-";
         case TokenType::STAR: return "*";
@@ -84,7 +99,22 @@ const std::unordered_map<std::string, TokenType>& Lexer::keywords() {
         {"do", TokenType::KW_DO},
         {"bool", TokenType::KW_BOOL},
         {"const", TokenType::KW_CONST},
+        {"extern", TokenType::KW_EXTERN},
+        {"struct", TokenType::KW_STRUCT},
         {"sizeof", TokenType::KW_SIZEOF},
+        {"switch", TokenType::KW_SWITCH},
+        {"case", TokenType::KW_CASE},
+        {"default", TokenType::KW_DEFAULT},
+        {"enum", TokenType::KW_ENUM},
+        {"typedef", TokenType::KW_TYPEDEF},
+        {"static", TokenType::KW_STATIC},
+        {"unsigned", TokenType::KW_UNSIGNED},
+        {"signed", TokenType::KW_SIGNED},
+        {"long", TokenType::KW_LONG},
+        {"short", TokenType::KW_SHORT},
+        {"float", TokenType::KW_FLOAT},
+        {"double", TokenType::KW_DOUBLE},
+        {"goto", TokenType::KW_GOTO},
     };
     return kw;
 }

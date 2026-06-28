@@ -6,6 +6,19 @@
 
 Minimize memory access by keeping values in registers.
 
+## Register Allocation Pipeline
+
+```mermaid
+graph LR
+    A[IR Instructions] --> B[Build Interference Graph]
+    B --> C[Linear Scan]
+    C --> D{Reg Pressure?}
+    D -->|Low| E[Assign Registers]
+    D -->|High| F[Spill to Stack]
+    E --> G[Final Assembly]
+    F --> G
+```
+
 ## Example
 
 ```c

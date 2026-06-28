@@ -34,3 +34,21 @@ _Alignof(int)                    // returns alignment requirement of int
 - [ ] Align global variables
 - [ ] Test: `_Alignas(16) int x;` has address divisible by 16
 - [ ] Test: `_Alignof(long long)` → 8
+
+## Processing Flow
+
+```mermaid
+flowchart TD
+    A["_Alignas(N) int x"] --> B[Parse alignment specifier]
+    B --> C[Validate N is power of 2]
+    C --> D[Calculate required alignment]
+    D --> E[Insert padding before variable]
+    E --> F[Ensure address divisible by N]
+
+    G["_Alignof(type)"] --> H[Look up type info]
+    H --> I[Return alignment requirement]
+
+    J["aligned_alloc(alignment, size)"] --> K[Calculate padded size]
+    K --> L[Call aligned allocation]
+    L --> M[Return aligned pointer]
+```

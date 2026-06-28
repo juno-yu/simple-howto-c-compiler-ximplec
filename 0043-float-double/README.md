@@ -15,6 +15,26 @@ Implement floating-point types with SSE2 code generation.
 | xmm2 | 3rd float arg |
 | xmm3 | 4th float arg |
 
+## Float/Double Code Generation
+
+```mermaid
+flowchart TD
+    A["float/double operations"] --> B[SSE2 Instructions]
+    B --> C["movss / movsd for loads/stores"]
+    B --> D["addss/addsd, subss/subsd"]
+    B --> E["mulss/mulsd, divss/divsd"]
+    B --> F["ucomiss/ucomisd for comparisons"]
+
+    G["Type conversions"] --> H["cvtsi2ss: int → float"]
+    G --> I["cvtsi2sd: int → double"]
+    G --> J["cvttss2si: float → int truncation"]
+    G --> K["cvtss2sd: float → double"]
+
+    L["Register usage"] --> M["xmm0: 1st float arg / return"]
+    L --> N["xmm1: 2nd float arg"]
+    L --> O["xmm2-xmm7: additional args"]
+```
+
 ## Implementation Checklist
 
 - [ ] Add float/double types to type system

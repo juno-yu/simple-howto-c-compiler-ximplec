@@ -6,6 +6,21 @@
 
 Generate DWARF debug info for gdb/lldb.
 
+## Debug Info Generation
+
+```mermaid
+graph TD
+    A[Source Code] --> B[Tokenizer]
+    B --> C[Parser]
+    C --> D[AST with Source Locations]
+    D --> E[.debug_info Section]
+    D --> F[.debug_line Section]
+    D --> G[.debug_abbrev Section]
+    E --> H[DWARF Output]
+    F --> H
+    G --> H
+```
+
 ## Implementation Checklist
 
 - [ ] Generate `.debug_info` section

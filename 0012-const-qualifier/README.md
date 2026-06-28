@@ -6,6 +6,20 @@
 
 Implement `const` for read-only variables.
 
+## const Qualifier Variants
+
+```mermaid
+flowchart LR
+    A[const Usage] --> B[const int x = 5]
+    A --> C[int *const p]
+    A --> D[const int *p]
+    A --> E[const int *const p]
+    B --> F[Read-only variable]
+    C --> G[Const pointer - can't reassign]
+    D --> H[Pointer to const - can't modify value]
+    E --> I[Both const]
+```
+
 ## Implementation Checklist
 
 - [ ] Parse `const` keyword

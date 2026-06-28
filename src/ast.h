@@ -15,6 +15,16 @@ enum class NodeType {
     FUNCTION_DECL,
     VAR_DECL,
     PARAM,
+    STRUCT_DECL,
+    STRUCT_FIELD,
+    ENUM_DECL,
+    ENUM_VALUE,
+    TYPEDEF_DECL,
+    SWITCH_STMT,
+    CASE_LABEL,
+    DEFAULT_LABEL,
+    GOTO_STMT,
+    LABEL_STMT,
     
     // Statements
     BLOCK,
@@ -74,6 +84,16 @@ struct ProgramNode;
 struct ParamNode;
 struct FunctionDeclNode;
 struct VarDeclNode;
+struct StructFieldNode;
+struct StructDeclNode;
+struct EnumDeclNode;
+struct EnumValueNode;
+struct TypedefDeclNode;
+struct SwitchStmtNode;
+struct CaseLabelNode;
+struct DefaultLabelNode;
+struct GotoStmtNode;
+struct LabelStmtNode;
 struct BlockNode;
 struct ReturnStmtNode;
 struct ExprStmtNode;
@@ -110,6 +130,16 @@ public:
     virtual void visit(ProgramNode& node) = 0;
     virtual void visit(FunctionDeclNode& node) = 0;
     virtual void visit(VarDeclNode& node) = 0;
+    virtual void visit(StructFieldNode& node) = 0;
+    virtual void visit(StructDeclNode& node) = 0;
+    virtual void visit(EnumDeclNode& node) = 0;
+    virtual void visit(EnumValueNode& node) = 0;
+    virtual void visit(TypedefDeclNode& node) = 0;
+    virtual void visit(SwitchStmtNode& node) = 0;
+    virtual void visit(CaseLabelNode& node) = 0;
+    virtual void visit(DefaultLabelNode& node) = 0;
+    virtual void visit(GotoStmtNode& node) = 0;
+    virtual void visit(LabelStmtNode& node) = 0;
     virtual void visit(ParamNode& node) = 0;
     virtual void visit(BlockNode& node) = 0;
     virtual void visit(ReturnStmtNode& node) = 0;
@@ -184,9 +214,96 @@ struct VarDeclNode : ASTNode {
     std::string type_name;
     std::string name;
     ASTPtr initializer;
+    int array_size; // 0 = not an array, >0 = array size
     
     VarDeclNode(const std::string& type, const std::string& n, int l, int c)
-        : ASTNode(NodeType::VAR_DECL, l, c), type_name(type), name(n) {}
+        : ASTNode(NodeType::VAR_DECL, l, c), type_name(type), name(n), array_size(0) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct StructFieldNode : ASTNode {
+    std::string type_name;
+    std::string name;
+    
+    StructFieldNode(const std::string& type, const std::string& n, int l, int c)
+        : ASTNode(NodeType::STRUCT_FIELD, l, c), type_name(type), name(n) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct StructDeclNode : ASTNode {
+    std::string name;
+    std::vector<ASTPtr> fields;
+    
+    StructDeclNode(const std::string& n, int l, int c)
+        : ASTNode(NodeType::STRUCT_DECL, l, c), name(n) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct EnumDeclNode : ASTNode {
+    std::string name;
+    std::vector<ASTPtr> values;
+    
+    EnumDeclNode(const std::string& n, int l, int c)
+        : ASTNode(NodeType::ENUM_DECL, l, c), name(n) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct EnumValueNode : ASTNode {
+    std::string name;
+    ASTPtr value; // optional integer expression
+    
+    EnumValueNode(const std::string& n, ASTPtr v, int l, int c)
+        : ASTNode(NodeType::ENUM_VALUE, l, c), name(n), value(std::move(v)) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct TypedefDeclNode : ASTNode {
+    std::string source_type;
+    std::string alias;
+    
+    TypedefDeclNode(const std::string& src, const std::string& al, int l, int c)
+        : ASTNode(NodeType::TYPEDEF_DECL, l, c), source_type(src), alias(al) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct SwitchStmtNode : ASTNode {
+    ASTPtr condition;
+    ASTPtr body;
+    std::vector<ASTPtr> cases; // CaseLabelNode and DefaultLabelNode
+    
+    SwitchStmtNode(int l, int c) : ASTNode(NodeType::SWITCH_STMT, l, c) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct CaseLabelNode : ASTNode {
+    ASTPtr value;
+    ASTPtr body;
+    
+    CaseLabelNode(int l, int c) : ASTNode(NodeType::CASE_LABEL, l, c) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct DefaultLabelNode : ASTNode {
+    ASTPtr body;
+    
+    DefaultLabelNode(int l, int c) : ASTNode(NodeType::DEFAULT_LABEL, l, c) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct GotoStmtNode : ASTNode {
+    std::string label;
+    
+    GotoStmtNode(const std::string& l, int line, int col)
+        : ASTNode(NodeType::GOTO_STMT, line, col), label(l) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct LabelStmtNode : ASTNode {
+    std::string label;
+    ASTPtr stmt;
+    
+    LabelStmtNode(const std::string& l, int line, int col)
+        : ASTNode(NodeType::LABEL_STMT, line, col), label(l) {}
     void accept(ASTVisitor& visitor);
 };
 

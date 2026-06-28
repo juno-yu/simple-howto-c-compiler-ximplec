@@ -6,6 +6,20 @@
 
 Use simplecc to compile a subset of its own source.
 
+## Phase 1: Tokenize & Parse Small Modules
+
+```mermaid
+graph LR
+    A[token.h] --> B[simplecc]
+    A2[ast.h] --> B
+    A3[lexer.h] --> B
+    B --> C[Compiled Token Module]
+    C --> D[Test Binary]
+    D --> E{Works?}
+    E -->|Yes| F[Proceed to Phase 2]
+    E -->|No| G[Document Missing Features]
+```
+
 ## Approach
 
 1. Start with smallest modules (token.h, ast.h)

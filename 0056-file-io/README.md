@@ -6,6 +6,44 @@
 
 Implement FILE* operations and file descriptor I/O.
 
+## File I/O Overview
+
+```mermaid
+flowchart TD
+    A[File I/O] --> B[File Descriptor]
+    A --> C[FILE* Stream]
+
+    B --> D[open]
+    B --> E[close]
+    B --> F[read]
+    B --> G[write]
+
+    C --> H[fopen]
+    C --> I[fclose]
+    C --> J[fread]
+    C --> K[fwrite]
+    C --> L[fgets]
+    C --> M[fputs]
+
+    H -->|"fopen(path, mode)"| N[Open file stream]
+    I -->|"fclose(fp)"| O[Close file stream]
+    J -->|"fread(buf, size, count, fp)"| P[Read from stream]
+    K -->|"fwrite(buf, size, count, fp)"| Q[Write to stream]
+```
+
+## File Stream Modes
+
+```mermaid
+flowchart LR
+    A["fopen(\"file.txt\", mode)"] --> B{mode}
+    B -->|"r"| C[Read only]
+    B -->|"w"| D[Write, truncate]
+    B -->|"a"| E[Append]
+    B -->|"r+"| F[Read+Write]
+    B -->|"w+"| G[Read+Write, truncate]
+    B -->|"a+"| H[Read+Append]
+```
+
 ## Functions
 
 | Function | Complexity |

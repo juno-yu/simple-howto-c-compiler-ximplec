@@ -30,7 +30,22 @@ enum class TokenType {
     KW_DO,
     KW_BOOL,
     KW_CONST,
+    KW_EXTERN,
+    KW_STRUCT,
     KW_SIZEOF,
+    KW_SWITCH,
+    KW_CASE,
+    KW_DEFAULT,
+    KW_ENUM,
+    KW_TYPEDEF,
+    KW_STATIC,
+    KW_UNSIGNED,
+    KW_SIGNED,
+    KW_LONG,
+    KW_SHORT,
+    KW_FLOAT,
+    KW_DOUBLE,
+    KW_GOTO,
     
     // Operators
     PLUS,           // +

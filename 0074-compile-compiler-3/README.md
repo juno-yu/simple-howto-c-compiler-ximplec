@@ -6,6 +6,20 @@
 
 Full self-compilation.
 
+## Phase 3: Full Self-Compilation
+
+```mermaid
+graph LR
+    A[simplecc source] --> B[gcc]
+    B --> C[simplecc-v1]
+    C --> D[simplecc-v1 compiles source]
+    D --> E[simplecc-v2]
+    E --> F[Run Test Suite]
+    F --> G{All Pass?}
+    G -->|Yes| H[Self-Hosted!]
+    G -->|No| I[Debug & Fix]
+```
+
 ## Implementation Checklist
 
 - [ ] Compile entire compiler with simplecc

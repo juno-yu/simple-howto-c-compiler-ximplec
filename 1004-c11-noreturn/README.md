@@ -31,6 +31,21 @@ _Noreturn void exit(int status);
 
 ## Comparison with C23
 
+## Processing Flow
+
+```mermaid
+flowchart TD
+    A["_Noreturn void f()"] --> B[Parse _Noreturn qualifier]
+    B --> C[Store in function type info]
+    C --> D{Function has return statement?}
+    D -->|Yes| E[Warn: unreachable code]
+    D -->|No| F[Omit return instruction]
+    F --> G[Codegen: use jmp instead of call+ret]
+    E --> F
+```
+
+## Comparison with C23
+
 | Feature | C11 | C23 |
 |---------|-----|-----|
 | Syntax | `_Noreturn` | `[[noreturn]]` |

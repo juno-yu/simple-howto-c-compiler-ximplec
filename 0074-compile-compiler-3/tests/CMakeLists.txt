@@ -1,0 +1,9 @@
+cmake_minimum_required(VERSION 3.14)
+project(0074_compile_compiler_3_tests)
+
+add_executable(test_0074_compile_compiler_3 test_0074_compile_compiler_3.cpp)
+target_include_directories(test_0074_compile_compiler_3 PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_0074_compile_compiler_3 PRIVATE compiler_lib Catch2WithMain)
+
+include(../CTest.cmake OPTIONAL)
+add_test(NAME test_0074_compile_compiler_3 COMMAND test_0074_compile_compiler_3)

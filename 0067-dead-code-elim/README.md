@@ -6,6 +6,18 @@
 
 Remove unreachable code.
 
+## Dead Code Elimination Pipeline
+
+```mermaid
+graph LR
+    A[Source AST] --> B[Reachability Analysis]
+    B --> C[Identify Dead Code]
+    C --> D[Remove Unused Vars]
+    D --> E[Remove Unreachable After Return]
+    E --> F[Optimized AST]
+    F --> G[Codegen]
+```
+
 ## Examples
 
 ```c

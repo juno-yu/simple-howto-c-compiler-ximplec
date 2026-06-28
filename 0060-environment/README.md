@@ -6,6 +6,38 @@
 
 Access environment variables.
 
+## Environment Variables Overview
+
+```mermaid
+flowchart TD
+    A[Environment Variables] --> B[Access]
+    A --> C[Modification]
+    A --> D[Removal]
+
+    B --> E[getenv]
+    C --> F[setenv]
+    D --> G[unsetenv]
+
+    E -->|"getenv(name)"| H[Return value or NULL]
+    F -->|"setenv(name, value, overwrite)"| I[Add/modify entry]
+    G -->|"unsetenv(name)"| J[Remove entry]
+```
+
+## Environment Variable Flow
+
+```mermaid
+flowchart LR
+    A[Process] --> B[environ array]
+    B --> C["KEY=VALUE pairs"]
+    C --> D[HOME=/home/user]
+    C --> E[PATH=/usr/bin]
+    C --> F[...]
+    
+    G["getenv(\"HOME\")"] --> H{Found?}
+    H -->|Yes| I[Return value]
+    H -->|No| J[Return NULL]
+```
+
 ## Functions
 
 | Function | Complexity |

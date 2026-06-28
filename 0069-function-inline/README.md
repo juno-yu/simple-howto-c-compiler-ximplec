@@ -6,6 +6,19 @@
 
 Replace function calls with function body.
 
+## Function Inlining Pipeline
+
+```mermaid
+graph LR
+    A[Function Call] --> B{Small Function?}
+    B -->|Yes| C[Inline Body]
+    B -->|No| D[Keep Call]
+    C --> E{Recursive?}
+    E -->|Yes| F[Keep Call]
+    E -->|No| G[Substitute Args]
+    G --> H[Optimized Code]
+```
+
 ## Example
 
 ```c

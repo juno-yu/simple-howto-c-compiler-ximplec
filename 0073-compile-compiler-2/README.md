@@ -6,6 +6,18 @@
 
 Compile parser and codegen with simplecc.
 
+## Phase 2: Compile Parser & Codegen
+
+```mermaid
+graph LR
+    A[parser.h/cpp] --> B[simplecc-v1]
+    A2[codegen.h/cpp] --> B
+    B --> C[Compiled Parser Module]
+    C --> D[Compiled Codegen Module]
+    D --> E[Link All Modules]
+    E --> F[Full Compiler Binary]
+```
+
 ## Implementation Checklist
 
 - [ ] Compile parser.h/parser.cpp with simplecc

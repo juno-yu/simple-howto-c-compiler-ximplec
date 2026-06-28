@@ -41,3 +41,22 @@ a <<= 1;      // a = 0b10000
 
 - Compile test: verify assembly contains correct instruction sequence
 - Execute test: run compiled program, verify exit code
+
+## Implementation Flow
+
+```mermaid
+flowchart TD
+    A[Source Code] --> B[Lexer Tokenization]
+    B --> C[Parser: parse_assignment]
+    C --> D{Token Type?}
+    D -->|+= -= *= /=| E[CompoundAssignExprNode]
+    D -->|=| F[AssignExprNode]
+    E --> G[Codegen: visitCompoundAssignExprNode]
+    G --> H[Load target value]
+    H --> I[Evaluate RHS]
+    I --> J[Apply operator]
+    J --> K[Store result back]
+
+    style E fill:#f9f,stroke:#333,stroke-width:2px
+    style G fill:#bbf,stroke:#333,stroke-width:2px
+```

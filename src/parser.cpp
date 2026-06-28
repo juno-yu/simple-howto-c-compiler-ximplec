@@ -56,11 +56,21 @@ bool Parser::is_at_end() const {
 }
 
 bool Parser::is_type_specifier() const {
-    return check(TokenType::KW_INT) || 
-           check(TokenType::KW_CHAR) || 
-           check(TokenType::KW_VOID) ||
-           check(TokenType::KW_BOOL) ||
-           check(TokenType::KW_CONST);
+    if (check(TokenType::KW_INT) || 
+        check(TokenType::KW_CHAR) || 
+        check(TokenType::KW_VOID) ||
+        check(TokenType::KW_BOOL) ||
+        check(TokenType::KW_CONST) ||
+        check(TokenType::KW_STRUCT) ||
+        check(TokenType::KW_ENUM) ||
+        check(TokenType::KW_TYPEDEF)) {
+        return true;
+    }
+    // Check if current identifier is a typedef name
+    if (check(TokenType::IDENTIFIER) && typedef_names_.count(peek().value)) {
+        return true;
+    }
+    return false;
 }
 
 std::string Parser::parse_type_specifier() {
@@ -71,14 +81,51 @@ std::string Parser::parse_type_specifier() {
         result = "const ";
     }
     
-    if (match(TokenType::KW_INT)) return result + "int";
-    if (match(TokenType::KW_CHAR)) return result + "char";
-    if (match(TokenType::KW_VOID)) return result + "void";
-    if (match(TokenType::KW_BOOL)) return result + "bool";
-    
-    if (result.empty()) {
-        error("Expected type specifier");
+    if (match(TokenType::KW_INT)) {
+        result += "int";
+    } else if (match(TokenType::KW_CHAR)) {
+        result += "char";
+    } else if (match(TokenType::KW_VOID)) {
+        result += "void";
+    } else if (match(TokenType::KW_BOOL)) {
+        result += "bool";
+    } else if (match(TokenType::KW_STRUCT)) {
+        if (!check(TokenType::IDENTIFIER)) {
+            error("Expected struct name");
+            return result;
+        }
+        result += "struct " + peek().value;
+        advance();
+    } else if (match(TokenType::KW_ENUM)) {
+        if (!check(TokenType::IDENTIFIER)) {
+            error("Expected enum name");
+            return result;
+        }
+        result += "enum " + peek().value;
+        advance();
+    } else if (match(TokenType::KW_TYPEDEF)) {
+        // typedef name used as type - just return the name
+        if (!check(TokenType::IDENTIFIER)) {
+            error("Expected typedef name");
+            return result;
+        }
+        result += peek().value;
+        advance();
+    } else if (result.empty()) {
+        // Check if this is a typedef name
+        if (check(TokenType::IDENTIFIER) && typedef_names_.count(peek().value)) {
+            result = peek().value;
+            advance();
+        } else {
+            error("Expected type specifier");
+        }
     }
+    
+    // Handle pointer qualifiers (*)
+    while (match(TokenType::STAR)) {
+        result += "*";
+    }
+    
     return result;
 }
 
@@ -116,6 +163,110 @@ ASTPtr Parser::parse_program() {
 }
 
 ASTPtr Parser::parse_declaration() {
+    // Handle extern keyword
+    if (match(TokenType::KW_EXTERN)) {
+        // extern declarations - just parse as forward declarations
+        std::string type_name = parse_type_specifier();
+        if (!check(TokenType::IDENTIFIER)) {
+            error("Expected identifier after extern");
+            return nullptr;
+        }
+        const Token& name_token = peek();
+        std::string name = name_token.value;
+        advance();
+        
+        auto func = std::make_unique<FunctionDeclNode>(
+            type_name, name, name_token.line, name_token.column);
+        
+        if (match(TokenType::LPAREN)) {
+            // Function parameters
+            if (!check(TokenType::RPAREN)) {
+                do {
+                    auto param = parse_param();
+                    if (param) {
+                        func->params.push_back(std::move(param));
+                    }
+                } while (match(TokenType::COMMA));
+            }
+            expect(TokenType::RPAREN);
+        }
+        
+        expect(TokenType::SEMICOLON);
+        func->body = nullptr; // extern = no body
+        return std::move(func);
+    }
+    
+    // Handle struct keyword
+    if (match(TokenType::KW_STRUCT)) {
+        // Check if this is a struct definition (has {) or just a type usage
+        if (check(TokenType::LBRACE)) {
+            // Anonymous struct - error, need a name
+            error("Expected struct name");
+            return nullptr;
+        }
+        if (!check(TokenType::IDENTIFIER)) {
+            error("Expected struct name");
+            return nullptr;
+        }
+        // Save position - peek at what follows the struct name
+        std::string struct_name = peek().value;
+        advance(); // consume struct name
+        
+        if (check(TokenType::LBRACE)) {
+            // This is a struct definition: struct Name { ... };
+            // We already consumed the name, build the struct decl
+            auto struct_decl = std::make_unique<StructDeclNode>(
+                struct_name, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+            
+            expect(TokenType::LBRACE);
+            while (!check(TokenType::RBRACE) && !is_at_end()) {
+                std::string field_type = parse_type_specifier();
+                if (!check(TokenType::IDENTIFIER)) {
+                    error("Expected field name");
+                    return nullptr;
+                }
+                const Token& field_name = peek();
+                std::string fname = field_name.value;
+                advance();
+                
+                auto field = std::make_unique<StructFieldNode>(
+                    field_type, fname, field_name.line, field_name.column);
+                struct_decl->fields.push_back(std::move(field));
+                
+                expect(TokenType::SEMICOLON);
+            }
+            expect(TokenType::RBRACE);
+            expect(TokenType::SEMICOLON);
+            return std::move(struct_decl);
+        } else {
+            // This is a variable/param declaration using struct type: struct Name varname;
+            std::string full_type = "struct " + struct_name;
+            if (check(TokenType::IDENTIFIER)) {
+                const Token& name_token = peek();
+                std::string var_name = name_token.value;
+                advance();
+                
+                if (check(TokenType::LPAREN)) {
+                    return parse_function_decl(full_type);
+                } else {
+                    return parse_var_decl(full_type);
+                }
+            }
+            error("Expected identifier after struct name");
+            return nullptr;
+        }
+    }
+    
+    // Handle enum keyword
+    if (match(TokenType::KW_ENUM)) {
+        return parse_enum_decl();
+    }
+    
+    // Handle typedef keyword
+    if (match(TokenType::KW_TYPEDEF)) {
+        return parse_typedef_decl();
+    }
+    
     if (!is_type_specifier()) {
         error("Expected type specifier");
         return nullptr;
@@ -174,12 +325,117 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
     auto var = std::make_unique<VarDeclNode>(
         type_name, name_token.value, name_token.line, name_token.column);
     
+    // Check for array declaration
+    if (match(TokenType::LBRACKET)) {
+        if (check(TokenType::INTEGER)) {
+            var->array_size = std::stoi(peek().value);
+            advance();
+        }
+        expect(TokenType::RBRACKET);
+    }
+    
     if (match(TokenType::ASSIGN)) {
         var->initializer = parse_expression();
     }
     
     expect(TokenType::SEMICOLON);
     return std::move(var);
+}
+
+ASTPtr Parser::parse_struct_decl() {
+    const Token& name_token = peek();
+    std::string name = name_token.value;
+    advance();
+    
+    auto struct_decl = std::make_unique<StructDeclNode>(
+        name, name_token.line, name_token.column);
+    
+    expect(TokenType::LBRACE);
+    
+    // Parse fields
+    while (!check(TokenType::RBRACE) && !is_at_end()) {
+        std::string field_type = parse_type_specifier();
+        if (!check(TokenType::IDENTIFIER)) {
+            error("Expected field name");
+            return nullptr;
+        }
+        const Token& field_name = peek();
+        std::string fname = field_name.value;
+        advance();
+        
+        auto field = std::make_unique<StructFieldNode>(
+            field_type, fname, field_name.line, field_name.column);
+        struct_decl->fields.push_back(std::move(field));
+        
+        expect(TokenType::SEMICOLON);
+    }
+    
+    expect(TokenType::RBRACE);
+    expect(TokenType::SEMICOLON);
+    
+    return std::move(struct_decl);
+}
+
+ASTPtr Parser::parse_enum_decl() {
+    const Token& name_token = peek();
+    std::string name = name_token.value;
+    advance();
+    
+    auto enum_decl = std::make_unique<EnumDeclNode>(
+        name, name_token.line, name_token.column);
+    
+    expect(TokenType::LBRACE);
+    
+    long long value = 0;
+    while (!check(TokenType::RBRACE) && !is_at_end()) {
+        const Token& val_token = peek();
+        std::string val_name = val_token.value;
+        advance();
+        
+        ASTPtr val_expr = nullptr;
+        if (match(TokenType::ASSIGN)) {
+            val_expr = parse_assignment();
+            if (val_expr && val_expr->type == NodeType::INTEGER_LITERAL) {
+                value = static_cast<IntegerLiteralNode*>(val_expr.get())->value;
+            }
+        }
+        
+        // Store enum constant for later resolution
+        enum_constants_[val_name] = value;
+        
+        auto enum_val = std::make_unique<EnumValueNode>(
+            val_name, std::move(val_expr), val_token.line, val_token.column);
+        enum_decl->values.push_back(std::move(enum_val));
+        
+        match(TokenType::COMMA); // optional trailing comma
+        value++;
+    }
+    
+    expect(TokenType::RBRACE);
+    expect(TokenType::SEMICOLON);
+    
+    return std::move(enum_decl);
+}
+
+ASTPtr Parser::parse_typedef_decl() {
+    std::string source_type = parse_type_specifier();
+    
+    if (!check(TokenType::IDENTIFIER)) {
+        error("Expected typedef name");
+        return nullptr;
+    }
+    
+    const Token& alias_token = peek();
+    std::string alias = alias_token.value;
+    advance();
+    
+    // Register typedef name for type specifier recognition
+    typedef_names_.insert(alias);
+    
+    expect(TokenType::SEMICOLON);
+    
+    return std::make_unique<TypedefDeclNode>(
+        source_type, alias, alias_token.line, alias_token.column);
 }
 
 ASTPtr Parser::parse_param() {
@@ -229,6 +485,12 @@ ASTPtr Parser::parse_statement() {
     }
     if (check(TokenType::KW_FOR)) {
         return parse_for_stmt();
+    }
+    if (check(TokenType::KW_SWITCH)) {
+        return parse_switch_stmt();
+    }
+    if (check(TokenType::KW_GOTO)) {
+        return parse_goto_stmt();
     }
     if (check(TokenType::LBRACE)) {
         return parse_block();
@@ -354,6 +616,66 @@ ASTPtr Parser::parse_for_stmt() {
     for_stmt->body = parse_statement();
     
     return std::move(for_stmt);
+}
+
+ASTPtr Parser::parse_switch_stmt() {
+    const Token& switch_token = peek();
+    advance();
+    
+    auto switch_stmt = std::make_unique<SwitchStmtNode>(switch_token.line, switch_token.column);
+    
+    expect(TokenType::LPAREN);
+    switch_stmt->condition = parse_expression();
+    expect(TokenType::RPAREN);
+    
+    // Parse body - cases are labels within the body
+    expect(TokenType::LBRACE);
+    while (!check(TokenType::RBRACE) && !is_at_end()) {
+        if (check(TokenType::KW_CASE)) {
+            advance();
+            auto case_label = std::make_unique<CaseLabelNode>(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+            case_label->value = parse_expression();
+            expect(TokenType::COLON);
+            while (!check(TokenType::KW_CASE) && !check(TokenType::KW_DEFAULT) && !check(TokenType::RBRACE) && !is_at_end()) {
+                case_label->body = parse_statement();
+            }
+            switch_stmt->cases.push_back(std::move(case_label));
+        } else if (check(TokenType::KW_DEFAULT)) {
+            advance();
+            auto default_label = std::make_unique<DefaultLabelNode>(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+            expect(TokenType::COLON);
+            while (!check(TokenType::KW_CASE) && !check(TokenType::KW_DEFAULT) && !check(TokenType::RBRACE) && !is_at_end()) {
+                default_label->body = parse_statement();
+            }
+            switch_stmt->cases.push_back(std::move(default_label));
+        } else {
+            auto stmt = parse_statement();
+            if (stmt && switch_stmt->cases.empty()) {
+                auto default_label = std::make_unique<DefaultLabelNode>(stmt->line, stmt->column);
+                default_label->body = std::move(stmt);
+                switch_stmt->cases.push_back(std::move(default_label));
+            }
+        }
+    }
+    expect(TokenType::RBRACE);
+    
+    return std::move(switch_stmt);
+}
+
+ASTPtr Parser::parse_goto_stmt() {
+    const Token& goto_token = peek();
+    advance();
+    
+    if (!check(TokenType::IDENTIFIER)) {
+        error("Expected label name after goto");
+        return nullptr;
+    }
+    
+    std::string label = peek().value;
+    advance();
+    expect(TokenType::SEMICOLON);
+    
+    return std::make_unique<GotoStmtNode>(label, goto_token.line, goto_token.column);
 }
 
 // Expression parsing with precedence climbing
@@ -722,6 +1044,10 @@ ASTPtr Parser::parse_primary() {
     
     if (match(TokenType::IDENTIFIER)) {
         const Token& tok = tokens_[pos_ - 1];
+        // Check if this is an enum constant
+        if (enum_constants_.count(tok.value)) {
+            return std::make_unique<IntegerLiteralNode>(enum_constants_[tok.value], tok.line, tok.column);
+        }
         return std::make_unique<IdentifierExprNode>(tok.value, tok.line, tok.column);
     }
     

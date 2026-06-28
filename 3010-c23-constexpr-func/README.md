@@ -31,3 +31,25 @@ constexpr int fact10 = factorial(10);  // computed at compile time
 - [ ] Evaluate at compile time when called with constants
 - [ ] Fall back to runtime if args not constant
 - [ ] Test: `constexpr int f(int x) { return x * 2; }`
+
+## Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Source: constexpr int f - int x] --> B[Lexer]
+    B --> C{constexpr on function?}
+    C -->|Yes| D[Parse as constexpr function]
+    C -->|No| E[Parse as normal function]
+    D --> F[Validate body]
+    F --> G{Body is constant expression?}
+    G -->|Yes| H[Mark as constexpr]
+    G -->|No| I[Error: not constexpr]
+    H --> J[Store in symbol table]
+    J --> K{Called with constants?}
+    K -->|Yes| L[Evaluate at compile time]
+    K -->|No| M[Generate runtime code]
+    L --> N[AST: ConstexprFuncDecl]
+    M --> N
+    N --> O[Codegen]
+    O --> P[Assembly: compile-time or runtime]
+```

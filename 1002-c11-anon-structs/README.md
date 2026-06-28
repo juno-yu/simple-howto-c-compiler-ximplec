@@ -52,3 +52,17 @@ l2.start.x = 1;
 struct Line3 { struct { int x; int y; }; struct { int x; int y; } end; };
 l3.x = 1;  // ambiguous! error
 ```
+
+## Processing Flow
+
+```mermaid
+flowchart TD
+    A["struct { struct { int x; }; int y; }"] --> B[Parse member declarations]
+    B --> C{Anonymous struct member?}
+    C -->|Yes| D[Flatten members into parent]
+    C -->|No| E[Add as named member]
+    D --> F[Calculate offsets for all members]
+    E --> F
+    F --> G[Generate layout with padding]
+    G --> H[Allow direct access: s.x, s.y]
+```

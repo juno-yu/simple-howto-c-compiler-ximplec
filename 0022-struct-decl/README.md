@@ -6,6 +6,29 @@
 
 Parse and store struct type definitions.
 
+## Struct Declaration and Layout
+
+```mermaid
+classDiagram
+    class StructType {
+        +string name
+        +vector~Member~ members
+        +int total_size
+    }
+    class Member {
+        +string name
+        +Type* type
+        +int offset
+    }
+    class Type {
+        +int size
+    }
+    StructType *-- Member
+    Member --> Type
+
+    note for StructType "struct Point {\n  int x; // offset 0\n  int y; // offset 4\n};\ntotal_size = 8"
+```
+
 ## Implementation Checklist
 
 - [ ] Parse `struct Name { type member; ... }`

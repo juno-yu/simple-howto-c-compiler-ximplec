@@ -7,6 +7,16 @@ void ProgramNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void ParamNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void FunctionDeclNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void VarDeclNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void StructFieldNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void StructDeclNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void EnumDeclNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void EnumValueNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void TypedefDeclNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void SwitchStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void CaseLabelNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void DefaultLabelNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void GotoStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void LabelStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void BlockNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void ReturnStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void ExprStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
@@ -40,6 +50,16 @@ const char* node_type_name(NodeType type) {
         case NodeType::PROGRAM: return "Program";
         case NodeType::FUNCTION_DECL: return "FunctionDecl";
         case NodeType::VAR_DECL: return "VarDecl";
+        case NodeType::STRUCT_FIELD: return "StructField";
+        case NodeType::STRUCT_DECL: return "StructDecl";
+        case NodeType::ENUM_DECL: return "EnumDecl";
+        case NodeType::ENUM_VALUE: return "EnumValue";
+        case NodeType::TYPEDEF_DECL: return "TypedefDecl";
+        case NodeType::SWITCH_STMT: return "SwitchStmt";
+        case NodeType::CASE_LABEL: return "CaseLabel";
+        case NodeType::DEFAULT_LABEL: return "DefaultLabel";
+        case NodeType::GOTO_STMT: return "GotoStmt";
+        case NodeType::LABEL_STMT: return "LabelStmt";
         case NodeType::PARAM: return "Param";
         case NodeType::BLOCK: return "Block";
         case NodeType::RETURN_STMT: return "ReturnStmt";

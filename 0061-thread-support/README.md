@@ -6,6 +6,43 @@
 
 POSIX thread (pthreads) implementation.
 
+## Thread Support Overview
+
+```mermaid
+flowchart TD
+    A[Thread Support] --> B[Creation]
+    A --> C[Lifecycle]
+    A --> D[Information]
+
+    B --> E[pthread_create]
+
+    C --> F[pthread_join]
+    C --> G[pthread_detach]
+    C --> H[pthread_exit]
+
+    D --> I[pthread_self]
+
+    E -->|"pthread_create(tid, attr, func, arg)"| J[Create thread]
+    F -->|"pthread_join(tid, retval)"| K[Wait for thread]
+    G -->|"pthread_detach(tid)"| L[Detach thread]
+    H -->|"pthread_exit(retval)"| M[Exit thread]
+    I -->|"pthread_self()"| N[Get thread ID]
+```
+
+## Thread Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created
+    Created --> Running: pthread_create
+    Running --> Waiting: pthread_join
+    Waiting --> Running: join completes
+    Running --> Detached: pthread_detach
+    Running --> Terminated: pthread_exit
+    Detached --> Terminated: thread exits
+    Terminated --> [*]
+```
+
 ## Functions
 
 | Function | Complexity |

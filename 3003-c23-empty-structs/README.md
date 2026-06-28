@@ -30,3 +30,23 @@ struct empty { };  // valid, sizeof(struct empty) == 1
 - [ ] No members to access
 - [ ] Allow array of empty structs
 - [ ] Test: `struct empty { }; struct empty e; return sizeof(e);` → 1
+
+## Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Source: struct empty {}] --> B[Lexer]
+    B --> C[Parser]
+    C --> D{Struct Declaration?}
+    D --> E[Parse Members]
+    E --> F{Members Empty?}
+    F -->|Yes| G[Allow Empty Struct]
+    F -->|No| H[Normal Struct Processing]
+    G --> I[Set Size = 1]
+    I --> J[AST: StructDecl with 0 members]
+    H --> J
+    J --> K[Codegen]
+    K --> L[Type Size Calculation]
+    L --> M{x86-64 Layout}
+    G --> N["sizeof = 1 (not 0)"]
+```

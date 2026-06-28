@@ -6,6 +6,24 @@
 
 Implement `short`, `long`, `long long`, `unsigned` variants.
 
+## Integer Type Hierarchy
+
+```mermaid
+flowchart TD
+    A[Integer Types] --> B[Signed]
+    A --> C[Unsigned]
+    B --> D[char: 1 byte]
+    B --> E[short: 2 bytes]
+    B --> F[int: 4 bytes]
+    B --> G[long: 8 bytes]
+    B --> H[long long: 8 bytes]
+    C --> I[unsigned char: 1 byte]
+    C --> J[unsigned short: 2 bytes]
+    C --> K[unsigned int: 4 bytes]
+    C --> L[unsigned long: 8 bytes]
+    C --> M[unsigned long long: 8 bytes]
+```
+
 ## Integer Type Sizes (x86-64)
 
 | Type | Size | Register |

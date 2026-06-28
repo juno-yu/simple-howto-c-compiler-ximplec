@@ -32,3 +32,24 @@ unsigned bin = 0b1010'0101;
 - [ ] Test: `int x = 1'000;` → 1000
 - [ ] Test: `int h = 0xFF'FF;` → 65535
 - [ ] Test: error on `1'` (trailing quote)
+
+## Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Source: 1'000'000] --> B[Lexer]
+    B --> C{Numeric Literal?}
+    C -->|Yes| D[Read Characters]
+    D --> E{Is Quote?}
+    E -->|Yes| F[Skip Quote]
+    E -->|No| G[Accumulate Digit]
+    F --> D
+    G --> D
+    D --> H[End of Literal]
+    H --> I[Convert to Value]
+    I --> J[Token::INT_LITERAL]
+    J --> K[Parser]
+    K --> L[AST: IntLiteral]
+    L --> M[Codegen]
+    M --> N[x86-64: mov $value, %rax]
+```

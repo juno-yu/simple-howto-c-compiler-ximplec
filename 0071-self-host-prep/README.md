@@ -6,6 +6,20 @@
 
 Prepare compiler to compile itself.
 
+## Self-Hosting Readiness
+
+```mermaid
+graph TD
+    A[Audit Compiler Source] --> B{Feature Supported?}
+    B -->|Yes| C[Mark Complete]
+    B -->|No| D[Implement Feature]
+    D --> E[Test Feature]
+    E --> B
+    C --> F[All Features Complete?]
+    F -->|No| A
+    F -->|Yes| G[Ready for Self-Hosting]
+```
+
 ## Requirements
 
 To compile itself, the compiler needs to support:

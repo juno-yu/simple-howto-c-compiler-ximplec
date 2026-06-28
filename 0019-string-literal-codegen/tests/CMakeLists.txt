@@ -1,0 +1,9 @@
+cmake_minimum_required(VERSION 3.14)
+project(0019_string_literal_codegen_tests)
+
+add_executable(test_string_literal_codegen test_string_literal_codegen.cpp)
+target_include_directories(test_string_literal_codegen PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_string_literal_codegen PRIVATE compiler_lib Catch2WithMain)
+
+include(../CTest.cmake OPTIONAL)
+add_test(NAME test_string_literal_codegen COMMAND test_string_literal_codegen)

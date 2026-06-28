@@ -6,6 +6,17 @@
 
 Use type information to generate correct-sized memory operations.
 
+## Type Size Mapping
+
+```mermaid
+graph LR
+    A["char (1 byte)"] --> B["movb / movzbl"]
+    C["short (2 bytes)"] --> D["movw / movzwl"]
+    E["int (4 bytes)"] --> F["movl / movslq"]
+    G["long (8 bytes)"] --> H["movq"]
+    I["Pointer (8 bytes)"] --> J["movq"]
+```
+
 ## Implementation Checklist
 
 - [ ] `char` access: `movb` / `movzbl`

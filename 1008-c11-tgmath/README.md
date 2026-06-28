@@ -33,6 +33,19 @@ long double ld = sqrtl(3.14L); // calls sqrtl(long double)
 | Hyperbolic | `sinh`, `cosh`, `tanh` |
 | Logarithmic | `log`, `log2`, `log10`, `exp` |
 
+## Type-Generic Dispatch Flow
+
+```mermaid
+graph TD
+    A["sqrt(x)"] --> B{"_Generic dispatch"}
+    B -->|"float"| C["sqrtf(x)"]
+    B -->|"double"| D["sqrt(x)"]
+    B -->|"long double"| E["sqrtl(x)"]
+    C --> F["float result"]
+    D --> G["double result"]
+    E --> H["long double result"]
+```
+
 ## Implementation Checklist
 
 - [ ] Define type-generic macros for math functions

@@ -44,3 +44,19 @@ Typically wraps POSIX threads (pthreads) or Win32 threads.
 - [ ] Implement `call_once` (wraps pthread_once)
 - [ ] Thread-local storage (`tss_*`)
 - [ ] Test: producer-consumer with mutex and condition variable
+
+## Processing Flow
+
+```mermaid
+flowchart TD
+    A["_Thread_local int x = 0"] --> B[Parse _Thread_local qualifier]
+    B --> C[Allocate per-thread storage]
+    C --> D[Initialize in thread startup]
+    D --> E[Access via TLS segment]
+    E --> F[Cleanup in thread exit]
+
+    G["thrd_create(&t, func, arg)"] --> H[Wrap pthread_create]
+    H --> I[Thread begins execution]
+    I --> J["thrd_join(t, &res)"]
+    J --> K[Thread cleanup]
+```

@@ -4,6 +4,8 @@
 #include "token.h"
 #include <vector>
 #include <string>
+#include <map>
+#include <set>
 
 namespace simplecc {
 
@@ -33,6 +35,11 @@ private:
     ASTPtr parse_declaration();
     ASTPtr parse_function_decl(const std::string& type_name);
     ASTPtr parse_var_decl(const std::string& type_name);
+    ASTPtr parse_struct_decl();
+    ASTPtr parse_enum_decl();
+    ASTPtr parse_typedef_decl();
+    ASTPtr parse_switch_stmt();
+    ASTPtr parse_goto_stmt();
     ASTPtr parse_param();
     ASTPtr parse_block();
     ASTPtr parse_statement();
@@ -71,6 +78,12 @@ private:
     std::string error_message_;
     int error_line_;
     int error_column_;
+    
+    // Enum values for constant folding
+    std::map<std::string, long long> enum_constants_;
+    
+    // Typedef names for type specifier recognition
+    std::set<std::string> typedef_names_;
 };
 
 } // namespace simplecc

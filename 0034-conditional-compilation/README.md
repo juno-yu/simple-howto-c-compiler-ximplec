@@ -6,6 +6,43 @@
 
 Implement `#ifdef`, `#ifndef`, `#if`, `#elif`, `#else`, `#endif`.
 
+## Conditional Compilation Flow
+
+```mermaid
+flowchart TD
+    A["Preprocessor directive"] --> B{"Directive type?"}
+
+    B -->|"#ifdef NAME"| C{"NAME defined?"}
+    C -->|Yes| D[Include block]
+    C -->|No| E[Skip block]
+
+    B -->|"#ifndef NAME"| F{"NAME defined?"}
+    F -->|No| G[Include block]
+    F -->|Yes| H[Skip block]
+
+    B -->|"#if expr"| I{Evaluate expr}
+    I -->|True| J[Include block]
+    I -->|False| K[Skip block]
+
+    B -->|"#elif expr"| L{Previous skipped?}
+    L -->|Yes| M{Evaluate expr}
+    M -->|True| N[Include block]
+    M -->|False| O[Skip block]
+    L -->|No| P[Skip block]
+
+    B -->|"#else"| Q{Any previous included?}
+    Q -->|No| R[Include block]
+    Q -->|Yes| S[Skip block]
+
+    B -->|"#endif"| T[End of conditional]
+
+    D --> U[Continue processing]
+    G --> U
+    J --> U
+    N --> U
+    R --> U
+```
+
 ## Implementation Checklist
 
 - [ ] Parse `#ifdef NAME` / `#ifndef NAME`

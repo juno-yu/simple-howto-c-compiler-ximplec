@@ -6,6 +6,49 @@
 
 Implement socket API for network programming.
 
+## Socket Programming Overview
+
+```mermaid
+flowchart TD
+    A[Socket Programming] --> B[Server Side]
+    A --> C[Client Side]
+
+    B --> D[socket]
+    B --> E[bind]
+    B --> F[listen]
+    B --> G[accept]
+    B --> H[send/recv]
+
+    C --> I[socket]
+    C --> J[connect]
+    C --> K[send/recv]
+
+    D -->|"socket(domain, type, proto)"| L[Create socket]
+    E -->|"bind(fd, addr, len)"| M[Bind to address]
+    F -->|"listen(fd, backlog)"| N[Listen for connections]
+    G -->|"accept(fd, addr, len)"| O[Accept connection]
+    J -->|"connect(fd, addr, len)"| P[Connect to server]
+```
+
+## Client-Server Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+
+    Server->>Server: socket()
+    Server->>Server: bind()
+    Server->>Server: listen()
+    Client->>Client: socket()
+    Client->>Server: connect()
+    Server->>Server: accept()
+    Client->>Server: send()
+    Server->>Client: recv()
+    Server->>Client: send()
+    Client->>Server: recv()
+```
+
 ## Functions
 
 | Function | Complexity |

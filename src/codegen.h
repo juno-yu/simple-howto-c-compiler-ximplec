@@ -22,6 +22,16 @@ private:
     void visit(ProgramNode& node) override;
     void visit(FunctionDeclNode& node) override;
     void visit(VarDeclNode& node) override;
+    void visit(StructFieldNode& node) override;
+    void visit(StructDeclNode& node) override;
+    void visit(EnumDeclNode& node) override;
+    void visit(EnumValueNode& node) override;
+    void visit(TypedefDeclNode& node) override;
+    void visit(SwitchStmtNode& node) override;
+    void visit(CaseLabelNode& node) override;
+    void visit(DefaultLabelNode& node) override;
+    void visit(GotoStmtNode& node) override;
+    void visit(LabelStmtNode& node) override;
     void visit(ParamNode& node) override;
     void visit(BlockNode& node) override;
     void visit(ReturnStmtNode& node) override;
@@ -83,6 +93,14 @@ private:
     // Track if current function has returned
     bool returned_;
     
+    // Switch statement context
+    std::string current_case_label_;
+    std::string current_switch_end_;
+    
+    // Loop context for break/continue
+    std::string current_loop_start_;
+    std::string current_loop_end_;
+    
     // String literals for .rodata section
     struct StringLiteral {
         std::string label;
@@ -98,6 +116,37 @@ private:
         std::string init_value;
     };
     std::vector<GlobalVar> global_variables_;
+    
+    // Struct layouts for member access
+    struct FieldInfo {
+        std::string name;
+        std::string type;
+        int offset;
+        int size;
+    };
+    std::map<std::string, std::vector<FieldInfo>> struct_layouts_;
+    
+    // Enum values
+    std::map<std::string, int> enum_values_;
+    
+    // Typedef mappings
+    std::map<std::string, std::string> typedef_map_;
+    
+    // Variable type tracking (for struct member access)
+    std::map<std::string, std::string> variable_types_;
+    
+    // Array info (element size, array length)
+    struct ArrayInfo {
+        int elem_size;
+        int length;
+    };
+    std::map<std::string, ArrayInfo> array_info_;
+    
+    // Struct layout helpers
+    int get_struct_size(const std::string& name);
+    int get_field_offset(const std::string& struct_name, const std::string& field_name);
+    int get_type_size(const std::string& type);
+    void compute_member_address(MemberExprNode& node);
 };
 
 } // namespace simplecc

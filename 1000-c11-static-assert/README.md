@@ -28,6 +28,19 @@ _Static_assert(sizeof(int) == 4, "int must be 4 bytes");
 - [ ] Test: `_Static_assert(1, "ok");` passes
 - [ ] Test: `_Static_assert(0, "fail");` error
 
+## Processing Flow
+
+```mermaid
+flowchart TD
+    A["_Static_assert(expr, msg)"] --> B{Parse constant expression}
+    B --> C[Evaluate at compile time]
+    C --> D{Result true?}
+    D -->|Yes| E[Assertion passes]
+    D -->|No| F[Emit error with message]
+    F --> G[Compilation fails]
+    E --> H[Continue compilation]
+```
+
 ## Comparison with C23
 
 | Feature | C11 | C23 |

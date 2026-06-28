@@ -38,3 +38,20 @@ auto *p = &x;       // int*
 - [ ] Test: `auto x = 42;` → x is int
 - [ ] Test: `auto p = &x;` → p is pointer
 - [ ] Test: error on `auto y;` (no initializer)
+
+## Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Source: auto x = 42] --> B[Lexer]
+    B --> C[Parser]
+    C --> D{Declaration?}
+    D -->|auto| E[Type Inference]
+    E --> F{Initializer?}
+    F -->|Yes| G[Deduce Type from Expr]
+    F -->|No| H[Error: Missing Initializer]
+    G --> I[Set Variable Type]
+    I --> J[AST: VarDecl with inferred type]
+    J --> K[Codegen]
+    K --> L[x86-64 Assembly]
+```

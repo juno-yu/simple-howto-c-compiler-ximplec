@@ -6,6 +6,21 @@
 
 Implement `(type)expr` syntax for explicit conversions.
 
+## Cast Flow
+
+```mermaid
+graph TD
+    A["(type)expr"] --> B{"Source type?"}
+    B -->|int| C{"Target type?"}
+    B -->|float| D{"Target type?"}
+    B -->|double| E{"Target type?"}
+    C -->|float| F["cvtsi2ss / cvtsi2sd"]
+    C -->|char| G["movb (truncation)"]
+    C -->|long| H["movslq (sign extend)"]
+    D -->|int| I["cvttss2si"]
+    E -->|int| J["cvttsd2si"]
+```
+
 ## Implementation Checklist
 
 - [ ] Parse `(type)expr` in unary position

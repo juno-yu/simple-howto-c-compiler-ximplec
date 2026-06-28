@@ -33,3 +33,31 @@ Standardized attribute syntax `[[attr]]`.
 - [ ] Implement standard attributes
 - [ ] Ignore unknown attributes
 - [ ] Test: `[[nodiscard]] int f(void);` warns on ignored return
+
+## Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Source: [[nodiscard]] int f] --> B[Lexer]
+    B --> C{Double Bracket?}
+    C -->|Yes| D[Parse Attribute]
+    C -->|No| E[Normal Token]
+    D --> F[Read Attribute Name]
+    F --> G{Known Attribute?}
+    G -->|nodiscard| H[Set NODISCARD Flag]
+    G -->|maybe_unused| I[Set MAYBE_UNUSED Flag]
+    G -->|deprecated| J[Set DEPRECATED Flag]
+    G -->|fallthrough| K[Set FALLTHROUGH Flag]
+    G -->|noreturn| L[Set NORETURN Flag]
+    G -->|Unknown| M[Ignore Attribute]
+    H --> N[Attach to Declaration]
+    I --> N
+    J --> N
+    K --> N
+    L --> N
+    M --> N
+    N --> O[Parser]
+    O --> P[AST: Decl with Attributes]
+    P --> Q[Codegen]
+    Q --> R[Assembly with Metadata]
+```

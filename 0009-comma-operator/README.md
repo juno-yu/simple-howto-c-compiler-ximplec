@@ -13,3 +13,23 @@ Implement `expr1, expr2` for sequential evaluation.
 - [ ] Codegen: evaluate left, discard, evaluate right
 - [ ] Test: `int a = (1, 2, 3);` → a = 3
 - [ ] Test: `for (i = 0, j = 10; i < j; i++, j--) {}`
+
+## Implementation Flow
+
+```mermaid
+flowchart TD
+    A[Source Code] --> B[Lexer Tokenization]
+    B --> C[Parser: parse_expression]
+    C --> D{COMMA token?}
+    D -->|No| E[Return left expr]
+    D -->|Yes| F[Evaluate left expression]
+    F --> G[Consume comma]
+    G --> H[Parse right expression]
+    H --> I[CommaExprNode]
+    I --> J[Codegen: visitCommaExprNode]
+    J --> K[Dispatch left - discard result]
+    K --> L[Dispatch right - result stays in rax]
+
+    style I fill:#f9f,stroke:#333,stroke-width:2px
+    style J fill:#bbf,stroke:#333,stroke-width:2px
+```

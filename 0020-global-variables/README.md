@@ -6,6 +6,17 @@
 
 Implement global variables with `.data`/`.bss` sections.
 
+## Global Variable Codegen Flow
+
+```mermaid
+graph TD
+    A["Global declaration"] --> B{"Initialized?"}
+    B -->|Yes| C[".data section"]
+    B -->|No| D[".bss section"]
+    C --> E["RIP-relative access: name(%rip)"]
+    D --> F["RIP-relative access: name(%rip)"]
+```
+
 ## Implementation Checklist
 
 - [ ] Parse global variable declarations (outside functions)

@@ -6,6 +6,16 @@
 
 Generate `.rodata` section for string constants.
 
+## String Literal Codegen Flow
+
+```mermaid
+graph TD
+    A["\"hello\" in source"] --> B["String literal table"]
+    B --> C[".rodata section with label"]
+    C --> D["lea .LC0(%rip), %rax"]
+    D --> E["Load address into register"]
+```
+
 ## Implementation Checklist
 
 - [ ] Add string literal table to codegen

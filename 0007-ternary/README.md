@@ -29,3 +29,28 @@ Implement `cond ? then_expr : else_expr`.
     mov -16(%rbp), %rax
 .Lend_0:
 ```
+
+## Implementation Flow
+
+```mermaid
+flowchart TD
+    A[Source Code] --> B[Lexer Tokenization]
+    B --> C[Parser: parse_assignment]
+    C --> D{Token Type?}
+    D -->|QUESTION| E[Parse condition]
+    E --> F[Parse then_expr]
+    F --> G[Parse : else_expr]
+    G --> H[TernaryExprNode]
+    H --> I[Codegen: visitTernaryExprNode]
+    I --> J[Evaluate condition]
+    J --> K[cmp $0, %rax]
+    K --> L{Condition true?}
+    L -->|Yes| M[Evaluate then_expr]
+    M --> N[jmp end_label]
+    L -->|No| O[Evaluate else_expr]
+    N --> P[end_label]
+    O --> P
+
+    style H fill:#f9f,stroke:#333,stroke-width:2px
+    style I fill:#bbf,stroke:#333,stroke-width:2px
+```

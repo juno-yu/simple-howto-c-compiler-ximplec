@@ -200,6 +200,19 @@ Output: Exit code 85 (30 + 55)
 | 0037 | Static Local Variables | Medium | 📋 Planned |
 | 0038 | volatile Qualifier | Easy | 📋 Planned |
 
+### C23 Lessons (3000-3007) - 📋 Planned
+
+| Lesson | Topic | Effort | Status |
+|--------|-------|--------|--------|
+| 3000 | bool, true, false keywords | Easy | 📋 Planned |
+| 3001 | auto type inference | Easy | 📋 Planned |
+| 3002 | For-loop init declarations | Easy | 📋 Planned |
+| 3003 | Empty structs/unions | Easy | 📋 Planned |
+| 3004 | Digit separators | Easy | 📋 Planned |
+| 3005 | Binary literals | Easy | 📋 Planned |
+| 3006 | #embed directive | Medium | 📋 Planned |
+| 3007 | [[attribute]] syntax | Medium | 📋 Planned |
+
 ### System Lessons (0039-0040) - 📋 Planned
 
 | Lesson | Topic | Complexity | Status |

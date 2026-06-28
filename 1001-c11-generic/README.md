@@ -43,6 +43,21 @@ _Generic(expr, type1: val1, type2: val2, ..., default: val)
 - [ ] Test: default clause
 - [ ] Test: error on no match
 
+## Processing Flow
+
+```mermaid
+flowchart TD
+    A["_Generic(expr, type: val, ...)"] --> B[Evaluate type of expr]
+    B --> C[Walk association list]
+    C --> D{Match found?}
+    D -->|Yes| E[Return matched expression]
+    D -->|No| F{default clause?}
+    F -->|Yes| G[Return default expression]
+    F -->|No| H[Compile error]
+    E --> I[Compile-time constant]
+    G --> I
+```
+
 ## Use Cases
 
 - Type-generic macros (tgmath.h)
