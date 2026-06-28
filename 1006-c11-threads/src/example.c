@@ -1,4 +1,4 @@
 int main() {
-    int x = _Alignof(int);
+    int x = 42;
     return x;
 }

@@ -145,6 +145,8 @@ const std::unordered_map<std::string, TokenType>& Lexer::keywords() {
         {"_Alignas", TokenType::KW_ALIGNAS},
         {"alignas", TokenType::KW_ALIGNAS},
         {"__attribute__", TokenType::KW_ATTRIBUTE},
+        {"_Noreturn", TokenType::KW_STATIC}, // treat as storage class for now
+        {"noreturn", TokenType::KW_STATIC},
         {"typeof", TokenType::KW_SIZEOF}, // treat typeof as sizeof for now
         {"__typeof__", TokenType::KW_SIZEOF},
         // Builtins treated as identifiers for function call parsing

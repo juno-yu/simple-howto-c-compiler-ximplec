@@ -507,19 +507,19 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | 1000 | Static Assert | ✅ |
 | 1001 | Generic Selection | ✅ |
 | 1002 | Anonymous Structs | ✅ |
-| 1003 | Anonymous Unions | ❌ |
-| 1004 | _Noreturn | ❌ |
+| 1003 | Anonymous Unions | ✅ |
+| 1004 | _Noreturn | ✅ |
 | 1005 | _Atomic | ✅ |
-| 1006 | threads.h | ❌ |
-| 1007 | aligned_alloc | ❌ |
-| 1008 | tgmath | ❌ |
-| 1009 | stdatomic.h | ❌ |
+| 1006 | threads.h | ✅ |
+| 1007 | aligned_alloc | ✅ |
+| 1008 | tgmath | ✅ |
+| 1009 | stdatomic.h | ✅ |
 | 1010 | _Thread_local | ✅ |
-| 1011 | Bounds Checking | ❌ |
-| 1012 | static_assert alias | ❌ |
-| 1013 | stdnoreturn.h | ❌ |
+| 1011 | Bounds Checking | ✅ |
+| 1012 | static_assert alias | ✅ |
+| 1013 | stdnoreturn.h | ✅ |
 | 1014 | stdalign.h | ✅ |
-| 1015 | stdatomic complete | ❌ |
+| 1015 | stdatomic complete | ✅ |
 
 ### C17 Standard Lessons (2000-2005)
 

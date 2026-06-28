@@ -817,6 +817,10 @@ ASTPtr Parser::parse_statement() {
             return nullptr;
         }
         advance(); // consume identifier
+        // Check if this is a function declaration (nested function)
+        if (check(TokenType::LPAREN)) {
+            return parse_function_decl(type_name);
+        }
         return parse_var_decl(type_name);
     }
     // Label statement: identifier COLON
