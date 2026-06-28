@@ -1,6 +1,6 @@
 # Lesson 0014: sizeof Operator
 
-## Status: 📋 Planned | Phase: Type System | Effort: Easy (4-6h)
+## Status: ✅ Complete | Phase: Type System | Effort: Easy (4-6h)
 
 ## Objective
 

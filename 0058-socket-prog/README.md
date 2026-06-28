@@ -1,6 +1,6 @@
 # Lesson 0058: Socket Programming
 
-## Status: 📋 Planned | Phase: Stdlib Tier B | Effort: Medium (12-16h)
+## Status: ✅ Complete | Phase: Stdlib Tier B | Effort: Medium (12-16h)
 
 ## Objective
 

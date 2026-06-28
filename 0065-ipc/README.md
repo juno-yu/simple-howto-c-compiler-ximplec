@@ -1,6 +1,6 @@
 # Lesson 0065: Inter-Process Communication
 
-## Status: 📋 Planned | Phase: Stdlib Tier C | Effort: Hard
+## Status: ✅ Complete | Phase: Stdlib Tier C | Effort: Hard
 
 ## Objective
 

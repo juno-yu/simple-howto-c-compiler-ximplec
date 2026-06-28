@@ -1,6 +1,6 @@
 # Lesson 0064: Dynamic Loading
 
-## Status: 📋 Planned | Phase: Stdlib Tier C | Effort: Hard
+## Status: ✅ Complete | Phase: Stdlib Tier C | Effort: Hard
 
 ## Objective
 

@@ -1,48 +1,61 @@
-# Lesson 0043: Float and Double (SSE)
+# Lesson 0043: Float and Double
 
-## Status: 📋 Planned | Phase: Float & Advanced | Effort: Hard (12-16h)
+## Status: ⚠️ Partial | Phase: Float & Advanced | Effort: Hard (12-16h)
 
 ## Objective
 
-Implement floating-point types with SSE2 code generation.
+Implement `float` and `double` types in the type system. Currently parsed and accepted, but stored as integers — no FPU/SSE code generation is performed.
 
-## SSE Registers
+## Implementation Status
 
-| Register | Use |
-|----------|-----|
-| xmm0 | 1st float arg / return |
-| xmm1 | 2nd float arg |
-| xmm2 | 3rd float arg |
-| xmm3 | 4th float arg |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Lex `float` / `double` keywords | ✅ | Recognized by lexer |
+| Parse `float` / `double` types | ✅ | Type specifier chain accepts them |
+| Type size in `sizeof` | ✅ | `sizeof(float)` = 4, `sizeof(double)` = 8 |
+| Float literals (`3.14f`, `3.14`) | ✅ | Tokenized as float literals |
+| Hex float literals (`0x1.0p10`) | ✅ | Tokenized |
+| Float storage | ⚠️ | Stored in 8 bytes as integer (no FPU) |
+| Float arithmetic (`+`, `-`, `*`, `/`) | ❌ | Not supported — bit-level integer operations on float bits |
+| Float comparisons (`==`, `<`) | ❌ | Not supported |
+| Float return values | ❌ | Returned as integer in `%rax` |
+| Float ↔ int conversion | ❌ | Not implemented |
+| SSE2 instructions (`movss`, `addss`) | ❌ | Not generated |
+| `long double` (80-bit) | ❌ | Not supported |
 
-## Float/Double Code Generation
+## Limitation Summary
 
-```mermaid
-flowchart TD
-    A["float/double operations"] --> B[SSE2 Instructions]
-    B --> C["movss / movsd for loads/stores"]
-    B --> D["addss/addsd, subss/subsd"]
-    B --> E["mulss/mulsd, divss/divsd"]
-    B --> F["ucomiss/ucomisd for comparisons"]
+The compiler has the **type system infrastructure** for `float` and `double` (lex, parse, type-check, sizeof) but does **not generate floating-point arithmetic** at the x86-64 level. Float values are stored in stack slots as if they were 64-bit integers, so `return 3.14` returns the bit pattern of 3.14 as an integer, not the value 3.
 
-    G["Type conversions"] --> H["cvtsi2ss: int → float"]
-    G --> I["cvtsi2sd: int → double"]
-    G --> J["cvttss2si: float → int truncation"]
-    G --> K["cvtss2sd: float → double"]
+A program that simply declares a `float` and stores/loads it (no arithmetic) will compile. A program that performs `float + float` will produce undefined behavior at runtime because the integer add instruction does not produce the correct float sum.
 
-    L["Register usage"] --> M["xmm0: 1st float arg / return"]
-    L --> N["xmm1: 2nd float arg"]
-    L --> O["xmm2-xmm7: additional args"]
+## Future Work
+
+Full float support would require:
+1. Allocate 4 or 8 bytes per `float`/`double` (currently always 8).
+2. Generate `movss` / `movsd` for loads and stores.
+3. Generate `addss` / `addsd` / `subss` / `subsd` / `mulss` / `mulsd` / `divss` / `divsd` for arithmetic.
+4. Generate `ucomiss` / `ucomisd` for comparisons.
+5. Generate `cvtsi2ss` / `cvtsi2sd` for int→float conversion.
+6. Generate `cvttss2si` / `cvttsd2si` for float→int conversion.
+7. Pass float args in `%xmm0`–`%xmm7` per System V ABI (currently they go in integer registers).
+8. Return float values in `%xmm0` / `%xmm1`.
+
+## Example
+
+```c
+int main() {
+    float f = 3.14f;     // compiles, stores 3.14 as int bits
+    double d = 2.718;    // compiles, stores 2.718 as int bits
+    return 0;            // float arithmetic not supported
+}
 ```
 
-## Implementation Checklist
+## Source Code References
 
-- [ ] Add float/double types to type system
-- [ ] Parse float literals: `3.14f`, `3.14`
-- [ ] Codegen: `movss` / `movsd` for loads/stores
-- [ ] Codegen: `addss`/`addsd`, `mulss`/`mulsd`
-- [ ] Float parameter passing via xmm0-xmm7
-- [ ] `cvtsi2ss` for int→float conversion
-- [ ] `cvttss2si` for float→int truncation
-- [ ] Float comparisons: `ucomiss` / `ucomisd`
-- [ ] Test: `return 3.14 + 2.0;` → 5.14 (approx)
+| Component | File | Description |
+|-----------|------|-------------|
+| Lexer | `src/lexer.cpp` | `float`, `double` keywords, float literal lexing |
+| Parser | `src/parser.cpp` (`parse_type_specifier`) | `float`, `double` in type chain |
+| Type size | `src/codegen.cpp` (`get_type_size`) | 4 for float, 8 for double |
+| Codegen | `src/codegen.cpp` | No SSE instructions emitted |

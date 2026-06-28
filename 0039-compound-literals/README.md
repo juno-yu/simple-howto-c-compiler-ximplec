@@ -1,56 +1,41 @@
 # Lesson 0039: Compound Literals (C99)
 
-## Status: 📋 Planned | Phase: Advanced Types | Effort: Medium (4-6h)
+## Status: ⚠️ Partial | Phase: Advanced Types | Effort: Medium (4-6h)
 
 ## Objective
 
-Implement `(type){init-list}` for unnamed objects.
+Support C99 compound literal syntax: `(type){initializer-list}`. A compound literal creates an unnamed object with the given type and initial value, similar to a string literal but for any type.
 
-## Implementation Checklist
+## Syntax
 
-- [ ] Parse `(type){init-list}` expression syntax
-- [ ] Create anonymous object in current scope
-- [ ] Generate stack allocation for block-scope literals
-- [ ] Support struct, array, and scalar compound literals
-- [ ] Test: `return (struct Point){1, 2}.x;` → 1
-
-## Architecture
-
-```mermaid
-flowchart TD
-    A["Compound Literal Expression"] --> B["Parse type specifier"]
-    B --> C["Parse initializer list"]
-    C --> D["Create anonymous object"]
-
-    D --> E{"Scope?"}
-    E -->|Block scope| F["Allocate on stack"]
-    E -->|File scope| G["Allocate in static data"]
-
-    F --> H["Initialize fields from list"]
-    G --> H
-
-    H --> I["Return pointer/value to object"]
-
-    J["Compound Literal as Value"] --> K["Address-of yields pointer"]
-    J --> L["Value copy for assignment"]
-
-    M["Compound Literal as Argument"] --> N["Pass by value to function"]
-    M --> O["Pass pointer if parameter is pointer"]
-
-    P["int[]{1,2,3}"] --> Q["Array compound literal"]
-    R["struct{1,2}"] --> S["Struct compound literal"]
-
-    style F fill:#ffd,stroke:#333
-    style I fill:#ffd,stroke:#333
+```c
+int *p = (int[]){1, 2, 3};
+struct Point p = (struct Point){.x = 10, .y = 20};
 ```
 
-## Implementation Details
+## Implementation Status
 
-| Component | File | Lines | Description |
-|-----------|------|-------|-------------|
-| Cast expression parsing | `src/parser.cpp` | 1111-1126 | `parse_unary()` detects `(type)expr` cast syntax via lookahead |
-| Type specifier in cast | `src/parser.cpp` | 1115-1121 | Validates type after `(` and creates `CastExprNode` |
-| CastExprNode structure | `src/ast.h` | 444-451 | Stores `target_type` string and inner `expr` |
-| Cast codegen | `src/codegen.cpp` | 832-836 | Evaluates inner expression (type coercion not yet implemented) |
-| Address-of compound literal | `src/codegen.cpp` | 1108-1129 | `&(type){...}` uses ADDRESS_OF operator |
-| VarDeclNode initializer | `src/ast.h` | 213-222 | Initializer AST pointer for compound literal assignments |
+| Feature | Status |
+|---------|--------|
+| Parse `(type){...}` syntax | ✅ |
+| Type-checked against expected type | ✅ |
+| Allocate storage for the object | ⚠️ |
+| Emit initializer values | ❌ (zero-init) |
+| Use in expression context | ✅ (parsed) |
+
+## Limitation
+
+The parser accepts the compound literal syntax. The codegen creates a placeholder expression that evaluates to 0 — the actual storage allocation and initializer values are not emitted. A program that uses a compound literal will see the storage allocated as zeros.
+
+```c
+int *p = (int[]){1, 2, 3};
+return p[1];  // returns 0, not 2
+```
+
+## Source Code References
+
+| Component | File | Description |
+|-----------|------|-------------|
+| Parser | `src/parser.cpp` (`parse_primary`) | Detects `(type){...}` |
+| AST | `src/ast.h` | `CompoundLiteralNode` |
+| Codegen | `src/codegen.cpp` | Emits 0 as the value |

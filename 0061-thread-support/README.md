@@ -1,6 +1,6 @@
 # Lesson 0061: Thread Support (POSIX)
 
-## Status: 📋 Planned | Phase: Stdlib Tier C | Effort: Hard
+## Status: ✅ Complete | Phase: Stdlib Tier C | Effort: Hard
 
 ## Objective
 

@@ -1,6 +1,6 @@
 # Lesson 1013: Header `<stdnoreturn.h>` (C11)
 
-## Status: 📋 Planned | Standard: C11 | Effort: Trivial
+## Status: ✅ Complete | Standard: C11 | Effort: Trivial
 
 ## Objective
 

@@ -1036,7 +1036,11 @@ ASTPtr Parser::parse_for_stmt() {
     // Init
     if (is_type_specifier()) {
         std::string type = parse_type_specifier();
+        if (check(TokenType::IDENTIFIER)) {
+            advance(); // consume identifier — parse_var_decl expects pos past name
+        }
         for_stmt->init = parse_var_decl(type);
+        // parse_var_decl stops at `;` only via the for-loop's semicolon below
     } else if (!check(TokenType::SEMICOLON)) {
         for_stmt->init = parse_expr_stmt();
     } else {

@@ -1,6 +1,6 @@
 # Lesson 0037: void Pointers
 
-## Status: 📋 Planned | Phase: Advanced Types | Effort: Easy (2-3h)
+## Status: ✅ Complete | Phase: Advanced Types | Effort: Easy (2-3h)
 
 ## Objective
 

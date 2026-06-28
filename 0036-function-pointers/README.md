@@ -1,6 +1,6 @@
 # Lesson 0036: Function Pointers
 
-## Status: 📋 Planned | Phase: Advanced Types | Effort: Hard (8-12h)
+## Status: ✅ Complete | Phase: Advanced Types | Effort: Hard (8-12h)
 
 ## Objective
 

@@ -1,6 +1,6 @@
 # Lesson 0031: goto and Labels
 
-## Status: 📋 Planned | Phase: Control Flow | Effort: Medium (4-6h)
+## Status: ✅ Complete | Phase: Control Flow | Effort: Medium (4-6h)
 
 ## Objective
 

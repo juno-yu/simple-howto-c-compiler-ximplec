@@ -1,6 +1,6 @@
 # Lesson 0042: Array-to-Pointer Decay
 
-## Status: 📋 Planned | Phase: Advanced Types | Effort: Easy (2-3h)
+## Status: ✅ Complete | Phase: Advanced Types | Effort: Easy (2-3h)
 
 ## Objective
 

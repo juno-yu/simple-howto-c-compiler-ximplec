@@ -1,6 +1,6 @@
 # Lesson 0008: Do-While Loops
 
-## Status: 📋 Planned | Phase: Quick Wins | Effort: Easy (3-4h)
+## Status: ✅ Complete | Phase: Quick Wins | Effort: Easy (3-4h)
 
 ## Objective
 

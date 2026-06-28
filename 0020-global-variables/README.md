@@ -1,6 +1,6 @@
 # Lesson 0020: Global Variables
 
-## Status: 📋 Planned | Phase: String & Memory | Effort: Medium (6-10h)
+## Status: ✅ Complete | Phase: String & Memory | Effort: Medium (6-10h)
 
 ## Objective
 

@@ -1,6 +1,6 @@
 # Lesson 0060: Environment Variables
 
-## Status: 📋 Planned | Phase: Stdlib Tier B | Effort: Easy
+## Status: ✅ Complete | Phase: Stdlib Tier B | Effort: Easy
 
 ## Objective
 

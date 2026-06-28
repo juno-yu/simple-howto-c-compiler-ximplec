@@ -1,49 +1,41 @@
-# Lesson 0072: Compile the Compiler (Phase 1)
+# Lesson 0072-0074: Self-Hosting Milestones
 
-## Status: 📋 Planned | Phase: Self-Hosting | Effort: Hard
+## Status: ⚠️ Partial | Phase: Self-Hosting | Effort: Hard
 
 ## Objective
 
-Use simplecc to compile a subset of its own source.
+These lessons represent intermediate steps toward full self-hosting (lesson 0075). They are placeholder steps in the self-hosting roadmap.
 
-## Phase 1: Tokenize & Parse Small Modules
+| Lesson | Step | Status |
+|--------|------|--------|
+| 0072 | Compile the compiler's own AST definitions | ❌ Not done |
+| 0073 | Compile the compiler's own parser | ❌ Not done |
+| 0074 | Compile the compiler's own codegen | ❌ Not done |
 
-```mermaid
-graph LR
-    A[token.h] --> B[simplecc]
-    A2[ast.h] --> B
-    A3[lexer.h] --> B
-    B --> C[Compiled Token Module]
-    C --> D[Test Binary]
-    D --> E{Works?}
-    E -->|Yes| F[Proceed to Phase 2]
-    E -->|No| G[Document Missing Features]
+## Limitation
+
+The compiler is written in C++17 and uses the C++ standard library (vectors, unique_ptr, strings). It cannot be compiled by a C-only compiler. Reaching these milestones requires first porting the compiler to C (see lesson 0071).
+
+## Roadmap
+
+```
+Phase 1: This Project (✅ Complete)
+  → C++ compiler that emits x86-64 assembly
+  
+Phase 2: Port to C (❌ Not Started)
+  → Rewrite simplecc in C11 using minimal stdlib
+  → Result: c_simplecc that emits x86-64 assembly
+
+Phase 3: Self-Compilation (Lesson 0072-0074)
+  → Use c_simplecc to compile c_simplecc's own source
+  → Result: a self-compiled c_simplecc binary
+
+Phase 4: Bootstrap (Lesson 0075)
+  → Use c_simplecc (compiled by another compiler) to compile c_simplecc
+  → Compare output to the original c_simplecc
+  → Result: bootstrapped, verified self-hosting compiler
 ```
 
-## Approach
+## Current State
 
-1. Start with smallest modules (token.h, ast.h)
-2. Gradually add more files
-3. Track which features are missing
-
-## Implementation Checklist
-
-- [ ] Compile token.h/token.cpp with simplecc
-- [ ] Compile ast.h/ast.cpp with simplecc
-- [ ] Compile lexer.h/lexer.cpp with simplecc
-- [ ] Document any missing features encountered
-- [ ] Test: binary compiled by simplecc works correctly
-
-## Implementation Details
-
-| Component | Source File | Line(s) | Description |
-|-----------|------------|---------|-------------|
-| Token type definitions | `src/token.h` | 9-100 | `TokenType` enum — all token types the tokenizer produces |
-| Token struct | `src/token.h` | 102-111 | `Token` with `type`, `value`, `line`, `column` fields |
-| `Lexer::tokenize()` | `src/lexer.cpp` | 452 | Main tokenization entry point, returns `std::vector<Token>` |
-| Lexer keyword map | `src/lexer.cpp` | 124 | Maps keyword strings to `TokenType` values |
-| `token_type_name()` | `src/token.h` | 113 | Utility to convert token type to string for debugging |
-| AST node type enum | `src/ast.h` | 10-61 | `NodeType` enum — all AST node types the parser produces |
-| AST base struct | `src/ast.h` | 173-180 | `ASTNode` with `type`, `line`, `column` |
-| `ASTVisitor` interface | `src/ast.h` | 126-171 | Visitor pattern for AST traversal |
-| `ProgramNode` | `src/ast.h` | 185-190 | Root AST node containing all declarations |
+The project is at Phase 1. The example program in this directory is a placeholder — the actual self-hosting work has not been done.

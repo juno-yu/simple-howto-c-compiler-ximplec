@@ -1,6 +1,6 @@
 # Lesson 0012: const Qualifier
 
-## Status: 📋 Planned | Phase: Quick Wins | Effort: Easy (3-4h)
+## Status: ✅ Complete | Phase: Quick Wins | Effort: Easy (3-4h)
 
 ## Objective
 

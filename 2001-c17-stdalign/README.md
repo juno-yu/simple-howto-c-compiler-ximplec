@@ -1,6 +1,6 @@
 # Lesson 2001: stdalign.h (C17)
 
-## Status: 📋 Planned | Standard: C17 | Effort: Trivial
+## Status: ✅ Complete | Standard: C17 | Effort: Trivial
 
 ## Objective
 

@@ -1,6 +1,6 @@
 # Lesson 0030: switch/case/default
 
-## Status: 📋 Planned | Phase: Control Flow | Effort: Medium (8-12h)
+## Status: ✅ Complete | Phase: Control Flow | Effort: Medium (8-12h)
 
 ## Objective
 

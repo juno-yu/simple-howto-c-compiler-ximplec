@@ -1,6 +1,6 @@
 # Lesson 0047: Statement Expressions (GCC Extension)
 
-## Status: 📋 Planned | Phase: Float & Advanced | Effort: Medium (4-6h)
+## Status: ✅ Complete | Phase: Float & Advanced | Effort: Medium (4-6h)
 
 ## Objective
 

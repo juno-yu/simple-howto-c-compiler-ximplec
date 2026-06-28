@@ -1,6 +1,6 @@
 # Lesson 0013: Type System Core
 
-## Status: 📋 Planned | Phase: Type System | Effort: Hard (20-30h)
+## Status: ✅ Complete | Phase: Type System | Effort: Hard (20-30h)
 
 ## Objective
 

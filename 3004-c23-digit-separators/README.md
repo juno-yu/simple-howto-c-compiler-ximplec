@@ -1,6 +1,6 @@
 # Lesson 3004: Digit Separators (C23)
 
-## Status: 📋 Planned | Standard: C23 | Effort: Easy
+## Status: ✅ Complete | Standard: C23 | Effort: Easy
 
 ## Objective
 

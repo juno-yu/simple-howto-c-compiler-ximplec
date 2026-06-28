@@ -1,6 +1,6 @@
 # Lesson 0028: Enums
 
-## Status: 📋 Planned | Phase: Data Structures | Effort: Easy (4-6h)
+## Status: ✅ Complete | Phase: Data Structures | Effort: Easy (4-6h)
 
 ## Objective
 

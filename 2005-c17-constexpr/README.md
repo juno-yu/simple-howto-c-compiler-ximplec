@@ -1,6 +1,6 @@
 # Lesson 2005: constexpr (C17 GCC Extension)
 
-## Status: 📋 Planned | Standard: C17 (GCC extension) | Effort: Easy
+## Status: ✅ Complete | Standard: C17 (GCC extension) | Effort: Easy
 
 ## Objective
 

@@ -1,42 +1,44 @@
 # Lesson 0070: Debug Information (DWARF)
 
-## Status: 📋 Planned | Phase: Optimization | Effort: Hard
+## Status: ⚠️ Partial | Phase: Optimization | Effort: Hard
 
 ## Objective
 
-Generate DWARF debug info for gdb/lldb.
+Generate DWARF debug info for `gdb`/`lldb` so the compiled binary can be debugged at the source level.
 
-## Debug Info Generation
+## Implementation Status
 
-```mermaid
-graph TD
-    A[Source Code] --> B[Tokenizer]
-    B --> C[Parser]
-    C --> D[AST with Source Locations]
-    D --> E[.debug_info Section]
-    D --> F[.debug_line Section]
-    D --> G[.debug_abbrev Section]
-    E --> H[DWARF Output]
-    F --> H
-    G --> H
-```
+| Feature | Status |
+|---------|--------|
+| Track source locations (line/column) in tokens | ✅ |
+| Track source locations in AST nodes | ✅ |
+| Propagate locations in error messages | ✅ |
+| Emit `.debug_info` section | ❌ |
+| Emit `.debug_line` section | ❌ |
+| Emit `.debug_abbrev` section | ❌ |
+| Map source lines to assembly addresses | ❌ |
+| Describe types and variables | ❌ |
 
-## Implementation Checklist
+## Limitation
 
-- [ ] Generate `.debug_info` section
-- [ ] Generate `.debug_line` section (line numbers)
-- [ ] Generate `.debug_abbrev` section
-- [ ] Map source locations to addresses
-- [ ] Describe types and variables
-- [ ] Test: `gcc -g` produces debuggable binary
+The compiler has the **infrastructure** for source locations: tokens carry `line` and `column`, AST nodes inherit this, and errors are reported with positions. However, **no DWARF directives** (`.loc`, `.file`, `.cfi_*`, etc.) are emitted into the assembly output. The resulting binaries are stripped of debug info and cannot be source-level debugged.
 
-## Implementation Details
+To enable debugging, the user can add `gcc -g` at assembly time, but this only adds empty debug sections; there is no source-to-address mapping in the assembly itself.
 
-| Component | Source File | Line(s) | Description |
-|-----------|------------|---------|-------------|
-| Token source locations | `src/token.h` | 102-111 | `Token` struct carries `line` and `column` fields for source mapping |
-| Lexer source tracking | `src/lexer.h` | 49-50 | `Lexer` tracks `line_` and `column_` during tokenization |
-| Lexer error locations | `src/lexer.h` | 19-21 | `error_line()` and `error_column()` expose error positions |
-| AST node locations | `src/ast.h` | 173-180 | `ASTNode` base struct stores `line` and `column` for every node |
-| Error location propagation | `src/compiler.cpp` | 17-21, 28-33 | `CompileResult` passes lexer/parser error locations to caller |
-| Codegen emit functions | `src/codegen.cpp` | 65-87 | `emit()`, `emit_label()`, `emit_function_prologue()` — assembly output layer where debug directives would be inserted |
+## Source Code References
+
+| Component | File | Description |
+|-----------|------|-------------|
+| Token source locations | `src/token.h` | `Token` struct carries `line` and `column` |
+| AST node locations | `src/ast.h` | `ASTNode` base stores `line` and `column` |
+| Error propagation | `src/compiler.cpp` | `CompileResult` carries error positions |
+| Codegen | `src/codegen.cpp` | `emit()` writes assembly — would be the place to add `.file`/`.loc` |
+
+## Future Work
+
+1. Emit `.file "name.c"` at the top of the assembly.
+2. Emit `.loc 1 line column` before each statement.
+3. Map source lines to instruction addresses via labels.
+4. Emit `.cfi_start_proc` / `.cfi_end_proc` for call frame info.
+5. Generate `.debug_info` entries for types and variables.
+6. Use `.set` directives to control section layout.

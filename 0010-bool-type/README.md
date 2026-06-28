@@ -1,6 +1,6 @@
 # Lesson 0010: _Bool / bool Type
 
-## Status: 📋 Planned | Phase: Quick Wins | Effort: Easy (1-2h)
+## Status: ✅ Complete | Phase: Quick Wins | Effort: Easy (1-2h)
 
 ## Objective
 

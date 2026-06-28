@@ -86,12 +86,14 @@ This project builds a compiler for a substantial subset of C, progressing from b
 |---------|-------|--------|---------|--------|
 | Integer (decimal) | ✅ | ✅ | ✅ | 0001 |
 | Integer (hex `0xFF`) | ✅ | ✅ | ✅ | 0001 |
-| Integer (binary `0b1010`) | ✅ | ✅ | ✅ | 0001 |
+| Integer (binary `0b1010`) | ✅ | ✅ | ✅ | 0001, 3005 |
 | Integer (octal `0777`) | ✅ | ✅ | ✅ | 0001 |
+| Digit separators (`1'000'000`) | ✅ | ✅ | ✅ | 3004 |
 | Char (`'a'`, `'\n'`) | ✅ | ✅ | ✅ | 0001 |
 | String (`"hello"`) | ✅ | ✅ | ✅ | 0019 |
-| Float (`3.14`, `3.14f`) | ✅ | ✅ | ⚠️ Parsed, zero-init only | 0043 |
-| Hex float (`0x1.0p10`) | ✅ | ✅ | ⚠️ Tokenized, zero-init only | 0043 |
+| Bool (`true`/`false`) | ✅ | ✅ | ✅ | 3000 |
+| Float (`3.14`, `3.14f`) | ✅ | ✅ | ⚠️ Parsed, stored as int (no FPU) | 0043 |
+| Hex float (`0x1.0p10`) | ✅ | ✅ | ⚠️ Tokenized, stored as int | 0043 |
 
 ### Types
 
@@ -101,8 +103,9 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | `char` | ✅ | ✅ | ✅ | 0013 |
 | `void` | ✅ | ✅ | ✅ | 0013 |
 | `bool` / `_Bool` | ✅ | ✅ | ✅ | 0010 |
-| `float` | ✅ | ✅ | ⚠️ Parsed, stored as int | 0043 |
-| `double` | ✅ | ✅ | ⚠️ Parsed, stored as int | 0043 |
+| `float` | ✅ | ✅ | ⚠️ Parsed, stored as int (no FPU) | 0043 |
+| `double` | ✅ | ✅ | ⚠️ Parsed, stored as int (no FPU) | 0043 |
+| `long double` | ❌ | — | — | — |
 | `long` / `long long` | ✅ | ✅ | ✅ | 0015 |
 | `short` | ✅ | ✅ | ✅ | 0015 |
 | `signed` / `unsigned` | ✅ | ✅ | ✅ | 0015 |
@@ -177,7 +180,7 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | Forward declarations | ✅ | ✅ | ✅ | 0011 |
 | Parameters (6 reg ABI) | ✅ | ✅ | ✅ | 0001 |
 | Recursive calls | ✅ | ✅ | ✅ | 0001 |
-| Variadic (`...`) | ✅ | ✅ | ⚠️ Parsed, no va_arg support | 0046 |
+| Variadic (`...`) | ✅ | ✅ | ⚠️ Parsed, no `va_arg` support | 0046 |
 | Nested functions (GCC) | ❌ | — | — | — |
 
 ### Declarations & Initializers
@@ -197,7 +200,7 @@ This project builds a compiler for a substantial subset of C, progressing from b
 
 | Feature | Status | Lesson |
 |---------|--------|--------|
-| `#include` | ⚠️ Tracked (not expanded) | 0035 |
+| `#include` | ✅ Implemented (`"file.h"` only; `<*.h>` not bundled) | 0035 |
 | `#define` (object-like) | ✅ Implemented | 0033 |
 | `#define` (function-like) | ✅ Implemented | 0033 |
 | `#ifdef` / `#ifndef` | ✅ Implemented | 0034 |
@@ -227,32 +230,48 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | Feature | Lexer | Parser | Codegen | Lesson |
 |---------|-------|--------|---------|--------|
 | Statement expressions `({...})` | ✅ | ✅ | ✅ | 0082 |
-| Inline assembly `asm()` | ❌ | — | — | — |
-| Label-as-value (`&&label`) | ✅ | ✅ | ⚠️ Parsed | 0083 |
+| Inline assembly `asm("...")` | ✅ | ✅ | ✅ Raw asm pass-through | 0048 |
+| Extended asm `asm("..." : : : clobber)` | ✅ | ⚠️ Parsed (operands skipped) | ⚠️ Empty output | 0048 |
+| Label-as-value (`&&label`) | ✅ | ✅ | ⚠️ Parsed (as int 0) | 0083 |
 | `__attribute__` | ✅ | ✅ | ⚠️ Ignored | 0084 |
-| `__builtin_expect` | ✅ | ✅ | ✅ | 0085 |
-| `__builtin_offsetof` | ❌ | — | — | — |
-| Nested functions | ❌ | — | — | 0086 |
-| Binary literals `0b1010` | ✅ | ✅ | ✅ | 0001 |
+| `[[attribute]]` (C23) | ✅ | ✅ | ⚠️ Via `__attribute__` | 3007 |
+| `__builtin_expect` | ✅ | ✅ | ✅ Returns first arg | 0085 |
+| `__builtin_offsetof` | ✅ | ✅ | ✅ Computes struct offset | 0085 |
+| `__builtin_popcount` | ✅ | ✅ | ⚠️ Emitted as external call | 0085 |
+| Nested functions | ✅ | ✅ | ❌ Trampoline not supported | 0086 |
+| Binary literals `0b1010` | ✅ | ✅ | ✅ | 0001, 3005 |
+| Variadic macros (`__VA_ARGS__`) | ✅ | ✅ | ✅ | 0078 |
+| Token pasting (`##`) | ✅ | ✅ | ✅ | 0079 |
+| Stringification (`#`) | ✅ | ✅ | ✅ | 0033 |
+| `#pragma` | ✅ | ✅ | ⚠️ Ignored | 0080 |
 
 ### C11 Features
 
 | Feature | Status | Lesson |
 |---------|--------|--------|
 | `_Static_assert` | ✅ Parsed (skipped) | 1000 |
+| `static_assert` (alias) | ⚠️ Needs `<assert.h>` | 1012 |
 | `_Generic` | ✅ Parsed (simplified) | 1001 |
 | `_Alignas` / `_Alignof` | ✅ Parsed | 1014 |
 | `_Atomic` | ✅ Parsed (type qualifier) | 1005 |
 | `_Thread_local` | ✅ Parsed (type qualifier) | 1010 |
+| `<threads.h>` | ⚠️ Declared (extern) | 1006 |
+| `aligned_alloc` | ⚠️ Declared (extern) | 1007 |
+| `<tgmath.h>` | ⚠️ Declared (extern) | 1008 |
+| `<stdatomic.h>` | ⚠️ Declared (extern) | 1009, 1015 |
+| `_Noreturn` | ✅ Mapped to `static` | 1004 |
+| `<stdnoreturn.h>` | ⚠️ Declared (extern) | 1013 |
 | Anonymous structs | ✅ Parsed + codegen | 1002 |
+| Anonymous unions | ✅ Parsed + codegen | 1003 |
+| Annex K (`gets_s`, etc.) | ❌ Not implemented | 1011 |
 
 ### C17 Features
 
 | Feature | Status | Lesson |
 |---------|--------|--------|
-| `<stdbool.h>` (bool/true/false) | ✅ Implemented | 2000 |
-| `<stdalign.h>` (alignas/alignof) | ✅ Implemented | 2001 |
-| `<stdnoreturn.h>` (noreturn) | ⚠️ Parsed (ignored) | 2002 |
+| `<stdbool.h>` (bool/true/false) | ⚠️ Needs `<stdbool.h>` (not bundled) | 2000 |
+| `<stdalign.h>` (alignas/alignof) | ⚠️ Needs `<stdalign.h>` (not bundled) | 2001 |
+| `<stdnoreturn.h>` (noreturn) | ✅ Parsed | 2002 |
 | `<stdint.h>` (int32_t/uint64_t) | ⚠️ Declared (extern) | 2003 |
 | `typeof` | ✅ Mapped to sizeof | 2004 |
 | `__STDC_VERSION__` | ✅ Defined (202311L) | 2005 |
@@ -263,12 +282,69 @@ This project builds a compiler for a substantial subset of C, progressing from b
 |---------|--------|--------|
 | `nullptr` | ⚠️ Via `(void*)0` | 3009 |
 | `bool` / `true` / `false` literals | ✅ Implemented | 3000 |
-| `auto` type inference | ⚠️ Parsed (type qualifier) | 3001 |
-| `constexpr` | ⚠️ Parsed (ignored) | 3008 |
+| `auto` type inference | ⚠️ Parsed (treated as `auto` storage) | 3001 |
+| `for (int i = 0; ...)` init decl | ✅ Implemented | 3002 |
+| Empty struct `struct {}` | ✅ Implemented | 3003 |
 | Digit separators (`1'000'000`) | ✅ Implemented | 3004 |
 | Binary literals (`0b1010`) | ✅ Implemented | 3005 |
 | `[[attribute]]` syntax | ⚠️ Via `__attribute__` | 3007 |
-| `#embed` | ❌ Not implemented | 3006 |
+| `[[nodiscard]]` | ⚠️ Parsed (ignored) | 3013 |
+| `[[noreturn]]` | ⚠️ Parsed (ignored) | 3012 |
+| `constexpr` | ⚠️ Parsed (ignored) | 3008, 3010 |
+| `__VA_OPT__` | ❌ Not implemented | 3014 |
+| `#embed` | ✅ Implemented (byte literal expansion) | 3006 |
+| Predefined macros | ✅ `__STDC_VERSION__` etc. | 3014 |
+
+## Known Limitations
+
+This compiler is a substantial subset of C but not a complete C23 implementation. Documented limits:
+
+### Floating Point
+- **No FPU support** — `float` and `double` are lexed, parsed, and type-checked but stored as 8-byte integers in memory. Arithmetic and conversion between float and int is not performed.
+- No `long double` support.
+- Math library functions (`sin`, `cos`, `sqrt`, etc.) are declared `extern` but not implemented — calls link against system libm.
+
+### Initializers
+- **Braced initializers produce zero-initialized storage.** `int a[3] = {1, 2, 3}` reserves 3 ints of space but emits 0s. Designated initializers (`.x = 1`) are parsed but produce zero-init.
+- **Compound literals `(int[]){1, 2, 3}`** parse and type-check but produce 0 at runtime.
+
+### Variadic Functions
+- `...` parameter lists are accepted; `va_start` / `va_arg` / `va_end` are not implemented. Variadic functions are emitted as zero-argument functions.
+
+### Preprocessor
+- **No standard library bundled** — `#include <stdio.h>` fails because headers aren't shipped. `#include "file.h"` works for files in the same directory.
+- **`#pragma` is ignored** — including `#pragma once`, diagnostic pragmas, etc.
+- **`#line` is ignored.**
+- **`__VA_OPT__` is not implemented.**
+- **Macro recursion is not detected** — recursive macros can hang the compiler.
+
+### Standard Library
+- No bundled C standard library. `<stdio.h>`, `<stdlib.h>`, `<string.h>`, `<math.h>`, `<stdint.h>`, `<threads.h>`, `<stdatomic.h>`, etc. are not shipped.
+- Standard library functions are called via system `gcc`/`ld` link. They are not compiled by this project.
+
+### Inline Assembly
+- **Basic form `asm("nop")` works** — assembly text is passed through to output.
+- **Extended form `asm("..." : "=r"(x) : "r"(y) : "eax")`** parses but operand strings and clobbers are dropped. No register allocation for inputs/outputs.
+
+### Nested Functions (GCC extension)
+- **Cannot capture enclosing variables.** Nested function declarations parse but references to outer locals fail. Trampoline support (using `mprotect` to make stack executable) is not implemented.
+
+### Constants
+- **`_Static_assert` is parsed and silently skipped.** The expression is not evaluated at compile time. Always passes.
+- **`_Generic` is parsed but simplified** — returns the first matching arm's expression type.
+- **`constexpr` is parsed and ignored.**
+
+### Other
+- **No debug info emission** (`-g` equivalent). Assembler directives for `.file` / `.loc` are not generated.
+- **No optimization passes** — no constant folding, dead code elimination, or register allocation beyond what the assembler provides.
+- **No `goto *ptr` computed gotos for arbitrary pointers** — only `goto *(&&label)` for label-as-value works.
+- **Function pointers are called via indirect call** — no vtable or devirtualization.
+- **No `_Complex` or `_Imaginary` types.**
+
+### External Tools Required
+- `gcc` / `ld` for assembling and linking
+- System libc/libm for standard library functions
+- `as` (GNU assembler) for `.s` → `.o`
 
 ## Building
 
@@ -333,37 +409,55 @@ gcc -o test test.s
 
 ## Verified Working Examples
 
+Each of these compiles and runs. Note that `enum`, `struct`, and `typedef` declarations are valid only at file scope (not inside a function body).
+
 ```c
 // Pointer dereference → 42
-int x = 42; int *p = &x; return *p;
+int main() {
+    int x = 42; int *p = &x; return *p;
+}
 
 // Array indexing → 20
-int arr[3]; arr[1] = 20; return arr[1];
+int main() {
+    int arr[3]; arr[1] = 20; return arr[1];
+}
 
 // Switch/case → 20
-switch (x) { case 1: return 10; case 2: return 20; }
+int main() {
+    int x = 2;
+    switch (x) { case 1: return 10; case 2: return 20; }
+    return 0;
+}
 
 // Enum constants → 1
-enum Color { RED=0, GREEN=1 }; return GREEN;
+enum Color { RED=0, GREEN=1 };
+int main() { return GREEN; }
 
 // Typedef → 42
-typedef int integer; integer x = 42; return x;
+typedef int integer;
+int main() { integer x = 42; return x; }
 
 // Struct member access → 30
 struct Point { int x; int y; };
-struct Point p; p.x=10; p.y=20; return p.x+p.y;
+int main() {
+    struct Point p; p.x=10; p.y=20; return p.x+p.y;
+}
 ```
 
 ## Lesson Progress
 
-**Compilation status:** 60/70 lessons compile successfully.
+**Lesson status:** 105 lessons ✅ Complete, 15 lessons ⚠️ Partial. See each lesson's README for details of what is and is not implemented.
+
+**Compilation status:** 113/118 lessons with example programs compile successfully. The 5 failures are all due to `#include <*.h>` for non-bundled standard library headers (e.g., `<stdio.h>`, `<stdbool.h>`, `<assert.h>`). All 5 are documented as requiring user-provided headers.
+
+**Test status:** 6/6 test suites pass (tokenizer, AST, parser, codegen, integration, lessons 0076-1014).
 
 ### Core Lessons (0001-0005) — ✅ Complete
 
 | Lesson | Topic | Tests | Compile |
 |--------|-------|-------|---------|
 | 0001 | Tokenizer (Lexer) | 26 | ✅ |
-| 0002 | AST Definitions | 10 | ✅ |
+| 0002 | AST Definitions | 7 | ✅ |
 | 0003 | Parser (Recursive Descent) | 20 | ✅ |
 | 0004 | Code Generator (x86-64) | 11 | ✅ |
 | 0005 | Integration (CLI, Pipeline) | 11 | ✅ |
@@ -434,12 +528,12 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 |--------|-------|---------|
 | 0036 | Function Pointers | ✅ |
 | 0037 | Void Pointers | ✅ |
-| 0038 | Designated Init | ✅ |
-| 0039 | Compound Literals | ✅ |
+| 0038 | Designated Init | ⚠️ Partial |
+| 0039 | Compound Literals | ⚠️ Partial |
 | 0040 | Bitfields | ✅ |
-| 0041 | Multi-Dim Arrays | ✅ |
+| 0041 | Multi-Dim Arrays | ⚠️ 1D only |
 | 0042 | Array-Pointer Decay | ✅ |
-| 0043 | Float/Double | ✅ |
+| 0043 | Float/Double | ⚠️ Partial |
 | 0044 | Static Assert | ✅ |
 | 0045 | Generic | ✅ |
 
@@ -449,7 +543,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 |--------|-------|---------|
 | 0046 | Variadic | ✅ |
 | 0047 | Statement Expr | ✅ |
-| 0048 | Inline ASM | ✅ |
+| 0048 | Inline ASM | ⚠️ Partial |
 | 0049 | Multi-File | ✅ |
 | 0050 | Static Linkage | ✅ |
 | 0051 | Volatile Qualifier | ✅ |
@@ -472,16 +566,16 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 
 | Lesson | Topic | Compile |
 |--------|-------|---------|
-| 0066 | Const Folding | ✅ |
-| 0067 | Dead Code Elim | ✅ |
-| 0068 | Register Alloc | ✅ |
-| 0069 | Function Inline | ✅ |
-| 0070 | Debug Info | ✅ |
-| 0071 | Self-Host Prep | ✅ |
-| 0072 | Compile Compiler 1 | ✅ |
-| 0073 | Compile Compiler 2 | ✅ |
-| 0074 | Compile Compiler 3 | ✅ |
-| 0075 | Bootstrap | ✅ |
+| 0066 | Const Folding | ⚠️ Partial |
+| 0067 | Dead Code Elim | ⚠️ Partial |
+| 0068 | Register Alloc | ⚠️ Partial |
+| 0069 | Function Inline | ⚠️ Partial |
+| 0070 | Debug Info | ⚠️ Partial |
+| 0071 | Self-Host Prep | ⚠️ Partial |
+| 0072 | Compile Compiler 1 | ⚠️ Partial |
+| 0073 | Compile Compiler 2 | ⚠️ Partial |
+| 0074 | Compile Compiler 3 | ⚠️ Partial |
+| 0075 | Bootstrap | ⚠️ Partial |
 
 ### GCC Extensions (0076-0086)
 
@@ -497,7 +591,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | 0083 | Label-as-Value | ✅ |
 | 0084 | Attribute (GCC) | ✅ |
 | 0085 | Builtin Functions | ✅ |
-| 0086 | Nested Functions | ❌ |
+| 0086 | Nested Functions | ⚠️ Partial |
 
 ### C11 Standard Lessons (1000-1015)
 
@@ -554,12 +648,13 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 ## Test Results
 
 ```
-5/5 Test #1: tokenizer_tests ..................   Passed
-5/5 Test #2: ast_tests ........................   Passed
-5/5 Test #3: parser_tests .....................   Passed
-5/5 Test #4: codegen_tests ....................   Passed
-5/5 Test #5: integration_tests ................   Passed
-100% tests passed, 0 tests failed
+1/6 Test #1: tokenizer_tests ..................   Passed
+2/6 Test #2: ast_tests ........................   Passed
+3/6 Test #3: parser_tests .....................   Passed
+4/6 Test #4: codegen_tests ....................   Passed
+5/6 Test #5: integration_tests ................   Passed
+6/6 Test #6: test_lessons_0076_1014 ...........   Passed
+100% tests passed, 0 tests failed out of 6
 ```
 
 ## References

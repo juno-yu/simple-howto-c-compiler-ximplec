@@ -1,6 +1,6 @@
 # Lesson 0059: Signal Handling
 
-## Status: 📋 Planned | Phase: Stdlib Tier B | Effort: Medium
+## Status: ✅ Complete | Phase: Stdlib Tier B | Effort: Medium
 
 ## Objective
 

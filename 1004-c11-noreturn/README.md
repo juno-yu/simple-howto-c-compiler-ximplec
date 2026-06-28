@@ -1,6 +1,6 @@
 # Lesson 1004: _Noreturn (C11)
 
-## Status: 📋 Planned | Standard: C11 | Effort: Easy
+## Status: ✅ Complete | Standard: C11 | Effort: Easy
 
 ## Objective
 

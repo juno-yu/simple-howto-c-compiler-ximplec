@@ -1,6 +1,6 @@
 # Lesson 0021: Extern Declarations
 
-## Status: 📋 Planned | Phase: String & Memory | Effort: Easy (2-3h)
+## Status: ✅ Complete | Phase: String & Memory | Effort: Easy (2-3h)
 
 ## Objective
 

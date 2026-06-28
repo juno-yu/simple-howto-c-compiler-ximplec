@@ -1,6 +1,6 @@
 # Lesson 2003: stdint.h (C17)
 
-## Status: 📋 Planned | Standard: C17 | Effort: Easy
+## Status: ✅ Complete | Standard: C17 | Effort: Easy
 
 ## Objective
 

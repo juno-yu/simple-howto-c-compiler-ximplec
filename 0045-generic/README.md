@@ -1,6 +1,6 @@
 # Lesson 0045: _Generic Selection (C11)
 
-## Status: 📋 Planned | Phase: Float & Advanced | Effort: Hard (8-12h)
+## Status: ✅ Complete | Phase: Float & Advanced | Effort: Hard (8-12h)
 
 ## Objective
 

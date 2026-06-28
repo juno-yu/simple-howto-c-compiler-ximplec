@@ -1,6 +1,6 @@
 # Lesson 1012: static_assert (C11 Optional)
 
-## Status: 📋 Planned | Standard: C11 | Effort: Easy
+## Status: ✅ Complete | Standard: C11 | Effort: Easy
 
 ## Objective
 

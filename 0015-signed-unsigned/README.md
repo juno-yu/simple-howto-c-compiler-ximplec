@@ -1,6 +1,6 @@
 # Lesson 0015: Signed/Unsigned and Integer Sizes
 
-## Status: 📋 Planned | Phase: Type System | Effort: Medium (4-6h)
+## Status: ✅ Complete | Phase: Type System | Effort: Medium (4-6h)
 
 ## Objective
 

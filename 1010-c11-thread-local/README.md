@@ -1,6 +1,6 @@
 # Lesson 1010: _Thread_local (C11)
 
-## Status: 📋 Planned | Standard: C11 | Effort: Medium
+## Status: ✅ Complete | Standard: C11 | Effort: Medium
 
 ## Objective
 

@@ -1,6 +1,6 @@
 # Lesson 0032: break/continue (Proper)
 
-## Status: 📋 Planned | Phase: Control Flow | Effort: Easy (2-3h)
+## Status: ✅ Complete | Phase: Control Flow | Effort: Easy (2-3h)
 
 ## Objective
 

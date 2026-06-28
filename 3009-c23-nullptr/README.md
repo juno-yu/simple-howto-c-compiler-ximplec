@@ -1,6 +1,6 @@
 # Lesson 3009: nullptr (C23)
 
-## Status: 📋 Planned | Standard: C23 | Effort: Easy
+## Status: ✅ Complete | Standard: C23 | Effort: Easy
 
 ## Objective
 

@@ -1,6 +1,6 @@
 # Lesson 0009: Comma Operator
 
-## Status: 📋 Planned | Phase: Quick Wins | Effort: Easy (1-2h)
+## Status: ✅ Complete | Phase: Quick Wins | Effort: Easy (1-2h)
 
 ## Objective
 

@@ -1,6 +1,6 @@
 # Lesson 0052: System Calls
 
-## Status: 📋 Planned | Phase: Stdlib Tier A | Effort: Medium (4-6h)
+## Status: ✅ Complete | Phase: Stdlib Tier A | Effort: Medium (4-6h)
 
 ## Objective
 

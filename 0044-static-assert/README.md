@@ -1,6 +1,6 @@
 # Lesson 0044: _Static_assert (C11)
 
-## Status: 📋 Planned | Phase: Float & Advanced | Effort: Easy (2-3h)
+## Status: ✅ Complete | Phase: Float & Advanced | Effort: Easy (2-3h)
 
 ## Objective
 

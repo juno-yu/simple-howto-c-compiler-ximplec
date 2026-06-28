@@ -1,57 +1,49 @@
 # Lesson 0068: Register Allocation
 
-## Status: 📋 Planned | Phase: Optimization | Effort: Hard
+## Status: ⚠️ Partial | Phase: Optimization | Effort: Hard
 
 ## Objective
 
-Minimize memory access by keeping values in registers.
+Allocate local variables to physical CPU registers instead of stack slots when possible, to reduce memory traffic and improve performance.
 
-## Register Allocation Pipeline
+## Implementation Status
 
-```mermaid
-graph LR
-    A[IR Instructions] --> B[Build Interference Graph]
-    B --> C[Linear Scan]
-    C --> D{Reg Pressure?}
-    D -->|Low| E[Assign Registers]
-    D -->|High| F[Spill to Stack]
-    E --> G[Final Assembly]
-    F --> G
+| Feature | Status |
+|---------|--------|
+| Reserve registers for variables | ❌ Not implemented |
+| Spill to stack on register pressure | ❌ Not implemented |
+| Caller/callee-saved register tracking | ❌ Not implemented |
+| Live range analysis | ❌ Not implemented |
+| Graph coloring allocator | ❌ Not implemented |
+
+## Limitation
+
+All local variables are stored on the stack and loaded into `%rax` for use. Each expression like `a + b + c + d + e` becomes a sequence of:
+
+```asm
+mov -8(%rbp), %rax    ; load a
+mov -16(%rbp), %rcx
+add %rcx, %rax
+mov -24(%rbp), %rcx
+add %rcx, %rax
+mov -32(%rbp), %rcx
+add %rcx, %rax
+mov -40(%rbp), %rcx
+add %rcx, %rax
 ```
 
-## Example
+A proper register allocator would keep `a`, `b`, `c`, `d`, `e` in registers across the expression, avoiding the stack traffic.
 
-```c
-// Before: stack-heavy
-int a = 1;
-int b = 2;
-int c = a + b;
-return c;
+## Current Strategy
 
-// After: register-optimized
-mov $1, %eax
-add $2, %eax
-ret
-```
+- `%rax` is used as the primary working register.
+- Function arguments come in `%rdi`, `%rsi`, `%rdx`, `%rcx`, `%r8`, `%r9` (System V ABI).
+- Caller-saved (`%rax`, `%rcx`, `%rdx`, `%rsi`, `%rdi`, `%r8`, `%r9`, `%r10`, `%r11`) and callee-saved (`%rbx`, `%rbp`, `%r12`, `%r13`, `%r14`, `%r15`) registers are not tracked.
 
-## Implementation Checklist
+## Future Work
 
-- [ ] Linear scan register allocation
-- [ ] Handle register pressure (spill to stack)
-- [ ] Use callee-saved registers for locals
-- [ ] Reuse registers for dead values
-- [ ] Test: multiple variables stay in registers
-
-## Implementation Details
-
-Register allocation uses the System V ABI calling convention with stack-based local variable allocation and register-based parameter passing.
-
-| Component | Source File | Lines | Description |
-|-----------|-------------|-------|-------------|
-| ABI register mapping | `src/codegen.cpp` | 267–268 | `param_regs[] = {rdi, rsi, rdx, rcx, r8, r9}` for first 6 args |
-| Stack frame setup | `src/codegen.cpp` | 277–284 | Pre-allocates `sub $N, %rsp` for locals + expression temps |
-| Parameter to stack | `src/codegen.cpp` | 288–291 | `mov %rdi, -8(%rbp)` etc. spills params to stack slots |
-| Local variable alloc | `src/codegen.cpp` | 308–333 | Maps variable names to `-%d(%rbp)` offsets |
-| Register reuse (binary) | `src/codegen.cpp` | 720–737 | Uses `%rax`/`%rcx` pair, push/pop for expression evaluation |
-| Call argument passing | `src/codegen.cpp` | 839–850 | Push args right-to-left, pop into ABI registers left-to-right |
-| Expression temp stack | `src/codegen.cpp` | 16 | Extra 16 stack slots for intermediate expression results |
+1. Liveness analysis: compute which variables are live at each program point.
+2. Build an interference graph.
+3. Apply graph coloring (Chaitin's algorithm) or linear scan.
+4. Generate register save/restore code at function entry/exit.
+5. Spill excess variables to stack slots.

@@ -1,52 +1,57 @@
 # Lesson 0067: Dead Code Elimination
 
-## Status: 📋 Planned | Phase: Optimization | Effort: Medium
+## Status: ⚠️ Partial | Phase: Optimization | Effort: Medium
 
 ## Objective
 
-Remove unreachable code.
+Remove code that has no effect on the program's output. This includes:
+- Unreachable code after `return`, `break`, `continue`, `goto`.
+- Unused variable declarations.
+- Code inside `if (0) { ... }` (constant-false conditions).
 
-## Dead Code Elimination Pipeline
+## Implementation Status
 
-```mermaid
-graph LR
-    A[Source AST] --> B[Reachability Analysis]
-    B --> C[Identify Dead Code]
-    C --> D[Remove Unused Vars]
-    D --> E[Remove Unreachable After Return]
-    E --> F[Optimized AST]
-    F --> G[Codegen]
-```
+| Feature | Status |
+|---------|--------|
+| Skip code after `return` | ❌ Not implemented (still emitted) |
+| Skip code in `if (0)` | ❌ Not implemented |
+| Remove unused variables | ❌ Not implemented |
+| Remove unused functions | ❌ Not implemented |
 
-## Examples
+## Limitation
+
+The codegen emits all code from the AST without analyzing reachability. The current output for:
 
 ```c
-// Before optimization
-int unused = 42;
-return 0;
-printf("unreachable");  // removed
-
-// After optimization
-return 0;
+int main() {
+  int x = 1;
+  if (0) {
+    x = 999;     // unreachable but still emitted
+  }
+  return x;
+}
 ```
 
-## Implementation Checklist
+includes the `mov $999, ...` instruction even though the branch is never taken.
 
-- [ ] Remove unused variable assignments
-- [ ] Remove unreachable code after return/break/continue
-- [ ] Remove empty statements
-- [ ] Remove unused function calls (with no side effects)
-- [ ] Test: `int x = 42; return 0;` → no `mov $42`
+## Future Work
 
-## Implementation Details
+1. Add a pass that tracks which statements are reachable.
+2. After `return`, `break`, `continue`, `goto`, mark subsequent statements as dead.
+3. After folding, treat `if (constant-false)` as dead.
+4. Use a whole-program analysis to remove unused functions.
+5. Use a local analysis to remove unused local variables.
 
-Dead code elimination is implemented via a `returned_` flag in the code generator that tracks when a return statement has been emitted.
+## Example
 
-| Component | Source File | Lines | Description |
-|-----------|-------------|-------|-------------|
-| `returned_` flag init | `src/codegen.cpp` | 8 | Initialized to `false` in constructor |
-| `returned_` reset | `src/codegen.cpp` | 263 | Reset to `false` at start of each function |
-| `returned_` set on return | `src/codegen.cpp` | 504 | Set to `true` after emitting `ret` instruction |
-| Skip after return | `src/codegen.cpp` | 298–301 | Checks `returned_` before dispatching statements in blocks |
-| Block visitor | `src/codegen.cpp` | 489–492 | Iterates statements; dead code skipped via `returned_` check |
-| Return codegen | `src/codegen.cpp` | 498–504 | Emits epilogue + `ret`, then sets `returned_ = true` |
+```c
+int main() {
+  int x = 1;
+  if (0) {
+    x = 999;       // dead — should be removed
+  }
+  return x;        // returns 1
+}
+```
+
+Functionally correct (returns 1) but the assembly contains the dead `x = 999`.

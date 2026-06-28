@@ -1,6 +1,6 @@
 # Lesson 0027: Unions
 
-## Status: 📋 Planned | Phase: Data Structures | Effort: Medium (4-6h)
+## Status: ✅ Complete | Phase: Data Structures | Effort: Medium (4-6h)
 
 ## Objective
 

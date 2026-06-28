@@ -1,6 +1,6 @@
 # Lesson 1005: _Atomic (C11)
 
-## Status: 📋 Planned | Standard: C11 | Effort: Hard
+## Status: ✅ Complete | Standard: C11 | Effort: Hard
 
 ## Objective
 

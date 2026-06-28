@@ -1,6 +1,6 @@
 # Lesson 0002: Abstract Syntax Tree (AST)
 
-## Status: ✅ Complete | Phase: Core | Tests: 10
+## Status: ✅ Complete | Phase: Core | Tests: 7
 
 ## Objective
 

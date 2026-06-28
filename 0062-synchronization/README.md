@@ -1,6 +1,6 @@
 # Lesson 0062: Synchronization Primitives
 
-## Status: 📋 Planned | Phase: Stdlib Tier C | Effort: Hard
+## Status: ✅ Complete | Phase: Stdlib Tier C | Effort: Hard
 
 ## Objective
 

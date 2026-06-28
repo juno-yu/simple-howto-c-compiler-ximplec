@@ -1,6 +1,6 @@
 # Lesson 0017: Type Promotions
 
-## Status: 📋 Planned | Phase: Type System | Effort: Medium (4-6h)
+## Status: ✅ Complete | Phase: Type System | Effort: Medium (4-6h)
 
 ## Objective
 
