@@ -219,9 +219,9 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | `<stdio.h>` printf/scanf | ⚠️ Declared (extern) | 0054 |
 | `<stdlib.h>` malloc/free | ⚠️ Declared (extern) | 0055 |
 | `<string.h>` strlen/strcpy/memcpy | ⚠️ Declared (extern) | 0053 |
-| `<math.h>` sin/cos/sqrt | ❌ Not declared | — |
-| `<ctype.h>` isdigit/toupper | ❌ Not declared | — |
-| `<stdint.h>` int32_t/uint64_t | ❌ Not declared | — |
+| `<math.h>` sin/cos/sqrt | ⚠️ Declared (extern) | 0081 |
+| `<ctype.h>` isdigit/toupper | ⚠️ Declared (extern) | 0081 |
+| `<stdint.h>` int32_t/uint64_t | ⚠️ Declared (extern) | 0081 |
 
 ### GCC Extensions
 
