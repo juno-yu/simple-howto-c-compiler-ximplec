@@ -1,6 +1,8 @@
 #pragma once
 
 #include "ast.h"
+#include "preprocessor.h"
+#include "semantic.h"
 #include <string>
 
 namespace simplecc {
@@ -17,7 +19,7 @@ struct CompileResult {
 
 class Compiler {
 public:
-    Compiler() = default;
+    Compiler();
     ~Compiler() = default;
     
     CompileResult compile(const std::string& source);
@@ -26,8 +28,13 @@ public:
     bool has_error() const { return !error_message_.empty(); }
     const std::string& error_message() const { return error_message_; }
     
+    // Access preprocessor for macro definitions
+    Preprocessor& preprocessor() { return preprocessor_; }
+    
 private:
     std::string error_message_;
+    Preprocessor preprocessor_;
+    SemanticAnalyzer semantic_;
 };
 
 } // namespace simplecc

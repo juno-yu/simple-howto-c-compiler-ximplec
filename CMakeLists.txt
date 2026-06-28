@@ -20,6 +20,8 @@ add_library(compiler_lib
     src/ast.cpp
     src/parser.cpp
     src/codegen.cpp
+    src/preprocessor.cpp
+    src/semantic.cpp
     src/compiler.cpp
 )
 target_include_directories(compiler_lib PUBLIC src)

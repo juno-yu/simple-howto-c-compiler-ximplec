@@ -7,11 +7,28 @@
 
 namespace simplecc {
 
+Compiler::Compiler() {
+    // Define built-in macros
+    preprocessor_.define_macro("__STDC__", "1");
+    preprocessor_.define_macro("__STDC_VERSION__", "202311L");
+    preprocessor_.define_macro("__x86_64__", "1");
+    preprocessor_.define_macro("__linux__", "1");
+}
+
 CompileResult Compiler::compile(const std::string& source) {
     CompileResult result;
     
+    // Preprocess
+    std::string preprocessed = preprocessor_.process(source);
+    
+    if (preprocessor_.has_error()) {
+        result.error_message = "Preprocessor error: " + preprocessor_.error_message();
+        result.error_line = preprocessor_.error_line();
+        return result;
+    }
+    
     // Tokenize
-    Lexer lexer(source);
+    Lexer lexer(preprocessed);
     auto tokens = lexer.tokenize();
     
     if (lexer.has_error()) {
@@ -31,6 +48,9 @@ CompileResult Compiler::compile(const std::string& source) {
         result.error_column = parser.error_column();
         return result;
     }
+    
+    // Semantic analysis (optional, don't fail on warnings)
+    semantic_.analyze(static_cast<ProgramNode&>(*ast));
     
     // Generate code
     CodeGenerator codegen;
