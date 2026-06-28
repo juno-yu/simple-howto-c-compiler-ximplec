@@ -55,6 +55,7 @@ private:
     void visit(MemberExprNode& node) override;
     void visit(DerefExprNode& node) override;
     void visit(AddressOfExprNode& node) override;
+    void visit(StmtExprNode& node) override;
     void visit(IntegerLiteralNode& node) override;
     void visit(FloatLiteralNode& node) override;
     void visit(StringLiteralNode& node) override;

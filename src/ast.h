@@ -51,6 +51,7 @@ enum class NodeType {
     MEMBER_EXPR,
     DEREF_EXPR,
     ADDRESS_OF_EXPR,
+    STMT_EXPR,
     
     // Literals
     INTEGER_LITERAL,
@@ -116,6 +117,7 @@ struct IndexExprNode;
 struct MemberExprNode;
 struct DerefExprNode;
 struct AddressOfExprNode;
+struct StmtExprNode;
 struct IntegerLiteralNode;
 struct FloatLiteralNode;
 struct StringLiteralNode;
@@ -163,6 +165,7 @@ public:
     virtual void visit(MemberExprNode& node) = 0;
     virtual void visit(DerefExprNode& node) = 0;
     virtual void visit(AddressOfExprNode& node) = 0;
+    virtual void visit(StmtExprNode& node) = 0;
     virtual void visit(IntegerLiteralNode& node) = 0;
     virtual void visit(FloatLiteralNode& node) = 0;
     virtual void visit(StringLiteralNode& node) = 0;
@@ -488,6 +491,13 @@ struct AddressOfExprNode : ASTNode {
     ASTPtr operand;
     
     AddressOfExprNode(int l, int c) : ASTNode(NodeType::ADDRESS_OF_EXPR, l, c) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct StmtExprNode : ASTNode {
+    ASTPtr body; // BlockNode containing statements, last one is the value
+    
+    StmtExprNode(int l, int c) : ASTNode(NodeType::STMT_EXPR, l, c) {}
     void accept(ASTVisitor& visitor);
 };
 

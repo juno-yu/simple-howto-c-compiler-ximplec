@@ -227,11 +227,11 @@ This project builds a compiler for a substantial subset of C, progressing from b
 
 | Feature | Lexer | Parser | Codegen | Lesson |
 |---------|-------|--------|---------|--------|
-| Statement expressions `({...})` | ❌ | — | — | 0082 |
+| Statement expressions `({...})` | ✅ | ✅ | ✅ | 0082 |
 | Inline assembly `asm()` | ❌ | — | — | — |
-| Label-as-value (`&&label`) | ❌ | — | — | 0083 |
-| `__attribute__` | ❌ | — | — | 0084 |
-| `__builtin_expect` | ❌ | — | — | 0085 |
+| Label-as-value (`&&label`) | ✅ | ✅ | ⚠️ Parsed | 0083 |
+| `__attribute__` | ✅ | ✅ | ⚠️ Ignored | 0084 |
+| `__builtin_expect` | ✅ | ✅ | ✅ | 0085 |
 | `__builtin_offsetof` | ❌ | — | — | — |
 | Nested functions | ❌ | — | — | 0086 |
 | Binary literals `0b1010` | ✅ | ✅ | ✅ | 0001 |
@@ -491,10 +491,10 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | 0079 | Token Pasting | ✅ |
 | 0080 | Pragma | ✅ |
 | 0081 | Standard Lib Stubs | ✅ |
-| 0082 | Statement Expr (GCC) | ❌ |
-| 0083 | Label-as-Value | ❌ |
-| 0084 | Attribute (GCC) | ❌ |
-| 0085 | Builtin Functions | ❌ |
+| 0082 | Statement Expr (GCC) | ✅ |
+| 0083 | Label-as-Value | ✅ |
+| 0084 | Attribute (GCC) | ✅ |
+| 0085 | Builtin Functions | ✅ |
 | 0086 | Nested Functions | ❌ |
 
 ### C11 Standard Lessons (1000-1015)

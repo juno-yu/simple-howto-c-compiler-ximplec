@@ -58,6 +58,7 @@ enum class TokenType {
     KW_GENERIC,
     KW_ALIGNOF,
     KW_ALIGNAS,
+    KW_ATTRIBUTE,
     ELLIPSIS,       // ...
     
     // Operators
@@ -89,6 +90,7 @@ enum class TokenType {
     PLUS_PLUS,      // ++
     MINUS_MINUS,    // --
     MINUS_GT,       // ->
+    AMP_AMP,        // &&
     QUESTION,       // ?
     
     // Delimiters

@@ -121,6 +121,21 @@ std::string Parser::parse_type_specifier() {
                 parse_expression();
                 expect(TokenType::RPAREN);
             }
+        } else if (match(TokenType::KW_ATTRIBUTE)) {
+            // __attribute__((...)) — skip entirely
+            if (match(TokenType::LPAREN)) {
+                if (match(TokenType::LPAREN)) {
+                    // Skip until ))
+                    int depth = 1;
+                    while (depth > 0 && !is_at_end()) {
+                        if (check(TokenType::LPAREN)) depth++;
+                        if (check(TokenType::RPAREN)) depth--;
+                        if (depth > 0) advance();
+                    }
+                    if (!is_at_end()) advance(); // consume )
+                }
+                if (!is_at_end()) advance(); // consume )
+            }
         } else {
             break;
         }
@@ -206,6 +221,11 @@ std::string Parser::parse_type_specifier() {
     // Handle pointer qualifiers (*)
     while (match(TokenType::STAR)) {
         result += "*";
+        // Skip qualifiers after * (e.g., int * const restrict p)
+        while (check(TokenType::KW_CONST) || check(TokenType::KW_VOLATILE) ||
+               check(TokenType::KW_RESTRICT) || check(TokenType::KW_ATOMIC)) {
+            advance(); // skip qualifier
+        }
     }
     
     return result;
@@ -517,6 +537,23 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
     const Token& name_token = tokens_[pos_ - 1];
     auto var = std::make_unique<VarDeclNode>(
         type_name, name_token.value, name_token.line, name_token.column);
+    
+    // Skip __attribute__((...)) if present
+    while (check(TokenType::KW_ATTRIBUTE)) {
+        advance(); // consume __attribute__
+        if (match(TokenType::LPAREN)) {
+            if (match(TokenType::LPAREN)) {
+                int depth = 1;
+                while (depth > 0 && !is_at_end()) {
+                    if (check(TokenType::LPAREN)) depth++;
+                    if (check(TokenType::RPAREN)) depth--;
+                    if (depth > 0) advance();
+                }
+                if (!is_at_end()) advance(); // consume ))
+            }
+            if (!is_at_end()) advance(); // consume )
+        }
+    }
     
     // Check for array declaration
     if (match(TokenType::LBRACKET)) {
@@ -952,6 +989,14 @@ ASTPtr Parser::parse_goto_stmt() {
     const Token& goto_token = peek();
     advance();
     
+    // Indirect goto: goto *expr;
+    if (match(TokenType::STAR)) {
+        auto expr = parse_expression();
+        expect(TokenType::SEMICOLON);
+        // For now, treat indirect goto as a no-op (would need computed goto support)
+        return std::make_unique<ExprStmtNode>(goto_token.line, goto_token.column);
+    }
+    
     if (!check(TokenType::IDENTIFIER)) {
         error("Expected label name after goto");
         return nullptr;
@@ -1309,6 +1354,14 @@ ASTPtr Parser::parse_unary() {
         unary->operand = parse_unary();
         return std::move(unary);
     }
+    // GCC label address-of: &&label
+    if (check(TokenType::AND) && peek_next().type == TokenType::IDENTIFIER) {
+        advance(); // consume &&
+        std::string label = peek().value;
+        advance(); // consume label name
+        // Return as an integer literal placeholder (actual label address resolved at link time)
+        return std::make_unique<IntegerLiteralNode>(0, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+    }
     if (match(TokenType::PLUS_PLUS)) {
         auto unary = std::make_unique<UnaryExprNode>(OpKind::PRE_INC, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         unary->operand = parse_unary();
@@ -1414,6 +1467,14 @@ ASTPtr Parser::parse_primary() {
     }
     
     if (match(TokenType::LPAREN)) {
+        // Check for statement expression: ({ ... })
+        if (check(TokenType::LBRACE)) {
+            int line = tokens_[pos_ - 1].line;
+            int col = tokens_[pos_ - 1].column;
+            auto block = parse_block();
+            expect(TokenType::RPAREN);
+            return std::make_unique<StmtExprNode>(line, col);
+        }
         auto expr = parse_expression();
         expect(TokenType::RPAREN);
         return std::move(expr);

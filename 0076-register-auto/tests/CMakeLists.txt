@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.14)
+project(lessons_0076_1014_tests)
+
+add_executable(test_lessons_0076_1014 test_lessons_0076_1014.cpp)
+target_include_directories(test_lessons_0076_1014 PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_lessons_0076_1014 PRIVATE compiler_lib Catch2::Catch2WithMain)
+
+add_test(NAME test_lessons_0076_1014 COMMAND test_lessons_0076_1014)

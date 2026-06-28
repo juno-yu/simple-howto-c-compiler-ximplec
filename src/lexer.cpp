@@ -47,6 +47,7 @@ const char* token_type_name(TokenType type) {
         case TokenType::KW_GENERIC: return "_Generic";
         case TokenType::KW_ALIGNOF: return "_Alignof";
         case TokenType::KW_ALIGNAS: return "_Alignas";
+        case TokenType::KW_ATTRIBUTE: return "__attribute__";
         case TokenType::ELLIPSIS: return "...";
         case TokenType::QUESTION: return "?";
         case TokenType::MINUS_GT: return "->";
@@ -143,6 +144,10 @@ const std::unordered_map<std::string, TokenType>& Lexer::keywords() {
         {"alignof", TokenType::KW_ALIGNOF},
         {"_Alignas", TokenType::KW_ALIGNAS},
         {"alignas", TokenType::KW_ALIGNAS},
+        {"__attribute__", TokenType::KW_ATTRIBUTE},
+        // Builtins treated as identifiers for function call parsing
+        {"__builtin_expect", TokenType::IDENTIFIER},
+        {"__builtin_popcount", TokenType::IDENTIFIER},
     };
     return kw;
 }

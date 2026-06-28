@@ -212,6 +212,9 @@ void CodeGenerator::dispatch(ASTNode* node) {
         case NodeType::ADDRESS_OF_EXPR:
             visit(static_cast<AddressOfExprNode&>(*node));
             break;
+        case NodeType::STMT_EXPR:
+            visit(static_cast<StmtExprNode&>(*node));
+            break;
         case NodeType::INTEGER_LITERAL:
             visit(static_cast<IntegerLiteralNode&>(*node));
             break;
@@ -838,6 +841,25 @@ void CodeGenerator::visit(CastExprNode& node) {
 void CodeGenerator::visit(CallExprNode& node) {
     static const char* param_regs[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
     
+    // Handle __builtin_expect: just evaluate first argument
+    if (node.function_name == "__builtin_expect") {
+        if (!node.arguments.empty()) {
+            dispatch(node.arguments[0].get());
+        }
+        return;
+    }
+    
+    // Handle __builtin_popcount: call external popcount
+    // For simplicity, just call as external function
+    if (node.function_name == "__builtin_popcount") {
+        if (!node.arguments.empty()) {
+            dispatch(node.arguments[0].get());
+            emit("mov %rax, %rdi");
+            emit("call __popcount_stub");
+        }
+        return;
+    }
+    
     // Evaluate arguments and push onto stack (right to left)
     int num_args = std::min((int)node.arguments.size(), 6);
     for (int i = num_args - 1; i >= 0; i--) {
@@ -935,6 +957,15 @@ void CodeGenerator::visit(AddressOfExprNode& node) {
         if (local_variables_.count(id->name)) {
             int offset = local_variables_[id->name];
             emit("lea " + std::to_string(offset) + "(%rbp), %rax");
+        }
+    }
+}
+
+void CodeGenerator::visit(StmtExprNode& node) {
+    if (node.body) {
+        auto& block = static_cast<BlockNode&>(*node.body);
+        for (auto& stmt : block.statements) {
+            dispatch(stmt.get());
         }
     }
 }
