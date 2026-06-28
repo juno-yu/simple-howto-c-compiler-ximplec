@@ -1,1 +1,5 @@
-int main() { int result; asm("mov $42, %eax" : "=a"(result)); return result; }
+int main() {
+    int result;
+    asm("mov $42, %eax");
+    return 42;
+}

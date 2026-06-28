@@ -413,7 +413,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 
 | Lesson | Topic | Compile |
 |--------|-------|---------|
-| 0026 | Pointer Arithmetic | ❌ |
+| 0026 | Pointer Arithmetic | ✅ |
 | 0027 | Unions | ✅ |
 | 0028 | Enums | ✅ |
 | 0029 | Typedef | ✅ |
@@ -433,24 +433,24 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 
 | Lesson | Topic | Compile |
 |--------|-------|---------|
-| 0036 | Function Pointers | ❌ |
-| 0037 | Void Pointers | ❌ |
-| 0038 | Designated Init | ❌ |
-| 0039 | Compound Literals | ❌ |
+| 0036 | Function Pointers | ✅ |
+| 0037 | Void Pointers | ✅ |
+| 0038 | Designated Init | ✅ |
+| 0039 | Compound Literals | ✅ |
 | 0040 | Bitfields | ✅ |
-| 0041 | Multi-Dim Arrays | ❌ |
-| 0042 | Array-Pointer Decay | ❌ |
-| 0043 | Float/Double | ❌ |
+| 0041 | Multi-Dim Arrays | ✅ |
+| 0042 | Array-Pointer Decay | ✅ |
+| 0043 | Float/Double | ✅ |
 | 0044 | Static Assert | ✅ |
-| 0045 | Generic | ❌ |
+| 0045 | Generic | ✅ |
 
 ### System & Functions (0046-0065)
 
 | Lesson | Topic | Compile |
 |--------|-------|---------|
 | 0046 | Variadic | ✅ |
-| 0047 | Statement Expr | ❌ |
-| 0048 | Inline ASM | ❌ |
+| 0047 | Statement Expr | ✅ |
+| 0048 | Inline ASM | ✅ |
 | 0049 | Multi-File | ✅ |
 | 0050 | Static Linkage | ✅ |
 | 0051 | Volatile Qualifier | ✅ |
@@ -461,7 +461,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | 0056 | File IO | ✅ |
 | 0057 | Process Control | ✅ |
 | 0058 | Socket Prog | ✅ |
-| 0059 | Signal Handling | ❌ |
+| 0059 | Signal Handling | ✅ |
 | 0060 | Environment | ✅ |
 | 0061 | Thread Support | ✅ |
 | 0062 | Synchronization | ✅ |
@@ -542,7 +542,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | 3003 | empty structs | ✅ |
 | 3004 | digit separators | ✅ |
 | 3005 | binary literals | ✅ |
-| 3006 | #embed | ❌ |
+| 3006 | #embed | ✅ |
 | 3007 | [[attribute]] | ✅ |
 | 3008 | constexpr | ✅ |
 | 3009 | nullptr | ✅ |

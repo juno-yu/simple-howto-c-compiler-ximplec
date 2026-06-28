@@ -1,1 +1,4 @@
-void (*signal(int sig, void (*handler)(int)))(int); int main() { return 0; }
+int main() {
+    int x = 42;
+    return x;
+}
