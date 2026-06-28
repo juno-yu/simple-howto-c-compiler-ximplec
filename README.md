@@ -13,20 +13,35 @@ This project builds a compiler for a substantial subset of C, progressing from b
 │                     COMPLETE COMPILATION PIPELINE                   │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐         │
+│  │  .c     │    │Expanded │    │ Tokens  │    │   AST   │         │
+│  │ Source  │───▶│   .c    │───▶│ Lexer   │───▶│ Parser  │         │
+│  │ Code    │    │         │    │         │    │         │         │
+│  └─────────┘    └─────────┘    └─────────┘    └────────┬────────┘  │
+│       │              │              │                   │           │
+│       ▼              ▼              ▼                   ▼           │
 │  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────────────┐  │
-│  │  .c     │    │ Tokens  │    │   AST   │    │  .s Assembly    │  │
-│  │ Source  │───▶│ Lexer   │───▶│ Parser  │───▶│  Code Gen       │  │
-│  │ Code    │    │         │    │         │    │  (GAS syntax)   │  │
+│  │Preproc  │    │  Preproc│    │ Lexer   │    │  Semantic       │  │
+│  │#define  │    │ #ifdef  │    │ Token   │    │  Analysis       │  │
+│  │#include │    │ #else   │    │ Stream  │    │  Type Check     │  │
+│  │#ifdef   │    │ #endif  │    │         │    │  Symbol Table   │  │
 │  └─────────┘    └─────────┘    └─────────┘    └────────┬────────┘  │
 │                                                         │           │
 │  ════════════════════ THIS PROJECT COVERS ════════════════════════  │
 │                                                         │           │
-│  ┌─────────────────────────────────────────────────────┘           │
+│                                                         ▼           │
+│                                                    ┌─────────┐     │
+│                                                    │   .s    │     │
+│                                                    │  GAS    │     │
+│                                                    │Assembly │     │
+│                                                    └────────┬┘     │
+│                                                             │      │
+│  ┌─────────────────────────────────────────────────────────┘       │
 │  │                                                                 │
 │  │  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐     │
 │  │  │   .s    │    │   .o    │    │  libs   │    │   ELF   │     │
 │  │  │  GAS    │───▶│   ELF   │───▶│  libc   │───▶│  a.out  │     │
-│  │  │  Text   │    │  Object │    │  libc   │    │  Exec   │     │
+│  │  │  Text   │    │  Object │    │         │    │  Exec   │     │
 │  │  └─────────┘    └─────────┘    └─────────┘    └─────────┘     │
 │  │       │              │              │              │            │
 │  │       ▼              ▼              ▼              ▼            │
@@ -43,10 +58,10 @@ This project builds a compiler for a substantial subset of C, progressing from b
 
 | Stage | Input | Output | Tool | This Project |
 |-------|-------|--------|------|--------------|
-| **Preprocessing** | `.c` + headers | Expanded `.c` | `cpp` / `gcc -E` | ❌ Not implemented |
+| **Preprocessing** | `.c` + headers | Expanded `.c` | `cpp` / `gcc -E` | ✅ `src/preprocessor.cpp` |
 | **Lexical Analysis** | `.c` source | Token stream | Lexer | ✅ `src/lexer.cpp` |
 | **Parsing** | Token stream | AST | Parser | ✅ `src/parser.cpp` |
-| **Semantic Analysis** | AST | Validated AST | Type checker | ⚠️ Partial |
+| **Semantic Analysis** | AST | Validated AST | Type checker | ✅ `src/semantic.cpp` |
 | **Code Generation** | AST | Assembly (`.s`) | Codegen | ✅ `src/codegen.cpp` |
 | **Assembly** | `.s` assembly | Object (`.o`) | `as` / `gcc -c` | ❌ External |
 | **Linking** | `.o` + libs | Executable | `ld` / `gcc` | ❌ External |
@@ -181,18 +196,19 @@ This project builds a compiler for a substantial subset of C, progressing from b
 
 | Feature | Status | Lesson |
 |---------|--------|--------|
-| `#include` | ❌ Not implemented | 0035 |
-| `#define` (object-like) | ❌ Not implemented | 0033 |
-| `#define` (function-like) | ❌ Not implemented | 0033 |
-| `#ifdef` / `#ifndef` | ❌ Not implemented | 0034 |
-| `#if` / `#else` / `#endif` | ❌ Not implemented | 0034 |
-| `#undef` | ❌ Not implemented | — |
+| `#include` | ⚠️ Tracked | 0035 |
+| `#define` (object-like) | ✅ Implemented | 0033 |
+| `#define` (function-like) | ✅ Implemented | 0033 |
+| `#ifdef` / `#ifndef` | ✅ Implemented | 0034 |
+| `#if` / `#else` / `#endif` | ✅ Implemented | 0034 |
+| `#undef` | ✅ Implemented | 0033 |
 | `#pragma once` | ❌ Not implemented | — |
-| `#error` | ❌ Not implemented | — |
+| `#error` | ✅ Implemented | 0033 |
 | `#line` | ❌ Not implemented | — |
 | Token pasting (`##`) | ❌ Not implemented | — |
 | Stringification (`#`) | ❌ Not implemented | — |
 | Variadic macros (`__VA_ARGS__`) | ❌ Not implemented | — |
+| Nested macro expansion | ✅ Implemented | 0033 |
 
 ### Standard Library (Stubs)
 
@@ -336,7 +352,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 
 ## Lesson Progress
 
-**Compilation status:** 57/70 lessons compile successfully.
+**Compilation status:** 60/70 lessons compile successfully.
 
 ### Core Lessons (0001-0005) — ✅ Complete
 
@@ -404,9 +420,9 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 
 | Lesson | Topic | Compile |
 |--------|-------|---------|
-| 0033 | Preprocessor Macros | ❌ |
-| 0034 | Conditional Compilation | ❌ |
-| 0035 | Include Directive | ❌ |
+| 0033 | Preprocessor Macros | ✅ |
+| 0034 | Conditional Compilation | ✅ |
+| 0035 | Include Directive | ✅ |
 
 ### Advanced C (0036-0045)
 
