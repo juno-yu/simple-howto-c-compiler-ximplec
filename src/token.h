@@ -49,6 +49,11 @@ enum class TokenType {
     KW_VOLATILE,
     KW_UNION,
     KW_INLINE,
+    KW_REGISTER,
+    KW_AUTO,
+    KW_RESTRICT,
+    KW_THREAD_LOCAL,
+    KW_ATOMIC,
     ELLIPSIS,       // ...
     
     // Operators

@@ -11,10 +11,11 @@ struct Macro {
     std::vector<std::string> params; // empty for object-like macros
     std::string body;
     bool is_function_like;
+    bool is_variadic; // has ... parameter
     
-    Macro() : is_function_like(false) {}
-    Macro(const std::string& n, const std::string& b, bool fl = false)
-        : name(n), body(b), is_function_like(fl) {}
+    Macro() : is_function_like(false), is_variadic(false) {}
+    Macro(const std::string& n, const std::string& b, bool fl = false, bool var = false)
+        : name(n), body(b), is_function_like(fl), is_variadic(var) {}
 };
 
 class Preprocessor {

@@ -38,6 +38,11 @@ const char* token_type_name(TokenType type) {
         case TokenType::KW_VOLATILE: return "volatile";
         case TokenType::KW_UNION: return "union";
         case TokenType::KW_INLINE: return "inline";
+        case TokenType::KW_REGISTER: return "register";
+        case TokenType::KW_AUTO: return "auto";
+        case TokenType::KW_RESTRICT: return "restrict";
+        case TokenType::KW_THREAD_LOCAL: return "_Thread_local";
+        case TokenType::KW_ATOMIC: return "_Atomic";
         case TokenType::ELLIPSIS: return "...";
         case TokenType::QUESTION: return "?";
         case TokenType::MINUS_GT: return "->";
@@ -122,6 +127,11 @@ const std::unordered_map<std::string, TokenType>& Lexer::keywords() {
         {"volatile", TokenType::KW_VOLATILE},
         {"union", TokenType::KW_UNION},
         {"inline", TokenType::KW_INLINE},
+        {"register", TokenType::KW_REGISTER},
+        {"auto", TokenType::KW_AUTO},
+        {"restrict", TokenType::KW_RESTRICT},
+        {"_Thread_local", TokenType::KW_THREAD_LOCAL},
+        {"_Atomic", TokenType::KW_ATOMIC},
     };
     return kw;
 }

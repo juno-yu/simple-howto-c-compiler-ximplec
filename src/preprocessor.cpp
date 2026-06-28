@@ -244,7 +244,48 @@ std::string Preprocessor::expand_macro_call(const Macro& macro, const std::vecto
         expanded_args.push_back(expand_macros(arg));
     }
     
-    // Replace parameters with expanded arguments
+    // Handle variadic macros: __VA_ARGS__ gets the remaining args
+    std::string va_args_str;
+    if (macro.is_variadic && expanded_args.size() > macro.params.size()) {
+        for (size_t i = macro.params.size(); i < expanded_args.size(); i++) {
+            if (i > macro.params.size()) va_args_str += ", ";
+            va_args_str += expanded_args[i];
+        }
+    }
+    
+    // Handle # stringification in body
+    for (size_t i = 0; i < macro.params.size() && i < expanded_args.size(); i++) {
+        std::string hash_pattern = "#" + macro.params[i];
+        size_t pos = 0;
+        while ((pos = result.find(hash_pattern, pos)) != std::string::npos) {
+            result.replace(pos, hash_pattern.size(), "\"" + expanded_args[i] + "\"");
+            pos += expanded_args[i].size() + 2;
+        }
+    }
+    
+    // Handle ## token pasting in body
+    for (size_t i = 0; i < macro.params.size() && i < expanded_args.size(); i++) {
+        std::string paste_pattern = macro.params[i] + "##";
+        size_t pos = 0;
+        while ((pos = result.find(paste_pattern, pos)) != std::string::npos) {
+            size_t after = pos + paste_pattern.size();
+            while (after < result.size() && result[after] == ' ') after++;
+            size_t end = after;
+            while (end < result.size() && (std::isalnum(result[end]) || result[end] == '_')) end++;
+            std::string next_token = result.substr(after, end - after);
+            result.replace(pos, end - pos, expanded_args[i] + next_token);
+            pos += expanded_args[i].size() + next_token.size();
+        }
+    }
+    
+    // Replace __VA_ARGS__
+    size_t va_pos = result.find("__VA_ARGS__");
+    while (va_pos != std::string::npos) {
+        result.replace(va_pos, 11, va_args_str);
+        va_pos = result.find("__VA_ARGS__", va_pos + va_args_str.size());
+    }
+    
+    // Replace regular parameters with expanded arguments
     for (size_t i = 0; i < macro.params.size() && i < expanded_args.size(); i++) {
         size_t pos = 0;
         while ((pos = result.find(macro.params[i], pos)) != std::string::npos) {
@@ -282,13 +323,19 @@ void Preprocessor::handle_define(const std::string& args) {
         
         std::string params_str = args.substr(space + 1, close - space - 1);
         std::vector<std::string> params = split_args(params_str);
+        bool is_variadic = false;
+        
+        // Check for variadic ... at end of params
+        if (!params.empty() && params.back() == "...") {
+            is_variadic = true;
+            params.pop_back();
+        }
         
         std::string body = args.substr(close + 1);
-        // Trim leading whitespace from body
-        size_t start = body.find_first_not_of(" \t");
-        if (start != std::string::npos) body = body.substr(start);
+        size_t bstart = body.find_first_not_of(" \t");
+        if (bstart != std::string::npos) body = body.substr(bstart);
         
-        Macro macro(name, body, true);
+        Macro macro(name, body, true, is_variadic);
         macro.params = params;
         macros_[name] = macro;
     } else {

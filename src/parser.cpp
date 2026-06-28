@@ -74,7 +74,12 @@ bool Parser::is_type_specifier() const {
         check(TokenType::KW_STATIC) ||
         check(TokenType::KW_EXTERN) ||
         check(TokenType::KW_UNION) ||
-        check(TokenType::KW_INLINE)) {
+        check(TokenType::KW_INLINE) ||
+        check(TokenType::KW_REGISTER) ||
+        check(TokenType::KW_AUTO) ||
+        check(TokenType::KW_RESTRICT) ||
+        check(TokenType::KW_THREAD_LOCAL) ||
+        check(TokenType::KW_ATOMIC)) {
         return true;
     }
     // Check if current identifier is a typedef name
@@ -99,6 +104,16 @@ std::string Parser::parse_type_specifier() {
             result += "extern ";
         } else if (match(TokenType::KW_INLINE)) {
             result += "inline ";
+        } else if (match(TokenType::KW_REGISTER)) {
+            result += "register ";
+        } else if (match(TokenType::KW_AUTO)) {
+            result += "auto ";
+        } else if (match(TokenType::KW_RESTRICT)) {
+            result += "restrict ";
+        } else if (match(TokenType::KW_THREAD_LOCAL)) {
+            result += "_Thread_local ";
+        } else if (match(TokenType::KW_ATOMIC)) {
+            result += "_Atomic ";
         } else {
             break;
         }
