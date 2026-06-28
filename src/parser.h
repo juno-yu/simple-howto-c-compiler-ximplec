@@ -40,6 +40,7 @@ private:
     ASTPtr parse_typedef_decl();
     ASTPtr parse_switch_stmt();
     ASTPtr parse_goto_stmt();
+    ASTPtr parse_static_assert();
     ASTPtr parse_param();
     ASTPtr parse_block();
     ASTPtr parse_statement();

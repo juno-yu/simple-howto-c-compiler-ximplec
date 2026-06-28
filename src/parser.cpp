@@ -114,6 +114,13 @@ std::string Parser::parse_type_specifier() {
             result += "_Thread_local ";
         } else if (match(TokenType::KW_ATOMIC)) {
             result += "_Atomic ";
+        } else if (match(TokenType::KW_ALIGNAS)) {
+            // _Alignas(N) - skip the alignment specifier
+            if (match(TokenType::LPAREN)) {
+                // Skip alignment expression
+                parse_expression();
+                expect(TokenType::RPAREN);
+            }
         } else {
             break;
         }
@@ -150,19 +157,26 @@ std::string Parser::parse_type_specifier() {
     } else if (match(TokenType::KW_DOUBLE)) {
         result += "double";
     } else if (match(TokenType::KW_STRUCT)) {
-        if (!check(TokenType::IDENTIFIER)) {
+        if (check(TokenType::IDENTIFIER)) {
+            result += "struct " + peek().value;
+            advance();
+        } else if (check(TokenType::LBRACE)) {
+            // Anonymous struct — generate a synthetic name
+            result += "struct _anon_" + std::to_string(pos_);
+        } else {
             error("Expected struct name");
             return result;
         }
-        result += "struct " + peek().value;
-        advance();
     } else if (match(TokenType::KW_UNION)) {
-        if (!check(TokenType::IDENTIFIER)) {
+        if (check(TokenType::IDENTIFIER)) {
+            result += "union " + peek().value;
+            advance();
+        } else if (check(TokenType::LBRACE)) {
+            result += "union _anon_" + std::to_string(pos_);
+        } else {
             error("Expected union name");
             return result;
         }
-        result += "union " + peek().value;
-        advance();
     } else if (match(TokenType::KW_ENUM)) {
         if (!check(TokenType::IDENTIFIER)) {
             error("Expected enum name");
@@ -289,6 +303,30 @@ ASTPtr Parser::parse_declaration() {
             expect(TokenType::LBRACE);
             while (!check(TokenType::RBRACE) && !is_at_end()) {
                 std::string field_type = parse_type_specifier();
+                
+                // Handle anonymous struct/union: struct { ... } inside a struct
+                if (check(TokenType::LBRACE)) {
+                    int depth = 1;
+                    advance(); // consume {
+                    while (depth > 0 && !is_at_end()) {
+                        if (check(TokenType::LBRACE)) depth++;
+                        if (check(TokenType::RBRACE) && depth > 0) depth--;
+                        if (depth > 0) advance();
+                    }
+                    if (!is_at_end()) advance(); // consume }
+                    // Skip optional field name after the anonymous struct
+                    if (check(TokenType::IDENTIFIER)) {
+                        const Token& aname = peek();
+                        std::string afname = aname.value;
+                        advance();
+                        auto afield = std::make_unique<StructFieldNode>(
+                            field_type, afname, aname.line, aname.column);
+                        struct_decl->fields.push_back(std::move(afield));
+                    }
+                    if (match(TokenType::SEMICOLON)) {}
+                    continue;
+                }
+                
                 if (!check(TokenType::IDENTIFIER)) {
                     error("Expected field name");
                     return nullptr;
@@ -496,9 +534,10 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
             int depth = 1;
             while (depth > 0 && !is_at_end()) {
                 if (check(TokenType::LBRACE)) depth++;
-                if (check(TokenType::RBRACE)) depth--;
+                if (check(TokenType::RBRACE) && depth > 0) depth--;
                 if (depth > 0) advance();
             }
+            if (!is_at_end()) advance(); // consume closing }
             // Create a dummy integer 0 as initializer
             var->initializer = std::make_unique<IntegerLiteralNode>(0, var->line, var->column);
         } else {
@@ -694,11 +733,48 @@ ASTPtr Parser::parse_statement() {
         expect(TokenType::SEMICOLON);
         return std::make_unique<ContinueStmtNode>(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
     }
+    if (check(TokenType::KW_STATIC_ASSERT)) {
+        return parse_static_assert();
+    }
     if (check(TokenType::LBRACE)) {
         return parse_block();
     }
     if (is_type_specifier()) {
         std::string type_name = parse_type_specifier();
+        // Check for function pointer: int (*fp)(int, int)
+        if (check(TokenType::LPAREN)) {
+            size_t saved_pos = pos_;
+            advance(); // consume (
+            if (check(TokenType::STAR)) {
+                advance(); // consume *
+                if (check(TokenType::IDENTIFIER)) {
+                    std::string ptr_name = peek().value;
+                    advance(); // consume name
+                    if (match(TokenType::RPAREN)) {
+                        if (match(TokenType::LPAREN)) {
+                            // Skip parameter types
+                            int depth = 1;
+                            while (depth > 0 && !is_at_end()) {
+                                if (check(TokenType::LPAREN)) depth++;
+                                else if (check(TokenType::RPAREN)) {
+                                    depth--;
+                                    if (depth == 0) { advance(); break; }
+                                }
+                                advance();
+                            }
+                            auto var = std::make_unique<VarDeclNode>(
+                                type_name + "(*)()", ptr_name, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+                            if (match(TokenType::ASSIGN)) {
+                                var->initializer = parse_expression();
+                            }
+                            expect(TokenType::SEMICOLON);
+                            return std::move(var);
+                        }
+                    }
+                }
+            }
+            pos_ = saved_pos;
+        }
         if (!check(TokenType::IDENTIFIER)) {
             error("Expected identifier after type");
             return nullptr;
@@ -886,6 +962,23 @@ ASTPtr Parser::parse_goto_stmt() {
     expect(TokenType::SEMICOLON);
     
     return std::make_unique<GotoStmtNode>(label, goto_token.line, goto_token.column);
+}
+
+ASTPtr Parser::parse_static_assert() {
+    int line = peek().line;
+    int col = peek().column;
+    advance(); // consume _Static_assert
+    expect(TokenType::LPAREN);
+    auto condition = parse_expression();
+    // Skip the message string
+    if (match(TokenType::COMMA)) {
+        if (check(TokenType::STRING_LITERAL)) advance();
+    }
+    expect(TokenType::RPAREN);
+    expect(TokenType::SEMICOLON);
+    // Static assertions are checked at compile time; for now skip them
+    // by returning an empty expression statement
+    return std::make_unique<ExprStmtNode>(line, col);
 }
 
 // Expression parsing with precedence climbing
@@ -1121,6 +1214,57 @@ ASTPtr Parser::parse_unary() {
             auto expr = parse_unary();
             return std::make_unique<SizeofExprNode>(std::move(expr), line, col);
         }
+    }
+    
+    // _Alignof operator (same as sizeof for alignment purposes)
+    if (match(TokenType::KW_ALIGNOF)) {
+        int line = tokens_[pos_ - 1].line;
+        int col = tokens_[pos_ - 1].column;
+        
+        if (match(TokenType::LPAREN)) {
+            if (is_type_specifier()) {
+                std::string type = parse_type_specifier();
+                expect(TokenType::RPAREN);
+                return std::make_unique<SizeofExprNode>(type, line, col);
+            } else {
+                auto expr = parse_expression();
+                expect(TokenType::RPAREN);
+                return std::make_unique<SizeofExprNode>(std::move(expr), line, col);
+            }
+        } else {
+            auto expr = parse_unary();
+            return std::make_unique<SizeofExprNode>(std::move(expr), line, col);
+        }
+    }
+    
+    // _Generic selection: _Generic(control-expr, type1: expr1, ..., default: expr)
+    if (match(TokenType::KW_GENERIC)) {
+        int line = tokens_[pos_ - 1].line;
+        int col = tokens_[pos_ - 1].column;
+        
+        expect(TokenType::LPAREN);
+        auto control = parse_assignment();
+        expect(TokenType::COMMA);
+        
+        // Parse the first association, then look for default
+        ASTPtr result = nullptr;
+        while (!check(TokenType::RPAREN) && !is_at_end()) {
+            if (match(TokenType::KW_DEFAULT)) {
+                expect(TokenType::COLON);
+                result = parse_assignment();
+            } else {
+                // Skip type name
+                parse_type_specifier();
+                expect(TokenType::COLON);
+                auto assoc_expr = parse_assignment();
+                if (!result) result = std::move(assoc_expr);
+            }
+            if (!match(TokenType::COMMA)) break;
+        }
+        expect(TokenType::RPAREN);
+        
+        // Simplified: just return the first/default expression
+        return result ? std::move(result) : std::make_unique<IntegerLiteralNode>(0, line, col);
     }
     
     // Type cast: (type)expr - peek ahead to check if LPAREN is followed by a type

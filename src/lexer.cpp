@@ -43,6 +43,10 @@ const char* token_type_name(TokenType type) {
         case TokenType::KW_RESTRICT: return "restrict";
         case TokenType::KW_THREAD_LOCAL: return "_Thread_local";
         case TokenType::KW_ATOMIC: return "_Atomic";
+        case TokenType::KW_STATIC_ASSERT: return "_Static_assert";
+        case TokenType::KW_GENERIC: return "_Generic";
+        case TokenType::KW_ALIGNOF: return "_Alignof";
+        case TokenType::KW_ALIGNAS: return "_Alignas";
         case TokenType::ELLIPSIS: return "...";
         case TokenType::QUESTION: return "?";
         case TokenType::MINUS_GT: return "->";
@@ -132,6 +136,13 @@ const std::unordered_map<std::string, TokenType>& Lexer::keywords() {
         {"restrict", TokenType::KW_RESTRICT},
         {"_Thread_local", TokenType::KW_THREAD_LOCAL},
         {"_Atomic", TokenType::KW_ATOMIC},
+        {"_Static_assert", TokenType::KW_STATIC_ASSERT},
+        {"static_assert", TokenType::KW_STATIC_ASSERT},
+        {"_Generic", TokenType::KW_GENERIC},
+        {"_Alignof", TokenType::KW_ALIGNOF},
+        {"alignof", TokenType::KW_ALIGNOF},
+        {"_Alignas", TokenType::KW_ALIGNAS},
+        {"alignas", TokenType::KW_ALIGNAS},
     };
     return kw;
 }

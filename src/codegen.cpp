@@ -850,7 +850,28 @@ void CodeGenerator::visit(CallExprNode& node) {
         emit("pop " + std::string(param_regs[i]));
     }
     
-    emit("call " + node.function_name);
+    // Check if this is an indirect call (function pointer variable)
+    bool is_indirect = false;
+    if (variable_types_.count(node.function_name)) {
+        std::string vtype = variable_types_[node.function_name];
+        if (vtype.find("(*)") != std::string::npos) {
+            is_indirect = true;
+        }
+    }
+    
+    if (is_indirect) {
+        // Load function pointer from variable and call indirectly
+        if (local_variables_.count(node.function_name)) {
+            int offset = local_variables_[node.function_name];
+            emit("mov " + std::to_string(offset) + "(%rbp), %rax");
+        } else {
+            emit("lea " + node.function_name + "(%rip), %rax");
+            emit("mov (%rax), %rax");
+        }
+        emit("call *%rax");
+    } else {
+        emit("call " + node.function_name);
+    }
 }
 
 void CodeGenerator::visit(IndexExprNode& node) {

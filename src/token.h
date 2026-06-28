@@ -54,6 +54,10 @@ enum class TokenType {
     KW_RESTRICT,
     KW_THREAD_LOCAL,
     KW_ATOMIC,
+    KW_STATIC_ASSERT,
+    KW_GENERIC,
+    KW_ALIGNOF,
+    KW_ALIGNAS,
     ELLIPSIS,       // ...
     
     // Operators
