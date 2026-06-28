@@ -92,7 +92,8 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | Char (`'a'`, `'\n'`) | ✅ | ✅ | ✅ | 0001 |
 | String (`"hello"`) | ✅ | ✅ | ✅ | 0019 |
 | Bool (`true`/`false`) | ✅ | ✅ | ✅ | 3000 |
-| Float (`3.14`, `3.14f`) | ✅ | ✅ | ⚠️ Parsed, stored as int (no FPU) | 0043 |
+| Float (`3.14f`) | ✅ | ✅ | ✅ Bit pattern stored as int; no FPU arithmetic | 0043 |
+| Double (`3.14`) | ✅ | ✅ | ✅ Bit pattern stored as int; no FPU arithmetic | 0043 |
 | Hex float (`0x1.0p10`) | ✅ | ✅ | ⚠️ Tokenized, stored as int | 0043 |
 
 ### Types
@@ -103,8 +104,8 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | `char` | ✅ | ✅ | ✅ | 0013 |
 | `void` | ✅ | ✅ | ✅ | 0013 |
 | `bool` / `_Bool` | ✅ | ✅ | ✅ | 0010 |
-| `float` | ✅ | ✅ | ⚠️ Parsed, stored as int (no FPU) | 0043 |
-| `double` | ✅ | ✅ | ⚠️ Parsed, stored as int (no FPU) | 0043 |
+| `float` | ✅ | ✅ | ✅ sizeof=4, bit pattern stored as int | 0043 |
+| `double` | ✅ | ✅ | ✅ sizeof=8, bit pattern stored as int | 0043 |
 | `long double` | ❌ | — | — | — |
 | `long` / `long long` | ✅ | ✅ | ✅ | 0015 |
 | `short` | ✅ | ✅ | ✅ | 0015 |
