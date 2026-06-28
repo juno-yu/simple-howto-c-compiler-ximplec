@@ -128,11 +128,11 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | `static` | ✅ | ✅ | ✅ | 0050 |
 | `extern` | ✅ | ✅ | ✅ | 0021 |
 | `inline` | ✅ | ✅ | ✅ | 0069 |
-| `register` | ❌ | — | — | — |
-| `auto` | ❌ | — | — | — |
-| `restrict` | ❌ | — | — | — |
-| `_Thread_local` | ❌ | — | — | — |
-| `_Atomic` | ❌ | — | — | — |
+| `register` | ✅ | ✅ | ⚠️ Parsed | 0076 |
+| `auto` | ✅ | ✅ | ⚠️ Parsed | 0076 |
+| `restrict` | ✅ | ✅ | ⚠️ Parsed | 0077 |
+| `_Thread_local` | ✅ | ✅ | ⚠️ Parsed | 1010 |
+| `_Atomic` | ✅ | ✅ | ⚠️ Parsed | 1005 |
 
 ### Operators
 
@@ -187,39 +187,41 @@ This project builds a compiler for a substantial subset of C, progressing from b
 |---------|-------|--------|---------|--------|
 | Variable declarations | ✅ | ✅ | ✅ | 0001 |
 | Initializers (`int x = 5`) | ✅ | ✅ | ✅ | 0001 |
-| Array init (`{1,2,3}`) | ✅ | ⚠️ Skipped | ⚠️ Zero-init | 0041 |
-| Struct init (`{.x=1}`) | ✅ | ⚠️ Skipped | ⚠️ Zero-init | 0038 |
+| Array init (`{1,2,3}`) | ✅ | ⚠️ Parsed (values skipped) | ⚠️ Zero-init | 0041 |
+| Struct init (`{.x=1}`) | ✅ | ⚠️ Parsed (values skipped) | ⚠️ Zero-init | 0038 |
 | Bitfields (`int x : 1`) | ✅ | ✅ | ⚠️ Parsed | 0040 |
 | Multiple declarators (`int a,b`) | ❌ | — | — | — |
+| Function pointers (`int (*fp)(int)`) | ✅ | ✅ | ✅ | 0036 |
+| Compound literals (`(int[]){1,2}`) | ❌ | — | — | — |
 
 ### Preprocessor
 
 | Feature | Status | Lesson |
 |---------|--------|--------|
-| `#include` | ⚠️ Tracked | 0035 |
+| `#include` | ⚠️ Tracked (not expanded) | 0035 |
 | `#define` (object-like) | ✅ Implemented | 0033 |
 | `#define` (function-like) | ✅ Implemented | 0033 |
 | `#ifdef` / `#ifndef` | ✅ Implemented | 0034 |
 | `#if` / `#else` / `#endif` | ✅ Implemented | 0034 |
 | `#undef` | ✅ Implemented | 0033 |
-| `#pragma once` | ❌ Not implemented | — |
+| `#pragma once` | ⚠️ Ignored | 0080 |
 | `#error` | ✅ Implemented | 0033 |
-| `#line` | ❌ Not implemented | — |
-| Token pasting (`##`) | ❌ Not implemented | — |
-| Stringification (`#`) | ❌ Not implemented | — |
-| Variadic macros (`__VA_ARGS__`) | ❌ Not implemented | — |
+| `#line` | ⚠️ Ignored | 0080 |
+| Token pasting (`##`) | ✅ Implemented | 0079 |
+| Stringification (`#`) | ✅ Implemented | 0033 |
+| Variadic macros (`__VA_ARGS__`) | ✅ Implemented | 0046 |
 | Nested macro expansion | ✅ Implemented | 0033 |
 
 ### Standard Library (Stubs)
 
 | Feature | Status | Lesson |
 |---------|--------|--------|
-| `<stdio.h>` printf/scanf | ❌ External | 0054 |
-| `<stdlib.h>` malloc/free | ❌ External | 0055 |
-| `<string.h>` strlen/strcpy | ❌ External | 0053 |
-| `<math.h>` sin/cos/sqrt | ❌ External | — |
-| `<ctype.h>` isdigit/toupper | ❌ External | — |
-| `<stdint.h>` int32_t/uint64_t | ❌ External | — |
+| `<stdio.h>` printf/scanf | ⚠️ Declared (extern) | 0054 |
+| `<stdlib.h>` malloc/free | ⚠️ Declared (extern) | 0055 |
+| `<string.h>` strlen/strcpy/memcpy | ⚠️ Declared (extern) | 0053 |
+| `<math.h>` sin/cos/sqrt | ❌ Not declared | — |
+| `<ctype.h>` isdigit/toupper | ❌ Not declared | — |
+| `<stdint.h>` int32_t/uint64_t | ❌ Not declared | — |
 
 ### GCC Extensions
 
@@ -479,7 +481,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | 0074 | Compile Compiler 3 | ✅ |
 | 0075 | Bootstrap | ✅ |
 
-### GCC Extensions & C11 Features (0076-0092)
+### GCC Extensions (0076-0086)
 
 | Lesson | Topic | Compile |
 |--------|-------|---------|
