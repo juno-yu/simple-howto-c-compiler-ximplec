@@ -52,6 +52,7 @@ enum class NodeType {
     DEREF_EXPR,
     ADDRESS_OF_EXPR,
     STMT_EXPR,
+    ASM_STMT,
     
     // Literals
     INTEGER_LITERAL,
@@ -118,6 +119,7 @@ struct MemberExprNode;
 struct DerefExprNode;
 struct AddressOfExprNode;
 struct StmtExprNode;
+struct AsmStmtNode;
 struct IntegerLiteralNode;
 struct FloatLiteralNode;
 struct StringLiteralNode;
@@ -166,6 +168,7 @@ public:
     virtual void visit(DerefExprNode& node) = 0;
     virtual void visit(AddressOfExprNode& node) = 0;
     virtual void visit(StmtExprNode& node) = 0;
+    virtual void visit(AsmStmtNode& node) = 0;
     virtual void visit(IntegerLiteralNode& node) = 0;
     virtual void visit(FloatLiteralNode& node) = 0;
     virtual void visit(StringLiteralNode& node) = 0;
@@ -498,6 +501,17 @@ struct StmtExprNode : ASTNode {
     ASTPtr body; // BlockNode containing statements, last one is the value
     
     StmtExprNode(int l, int c) : ASTNode(NodeType::STMT_EXPR, l, c) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct AsmStmtNode : ASTNode {
+    std::string assembly;
+    std::string output;  // output operands
+    std::string input;   // input operands
+    std::string clobber; // clobbered registers
+    
+    AsmStmtNode(const std::string& asm_str, int l, int c)
+        : ASTNode(NodeType::ASM_STMT, l, c), assembly(asm_str) {}
     void accept(ASTVisitor& visitor);
 };
 

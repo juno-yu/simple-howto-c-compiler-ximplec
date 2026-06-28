@@ -149,6 +149,7 @@ const std::unordered_map<std::string, TokenType>& Lexer::keywords() {
         {"noreturn", TokenType::KW_STATIC},
         {"typeof", TokenType::KW_SIZEOF}, // treat typeof as sizeof for now
         {"__typeof__", TokenType::KW_SIZEOF},
+        {"__builtin_offsetof", TokenType::IDENTIFIER},
         // Builtins treated as identifiers for function call parsing
         {"__builtin_expect", TokenType::IDENTIFIER},
         {"__builtin_popcount", TokenType::IDENTIFIER},

@@ -215,6 +215,9 @@ void CodeGenerator::dispatch(ASTNode* node) {
         case NodeType::STMT_EXPR:
             visit(static_cast<StmtExprNode&>(*node));
             break;
+        case NodeType::ASM_STMT:
+            visit(static_cast<AsmStmtNode&>(*node));
+            break;
         case NodeType::INTEGER_LITERAL:
             visit(static_cast<IntegerLiteralNode&>(*node));
             break;
@@ -849,6 +852,25 @@ void CodeGenerator::visit(CallExprNode& node) {
         return;
     }
     
+    // Handle __builtin_offsetof(type, member): return offset
+    if (node.function_name == "__builtin_offsetof" && node.arguments.size() == 2) {
+        // Extract type name and member name from arguments
+        if (auto* type_arg = dynamic_cast<IdentifierExprNode*>(node.arguments[0].get())) {
+            if (auto* member_arg = dynamic_cast<IdentifierExprNode*>(node.arguments[1].get())) {
+                std::string type_name = type_arg->name;
+                std::string member_name = member_arg->name;
+                // Strip struct/union prefix
+                if (type_name.substr(0, 7) == "struct ") type_name = type_name.substr(7);
+                else if (type_name.substr(0, 6) == "union ") type_name = type_name.substr(6);
+                int offset = get_field_offset(type_name, member_name);
+                emit("mov $" + std::to_string(offset >= 0 ? offset : 0) + ", %rax");
+                return;
+            }
+        }
+        emit("mov $0, %rax");
+        return;
+    }
+    
     // Handle __builtin_popcount: call external popcount
     // For simplicity, just call as external function
     if (node.function_name == "__builtin_popcount") {
@@ -968,6 +990,12 @@ void CodeGenerator::visit(StmtExprNode& node) {
             dispatch(stmt.get());
         }
     }
+}
+
+void CodeGenerator::visit(AsmStmtNode& node) {
+    emit("# asm: " + node.assembly);
+    // Emit the raw assembly string
+    output_ << "    " << node.assembly << "\n";
 }
 
 void CodeGenerator::visit(IntegerLiteralNode& node) {

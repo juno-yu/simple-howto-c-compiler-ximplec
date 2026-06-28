@@ -83,9 +83,29 @@ std::string Preprocessor::process(const std::string& source, const std::string& 
             if (dir_name == "include") {
                 handle_include(dir_args);
                 if (has_error()) return "";
-                // Read included file content
-                // For now, just add a comment
-                output += "/* #include " + dir_args + " */\n";
+                // Read included file content and insert it
+                std::string filename;
+                size_t start = dir_args.find_first_not_of(" \t");
+                if (start != std::string::npos) {
+                    if (dir_args[start] == '"') {
+                        size_t end = dir_args.find('"', start + 1);
+                        if (end != std::string::npos) filename = dir_args.substr(start + 1, end - start - 1);
+                    } else if (dir_args[start] == '<') {
+                        size_t end = dir_args.find('>', start + 1);
+                        if (end != std::string::npos) filename = dir_args.substr(start + 1, end - start - 1);
+                    }
+                }
+                if (!filename.empty()) {
+                    std::string content = read_file(filename);
+                    if (!has_error()) {
+                        // Process included content recursively
+                        Preprocessor inner;
+                        std::string processed = inner.process(content, filename);
+                        output += processed + "\n";
+                    }
+                } else {
+                    output += "/* #include " + dir_args + " */\n";
+                }
             } else if (dir_name == "define") {
                 handle_define(dir_args);
             } else if (dir_name == "undef") {
@@ -97,6 +117,9 @@ std::string Preprocessor::process(const std::string& source, const std::string& 
                 handle_pragma(dir_args);
             } else if (dir_name == "line") {
                 // #line directive - ignore for now
+            } else if (dir_name == "embed") {
+                // #embed "filename" - embed binary file contents
+                output += handle_embed(dir_args) + "\n";
             } else {
                 // Unknown directive - pass through
                 output += line + "\n";
@@ -479,6 +502,52 @@ void Preprocessor::define_macro(const std::string& name, const std::string& body
 
 bool Preprocessor::is_defined(const std::string& name) const {
     return macros_.find(name) != macros_.end();
+}
+
+std::string Preprocessor::handle_embed(const std::string& args) {
+    // Parse filename from args: "filename" or <filename>
+    std::string filename;
+    size_t start = args.find_first_not_of(" \t");
+    if (start == std::string::npos) {
+        error_message_ = "#embed: missing filename";
+        return "";
+    }
+    
+    if (args[start] == '"') {
+        size_t end = args.find('"', start + 1);
+        if (end == std::string::npos) {
+            error_message_ = "#embed: unterminated filename";
+            return "";
+        }
+        filename = args.substr(start + 1, end - start - 1);
+    } else if (args[start] == '<') {
+        size_t end = args.find('>', start + 1);
+        if (end == std::string::npos) {
+            error_message_ = "#embed: unterminated filename";
+            return "";
+        }
+        filename = args.substr(start + 1, end - start - 1);
+    } else {
+        filename = args.substr(start);
+        // Trim trailing whitespace
+        size_t end = filename.find_last_not_of(" \t");
+        if (end != std::string::npos) filename = filename.substr(0, end + 1);
+    }
+    
+    // Read binary file
+    std::string content = read_file(filename);
+    if (content.empty() && !error_message_.empty()) {
+        return "";
+    }
+    
+    // Convert to comma-separated integer values
+    std::string result;
+    for (size_t i = 0; i < content.size(); i++) {
+        if (i > 0) result += ", ";
+        result += std::to_string(static_cast<unsigned char>(content[i]));
+    }
+    
+    return result;
 }
 
 } // namespace simplecc

@@ -41,6 +41,8 @@ private:
     ASTPtr parse_switch_stmt();
     ASTPtr parse_goto_stmt();
     ASTPtr parse_static_assert();
+    std::string parse_asm_operands();
+    std::string parse_asm_clobbers();
     ASTPtr parse_param();
     ASTPtr parse_block();
     ASTPtr parse_statement();

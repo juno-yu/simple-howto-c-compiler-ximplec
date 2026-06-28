@@ -65,6 +65,7 @@ private:
     void handle_endif();
     void handle_error(const std::string& args);
     void handle_pragma(const std::string& args);
+    std::string handle_embed(const std::string& args);
     
     // Utility
     std::string read_file(const std::string& filename);

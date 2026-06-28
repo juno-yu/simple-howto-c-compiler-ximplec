@@ -161,6 +161,126 @@ parse_expression()          // comma
 
 Each level calls the next-higher precedence level, creating a natural precedence chain without a giant switch statement.
 
+### Operator Precedence Table
+
+| Precedence | Category | Operators | Associativity | Parse Function |
+|------------|----------|-----------|---------------|----------------|
+| 1 (lowest) | Comma | `,` | Left → Right | `parse_expression()` |
+| 2 | Assignment | `=` `+=` `-=` `*=` `/=` `%=` `&=` `\|=` `^=` `<<=` `>>=` | Right ← Left | `parse_assignment()` |
+| 3 | Ternary | `? :` | Right ← Left | `parse_assignment()` |
+| 4 | Logical OR | `\|\|` | Left → Right | `parse_or()` |
+| 5 | Logical AND | `&&` | Left → Right | `parse_and()` |
+| 6 | Bitwise OR | `\|` | Left → Right | `parse_bitwise_or()` |
+| 7 | Bitwise XOR | `^` | Left → Right | `parse_bitwise_xor()` |
+| 8 | Bitwise AND | `&` | Left → Right | `parse_bitwise_and()` |
+| 9 | Equality | `==` `!=` | Left → Right | `parse_equality()` |
+| 10 | Comparison | `<` `>` `<=` `>=` | Left → Right | `parse_comparison()` |
+| 11 | Shift | `<<` `>>` | Left → Right | `parse_shift()` |
+| 12 | Additive | `+` `-` | Left → Right | `parse_addition()` |
+| 13 | Multiplicative | `*` `/` `%` | Left → Right | `parse_multiplication()` |
+| 14 | Unary | `+` `-` `!` `~` `*` (deref) `&` (addr) `++` `--` (prefix) | Right ← Left | `parse_unary()` |
+| 15 (highest) | Postfix | `()` `[]` `.` `->` `++` `--` (suffix) | Left → Right | `parse_postfix()` |
+| 15 | Primary | Literals, identifiers, `(expr)`, cast `(type)expr`, `sizeof`, `_Alignof`, `_Generic`, statement expr `({...})` | — | `parse_primary()` |
+
+### Precedence in Practice
+
+```c
+// Example: how precedence determines parsing
+a + b * c         // → a + (b * c)        — mul binds tighter than add
+a == b && c == d  // → (a == b) && (c == d) — equality binds tighter than logical
+a = b + c         // → a = (b + c)        — add binds tighter than assignment
+a ? b : c + d     // → a ? b : (c + d)    — add binds tighter than ternary
+a, b = c, d       // → (a), (b = c), d    — assignment higher than comma
+!a && b           // → (!a) && b          — unary binds tighter than logical
+a++ + b           // → (a++) + b          — postfix binds tighter than add
+```
+
+### How Each Level Works
+
+**Binary operators** (levels 4-13) follow the same pattern:
+```cpp
+// Left-associative binary: parse left, then loop on operator
+ASTPtr Parser::parse_addition() {
+    auto left = parse_multiplication();        // parse higher-precedence first
+    while (check(PLUS) || check(MINUS)) {      // loop on current-level ops
+        auto bin = make_binary_node(left, op);
+        bin->right = parse_multiplication();   // parse right operand
+        left = std::move(bin);
+    }
+    return left;
+}
+```
+
+**Assignment** (level 2) is right-associative:
+```cpp
+// Right-associative: parse left, then recurse for right
+ASTPtr Parser::parse_assignment() {
+    auto left = parse_or();                    // parse target
+    if (match(ASSIGN)) {
+        assign->target = std::move(left);
+        assign->value = parse_assignment();    // recurse (right-assoc)
+        return assign;
+    }
+    return left;
+}
+```
+
+**Unary operators** (level 14) consume one operand:
+```cpp
+// Unary: operator + recursive call to same level
+ASTPtr Parser::parse_unary() {
+    if (match(MINUS)) {
+        unary->operand = parse_unary();        // recursive for -x, --x, etc.
+        return unary;
+    }
+    return parse_postfix();                    // fall through to higher level
+}
+```
+
+**Postfix operators** (level 15) loop on trailing ops:
+```cpp
+// Postfix: parse primary, then loop on [] () . -> ++ --
+ASTPtr Parser::parse_postfix() {
+    auto primary = parse_primary();
+    while (true) {
+        if (match(LPAREN))  { /* function call */ }
+        else if (match(LBRACKET))  { /* array index */ }
+        else if (match(DOT))  { /* member access */ }
+        else break;
+    }
+    return primary;
+}
+```
+
+### Why This Works
+
+The key insight: **each parse function handles exactly one precedence level** and calls the next-higher level for its operands. This creates a natural tree:
+
+```
+a + b * c == d && e
+
+parse_expression()
+  parse_or()
+    parse_and()
+      parse_equality()
+        parse_comparison()
+          parse_shift()
+            parse_addition()
+              parse_multiplication()
+                parse_primary() → a
+              op: +
+              parse_multiplication()
+                parse_primary() → b
+              op: *
+              parse_primary() → c
+          op: ==
+          parse_primary() → d
+      op: &&
+      parse_primary() → e
+```
+
+Result: `((a + (b * c)) == d) && e` — correct precedence!
+
 **Handling Left Recursion:**
 C expressions are left-recursive (`expr + expr + expr`). Recursive descent can't handle direct left recursion, so we convert to iteration:
 

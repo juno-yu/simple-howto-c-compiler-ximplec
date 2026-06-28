@@ -40,6 +40,7 @@ void MemberExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void DerefExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void AddressOfExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void StmtExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void AsmStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void IntegerLiteralNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void FloatLiteralNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void StringLiteralNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }

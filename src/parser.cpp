@@ -841,6 +841,50 @@ ASTPtr Parser::parse_statement() {
         expect(TokenType::SEMICOLON);
         return std::make_unique<ContinueStmtNode>(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
     }
+    // GCC inline assembly: asm("...") or asm volatile("...")
+    if (check(TokenType::IDENTIFIER) && peek().value == "asm") {
+        advance(); // consume 'asm'
+        if (check(TokenType::IDENTIFIER) && peek().value == "volatile") {
+            advance(); // consume 'volatile' (optional)
+        }
+        if (!match(TokenType::LPAREN)) {
+            error("Expected ( after asm");
+            return nullptr;
+        }
+        if (!check(TokenType::STRING_LITERAL)) {
+            error("Expected assembly string literal");
+            return nullptr;
+        }
+        std::string asm_str = peek().value;
+        advance(); // consume string
+        std::string output_ops, input_ops, clobber_regs;
+        // Parse extended asm: asm("..." : out : in : clobber)
+        if (match(TokenType::COLON)) {
+            // Output operands
+            if (!check(TokenType::COLON) && !check(TokenType::RPAREN)) {
+                output_ops = parse_asm_operands();
+            }
+            if (match(TokenType::COLON)) {
+                // Input operands
+                if (!check(TokenType::COLON) && !check(TokenType::RPAREN)) {
+                    input_ops = parse_asm_operands();
+                }
+                if (match(TokenType::COLON)) {
+                    // Clobber list
+                    if (!check(TokenType::RPAREN)) {
+                        clobber_regs = parse_asm_clobbers();
+                    }
+                }
+            }
+        }
+        expect(TokenType::RPAREN);
+        expect(TokenType::SEMICOLON);
+        auto node = std::make_unique<AsmStmtNode>(asm_str, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+        node->output = output_ops;
+        node->input = input_ops;
+        node->clobber = clobber_regs;
+        return std::move(node);
+    }
     if (check(TokenType::KW_STATIC_ASSERT)) {
         return parse_static_assert();
     }
@@ -1099,6 +1143,39 @@ ASTPtr Parser::parse_static_assert() {
     // Static assertions are checked at compile time; for now skip them
     // by returning an empty expression statement
     return std::make_unique<ExprStmtNode>(line, col);
+}
+
+std::string Parser::parse_asm_operands() {
+    // Parse comma-separated operands: "constraint" (expr), ...
+    std::string result;
+    while (!check(TokenType::COLON) && !check(TokenType::RPAREN) && !is_at_end()) {
+        if (!result.empty()) result += ", ";
+        // Skip the operand string and expression
+        if (check(TokenType::STRING_LITERAL)) advance();
+        if (match(TokenType::LPAREN)) {
+            int depth = 1;
+            while (depth > 0 && !is_at_end()) {
+                if (check(TokenType::LPAREN)) depth++;
+                if (check(TokenType::RPAREN)) depth--;
+                if (depth > 0) advance();
+            }
+        }
+    }
+    return result;
+}
+
+std::string Parser::parse_asm_clobbers() {
+    // Parse comma-separated clobber strings: "eax", "memory", ...
+    std::string result;
+    while (!check(TokenType::RPAREN) && !is_at_end()) {
+        if (!result.empty()) result += ", ";
+        if (check(TokenType::STRING_LITERAL)) {
+            result += peek().value;
+            advance();
+        }
+        match(TokenType::COMMA);
+    }
+    return result;
 }
 
 // Expression parsing with precedence climbing
