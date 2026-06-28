@@ -91,7 +91,7 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | Char (`'a'`, `'\n'`) | ✅ | ✅ | ✅ | 0001 |
 | String (`"hello"`) | ✅ | ✅ | ✅ | 0019 |
 | Float (`3.14`, `3.14f`) | ✅ | ✅ | ⚠️ Parsed | 0043 |
-| Hex float (`0x1.0p10`) | ❌ | — | — | — |
+| Hex float (`0x1.0p10`) | ✅ | ⚠️ Parsed | ⚠️ Returns 0 | 0043 |
 
 ### Types
 
