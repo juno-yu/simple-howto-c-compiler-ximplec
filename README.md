@@ -168,7 +168,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 
 ## Lesson Progress
 
-**Compilation status:** 41/70 lessons compile successfully, 29 need fixes.
+**Compilation status:** 56/70 lessons compile successfully, 14 need fixes.
 
 ### Core Lessons (0001-0005) — ✅ Complete
 
@@ -184,7 +184,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 
 | Lesson | Topic | Compile | Fix Needed |
 |--------|-------|---------|------------|
-| 0006 | Compound Assignment | ❌ | Fix `/=` token consumption |
+| 0006 | Compound Assignment | ✅ | — |
 | 0007 | Ternary Operator | ✅ | — |
 | 0008 | Do-While Loops | ✅ | — |
 | 0009 | Comma Operator | ✅ | — |
@@ -198,8 +198,8 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 |--------|-------|---------|------------|
 | 0013 | Type System | ✅ | — |
 | 0014 | sizeof | ✅ | — |
-| 0015 | Signed/Unsigned | ❌ | Add `unsigned`/`signed` to type specifiers |
-| 0016 | Type Casts | ❌ | Add `double` type, fix cast expression |
+| 0015 | Signed/Unsigned | ✅ | — |
+| 0016 | Type Casts | ✅ | — |
 | 0017 | Type Promotions | ✅ | — |
 | 0018 | Type-Aware Codegen | ✅ | — |
 
@@ -209,7 +209,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 |--------|-------|---------|------------|
 | 0019 | String Literal Codegen | ✅ | — |
 | 0020 | Global Variables | ✅ | — |
-| 0021 | Extern Declarations | ❌ | Add `extern` to type specifier check |
+| 0021 | Extern Declarations | ✅ | — |
 
 ### Structs & Pointers (0022-0025)
 
@@ -225,11 +225,11 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | Lesson | Topic | Compile | Fix Needed |
 |--------|-------|---------|------------|
 | 0026 | Pointer Arithmetic | ❌ | Add braced initializer `{10,20,30}` |
-| 0027 | Unions | ❌ | Add `union` keyword + parsing |
+| 0027 | Unions | ✅ | — |
 | 0028 | Enums | ✅ | — |
 | 0029 | Typedef | ✅ | — |
 | 0030 | Switch/Case | ✅ | — |
-| 0031 | Goto/Labels | ❌ | Add label statement parsing (IDENTIFIER `:`) |
+| 0031 | Goto/Labels | ✅ | — |
 | 0032 | Break/Continue | ✅ | — |
 
 ### Preprocessor (0033-0035)
@@ -251,7 +251,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | 0040 | Bitfields | ❌ | Add `int x : N` in struct fields |
 | 0041 | Multi-Dim Arrays | ❌ | Add `arr[2][3]` and initializers |
 | 0042 | Array-Pointer Decay | ❌ | Add braced initializer `{1,2,3}` |
-| 0043 | Float/Double | ❌ | Add `float`/`double` type specifiers |
+| 0043 | Float/Double | ✅ | — |
 | 0044 | Static Assert | ✅ | — |
 | 0045 | Generic | ❌ | Add `_Generic` or graceful skip |
 
@@ -259,15 +259,15 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 
 | Lesson | Topic | Compile | Fix Needed |
 |--------|-------|---------|------------|
-| 0046 | Variadic | ❌ | Add `...` parameter syntax |
+| 0046 | Variadic | ✅ | — |
 | 0047 | Statement Expr | ❌ | Add GCC `({...})` extension |
 | 0048 | Inline ASM | ❌ | Add `asm` keyword + parsing |
-| 0049 | Multi-File | ❌ | Add `extern` at top level |
-| 0050 | Static Linkage | ❌ | Add `static` keyword handling |
-| 0051 | Volatile Qualifier | ❌ | Add `volatile` keyword |
+| 0049 | Multi-File | ✅ | — |
+| 0050 | Static Linkage | ✅ | — |
+| 0051 | Volatile Qualifier | ✅ | — |
 | 0052 | Syscalls | ✅ | — |
 | 0053 | String Funcs | ✅ | — |
-| 0054 | IO Functions | ❌ | Fix `...` in function params |
+| 0054 | IO Functions | ✅ | — |
 | 0055 | Memory Alloc | ✅ | — |
 | 0056 | File IO | ✅ | — |
 | 0057 | Process Control | ✅ | — |
@@ -278,7 +278,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | 0062 | Synchronization | ✅ | — |
 | 0063 | Memory Mapping | ✅ | — |
 | 0064 | Dynamic Loading | ✅ | — |
-| 0065 | IPC | ❌ | Add array parameter `int fd[2]` |
+| 0065 | IPC | ✅ | — |
 
 ### Optimization & Self-Hosting (0066-0075)
 
@@ -287,7 +287,7 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | 0066 | Const Folding | ✅ | — |
 | 0067 | Dead Code Elim | ✅ | — |
 | 0068 | Register Alloc | ✅ | — |
-| 0069 | Function Inline | ❌ | Add `inline` keyword |
+| 0069 | Function Inline | ✅ | — |
 | 0070 | Debug Info | ✅ | — |
 | 0071 | Self-Host Prep | ✅ | — |
 | 0072 | Compile Compiler 1 | ✅ | — |
