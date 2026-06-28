@@ -1,0 +1,4 @@
+add_executable(test_integration test_integration.cpp)
+target_link_libraries(test_integration compiler_lib Catch2::Catch2WithMain)
+
+add_test(NAME integration_tests COMMAND test_integration)
