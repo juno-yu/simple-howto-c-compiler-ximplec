@@ -1,6 +1,8 @@
 #include "codegen.h"
 #include <stdexcept>
 #include <algorithm>
+#include <cstring>
+#include <cstdint>
 
 namespace simplecc {
 
@@ -233,6 +235,12 @@ void CodeGenerator::dispatch(ASTNode* node) {
         case NodeType::IDENTIFIER_EXPR:
             visit(static_cast<IdentifierExprNode&>(*node));
             break;
+        case NodeType::INITIALIZER_LIST:
+            visit(static_cast<InitializerListNode&>(*node));
+            break;
+        case NodeType::COMPOUND_LITERAL:
+            visit(static_cast<CompoundLiteralNode&>(*node));
+            break;
     }
 }
 
@@ -313,7 +321,7 @@ void CodeGenerator::visit(VarDeclNode& node) {
     if (current_function_.empty()) {
         return; // Skip global variables in code generation pass
     }
-    
+
     int elem_size = get_type_size(node.type_name);
     int alloc_size;
     if (node.array_size > 0) {
@@ -324,19 +332,59 @@ void CodeGenerator::visit(VarDeclNode& node) {
     // Align to 8 bytes
     int aligned_size = ((alloc_size + 7) / 8) * 8;
     if (aligned_size < 8) aligned_size = 8;
-    
+
     stack_offset_ += aligned_size;
-    local_variables_[node.name] = -stack_offset_;
+    int base_offset = -stack_offset_;
+    local_variables_[node.name] = base_offset;
     variable_types_[node.name] = node.type_name;
-    
+
     // For arrays, store the base address and element size info
     if (node.array_size > 0) {
         array_info_[node.name] = {elem_size, node.array_size};
     }
-    
+
     if (node.initializer) {
-        dispatch(node.initializer.get());
-        emit("mov %rax, " + std::to_string(-stack_offset_) + "(%rbp)");
+        if (auto* init_list = dynamic_cast<InitializerListNode*>(node.initializer.get())) {
+            // Brace initializer: emit each element to its slot
+            int elem_index = 0;
+            for (auto& elem : init_list->elements) {
+                if (auto* desig = dynamic_cast<DesignatedInitNode*>(elem.get())) {
+                    if (!desig->field_name.empty()) {
+                        // Struct field designator: .x = ...
+                        int field_off = get_field_offset(get_struct_name(node.type_name), desig->field_name);
+                        if (field_off < 0) field_off = 0;
+                        dispatch(desig->value.get());
+                        emit("mov %rax, " + std::to_string(base_offset + field_off) + "(%rbp)");
+                        continue;
+                    } else if (desig->array_index >= 0) {
+                        // Array index designator: [3] = ...
+                        elem_index = desig->array_index;
+                    }
+                }
+                if (elem_index < node.array_size || node.array_size == 0) {
+                    dispatch(elem.get());
+                    int slot = base_offset + elem_index * elem_size;
+                    if (elem_size == 1) {
+                        emit("mov %al, " + std::to_string(slot) + "(%rbp)");
+                    } else if (elem_size == 4) {
+                        emit("movl %eax, " + std::to_string(slot) + "(%rbp)");
+                    } else {
+                        emit("mov %rax, " + std::to_string(slot) + "(%rbp)");
+                    }
+                }
+                elem_index++;
+            }
+        } else {
+            // Simple expression initializer
+            dispatch(node.initializer.get());
+            if (elem_size == 1) {
+                emit("mov %al, " + std::to_string(base_offset) + "(%rbp)");
+            } else if (elem_size == 4) {
+                emit("movl %eax, " + std::to_string(base_offset) + "(%rbp)");
+            } else {
+                emit("mov %rax, " + std::to_string(base_offset) + "(%rbp)");
+            }
+        }
     }
 }
 
@@ -815,7 +863,6 @@ void CodeGenerator::visit(CommaExprNode& node) {
 
 void CodeGenerator::visit(SizeofExprNode& node) {
     // Simple sizeof implementation
-    // Returns 4 for int, 1 for char, 8 for pointers, etc.
     if (node.is_type) {
         if (node.type_name == "int" || node.type_name == "const int") {
             emit("mov $4, %rax");
@@ -823,15 +870,22 @@ void CodeGenerator::visit(SizeofExprNode& node) {
             emit("mov $1, %rax");
         } else if (node.type_name == "bool") {
             emit("mov $1, %rax");
-        } else if (node.type_name == "void") {
-            emit("mov $1, %rax");
+        } else if (node.type_name == "float" || node.type_name == "const float") {
+            emit("mov $4, %rax");
+        } else if (node.type_name == "double" || node.type_name == "const double") {
+            emit("mov $8, %rax");
+        } else if (node.type_name.find('*') != std::string::npos) {
+            emit("mov $8, %rax"); // pointer
+        } else if (node.type_name.substr(0, 7) == "struct ") {
+            std::string sn = node.type_name.substr(7);
+            emit("mov $" + std::to_string(get_struct_size(sn)) + ", %rax");
         } else {
-            emit("mov $8, %rax"); // default to 8 bytes
+            emit("mov $8, %rax"); // default
         }
     } else {
-        // sizeof expression - evaluate and return size based on type
+        // sizeof expression
         dispatch(node.expr.get());
-        emit("mov $8, %rax"); // simplified: assume 8 bytes
+        emit("mov $8, %rax"); // simplified
     }
 }
 
@@ -922,12 +976,29 @@ void CodeGenerator::visit(IndexExprNode& node) {
     // Check if this is array indexing or pointer indexing
     std::string base_type;
     int elem_size = 4; // default to int
-    
+
     if (auto* id = dynamic_cast<IdentifierExprNode*>(node.array.get())) {
         if (array_info_.count(id->name)) {
             elem_size = array_info_[id->name].elem_size;
         } else if (variable_types_.count(id->name)) {
-            elem_size = get_type_size(variable_types_[id->name]);
+            // For pointer types, use the pointed-to type's size, not the pointer's size
+            std::string vtype = variable_types_[id->name];
+            if (vtype.find('*') != std::string::npos) {
+                // Extract pointed-to type
+                std::string pointee = vtype;
+                size_t p = pointee.find('*');
+                while (p != std::string::npos) {
+                    pointee.erase(p, 1);
+                    p = pointee.find('*');
+                }
+                // Trim whitespace
+                size_t s = pointee.find_first_not_of(" \t");
+                size_t e = pointee.find_last_not_of(" \t");
+                if (s != std::string::npos) pointee = pointee.substr(s, e - s + 1);
+                elem_size = get_type_size(pointee);
+            } else {
+                elem_size = get_type_size(vtype);
+            }
         }
     }
     
@@ -971,7 +1042,33 @@ void CodeGenerator::visit(MemberExprNode& node) {
 
 void CodeGenerator::visit(DerefExprNode& node) {
     dispatch(node.operand.get());
-    emit("mov (%rax), %rax");
+    // Determine load size based on the operand's type (cast or pointer)
+    int load_size = 8;
+    if (auto* cast = dynamic_cast<CastExprNode*>(node.operand.get())) {
+        load_size = get_type_size(cast->target_type);
+        if (cast->target_type.find('*') != std::string::npos) {
+            // Pointer deref: load 8 bytes (the pointer's value)
+            load_size = 8;
+        }
+    } else if (auto* id = dynamic_cast<IdentifierExprNode*>(node.operand.get())) {
+        if (variable_types_.count(id->name)) {
+            std::string vt = variable_types_[id->name];
+            if (vt.find('*') != std::string::npos) {
+                // Pointer variable: load the pointed-to type's size
+                std::string pointee = vt;
+                size_t p = pointee.find('*');
+                while (p != std::string::npos) { pointee.erase(p, 1); p = pointee.find('*'); }
+                size_t s = pointee.find_first_not_of(" \t");
+                size_t e = pointee.find_last_not_of(" \t");
+                if (s != std::string::npos) pointee = pointee.substr(s, e - s + 1);
+                load_size = get_type_size(pointee);
+            }
+        }
+    }
+    if (load_size == 1) emit("movzbl (%rax), %eax");
+    else if (load_size == 2) emit("movzwl (%rax), %eax");
+    else if (load_size == 4) emit("movl (%rax), %eax");
+    else emit("mov (%rax), %rax");
 }
 
 void CodeGenerator::visit(AddressOfExprNode& node) {
@@ -1003,7 +1100,25 @@ void CodeGenerator::visit(IntegerLiteralNode& node) {
 }
 
 void CodeGenerator::visit(FloatLiteralNode& node) {
-    emit("# float " + std::to_string(node.value));
+    // Convert the double value to its IEEE 754 bit pattern and emit as integer
+    // This is a workaround since we don't emit SSE arithmetic. The value lives
+    // in %rax as the bit pattern of the float.
+    double d = node.value;
+    bool is_single = node.is_single_precision;
+    if (is_single) {
+        // 4-byte float
+        float f = static_cast<float>(d);
+        uint32_t float_bits = 0;
+        std::memcpy(&float_bits, &f, sizeof(float_bits));
+        int32_t signed_bits;
+        std::memcpy(&signed_bits, &float_bits, sizeof(signed_bits));
+        emit("mov $" + std::to_string(signed_bits) + ", %eax");
+    } else {
+        // 8-byte double
+        uint64_t double_bits = 0;
+        std::memcpy(&double_bits, &d, sizeof(double_bits));
+        emit("movabsq $" + std::to_string(double_bits) + ", %rax");
+    }
 }
 
 void CodeGenerator::visit(StringLiteralNode& node) {
@@ -1026,7 +1141,15 @@ void CodeGenerator::visit(IdentifierExprNode& node) {
         if (array_info_.count(node.name)) {
             emit("lea " + std::to_string(offset) + "(%rbp), %rax");
         } else {
-            emit("mov " + std::to_string(offset) + "(%rbp), %rax");
+            // Use the variable's size for the load
+            int sz = 8;
+            if (variable_types_.count(node.name)) {
+                sz = get_type_size(variable_types_[node.name]);
+            }
+            if (sz == 1) emit("movzbl " + std::to_string(offset) + "(%rbp), %eax");
+            else if (sz == 2) emit("movzwl " + std::to_string(offset) + "(%rbp), %eax");
+            else if (sz == 4) emit("movl " + std::to_string(offset) + "(%rbp), %eax");
+            else emit("mov " + std::to_string(offset) + "(%rbp), %rax");
         }
     } else {
         // Check if it's a global variable
@@ -1182,9 +1305,40 @@ void CodeGenerator::generate_unary(UnaryExprNode& node) {
         case OpKind::BIT_NOT:
             emit("not %rax");
             break;
-        case OpKind::DEREF:
-            emit("mov (%rax), %rax");
+        case OpKind::DEREF: {
+            // Determine load size based on the operand's type
+            int load_size = 8;
+            if (auto* id = dynamic_cast<IdentifierExprNode*>(node.operand.get())) {
+                if (variable_types_.count(id->name)) {
+                    std::string vt = variable_types_[id->name];
+                    if (vt.find('*') != std::string::npos) {
+                        std::string pointee = vt;
+                        size_t p = pointee.find('*');
+                        while (p != std::string::npos) { pointee.erase(p, 1); p = pointee.find('*'); }
+                        size_t s = pointee.find_first_not_of(" \t");
+                        size_t e = pointee.find_last_not_of(" \t");
+                        if (s != std::string::npos) pointee = pointee.substr(s, e - s + 1);
+                        load_size = get_type_size(pointee);
+                    }
+                }
+            } else if (auto* cast = dynamic_cast<CastExprNode*>(node.operand.get())) {
+                std::string tt = cast->target_type;
+                if (tt.find('*') != std::string::npos) {
+                    std::string pointee = tt;
+                    size_t p = pointee.find('*');
+                    while (p != std::string::npos) { pointee.erase(p, 1); p = pointee.find('*'); }
+                    size_t s = pointee.find_first_not_of(" \t");
+                    size_t e = pointee.find_last_not_of(" \t");
+                    if (s != std::string::npos) pointee = pointee.substr(s, e - s + 1);
+                    load_size = get_type_size(pointee);
+                }
+            }
+            if (load_size == 1) emit("movzbl (%rax), %eax");
+            else if (load_size == 2) emit("movzwl (%rax), %eax");
+            else if (load_size == 4) emit("movl (%rax), %eax");
+            else emit("mov (%rax), %rax");
             break;
+        }
         case OpKind::ADDRESS_OF:
             // Address-of: rax should already contain the address from dispatch
             // Actually, we need to get the address of the operand
@@ -1316,6 +1470,99 @@ int CodeGenerator::get_field_offset(const std::string& struct_name, const std::s
         if (f.name == field_name) return f.offset;
     }
     return -1;
+}
+
+std::string CodeGenerator::get_struct_name(const std::string& type_name) {
+    std::string s = type_name;
+    // strip qualifiers
+    auto strip = [&](const std::string& kw) {
+        size_t p;
+        while ((p = s.find(kw + " ")) != std::string::npos) s.erase(p, kw.size() + 1);
+    };
+    strip("const"); strip("volatile"); strip("static"); strip("extern");
+    strip("register"); strip("auto"); strip("inline"); strip("restrict");
+    if (s.substr(0, 7) == "struct ") s = s.substr(7);
+    return s;
+}
+
+void CodeGenerator::visit(InitializerListNode& node) {
+    // InitializerList is only meaningful as the initializer of a VarDeclNode,
+    // which handles it specially. When evaluated as a generic expression,
+    // we evaluate each element and leave the LAST one in %rax.
+    for (auto& elem : node.elements) {
+        if (auto* desig = dynamic_cast<DesignatedInitNode*>(elem.get())) {
+            dispatch(desig->value.get());
+        } else {
+            dispatch(elem.get());
+        }
+    }
+}
+
+void CodeGenerator::visit(DesignatedInitNode& node) {
+    // Standalone designated init: just compute the value
+    dispatch(node.value.get());
+}
+
+void CodeGenerator::visit(CompoundLiteralNode& node) {
+    // (type){init-list}: allocate hidden local storage and initialize it
+    // Parse the type to figure out element size and array size
+    // Supported forms: "int", "int[N]", "T*" (pointers), simple struct types
+    int elem_size = 4;
+    int array_size = 1;
+    std::string elem_type = node.type_name;
+    bool is_array = false;
+
+    // Try to match "type[N]"
+    size_t lb = node.type_name.find('[');
+    if (lb != std::string::npos) {
+        size_t rb = node.type_name.find(']', lb);
+        if (rb != std::string::npos && rb > lb + 1) {
+            elem_type = node.type_name.substr(0, lb);
+            std::string size_str = node.type_name.substr(lb + 1, rb - lb - 1);
+            array_size = std::atoi(size_str.c_str());
+            if (array_size <= 0) array_size = 0;
+            is_array = true;
+        }
+    }
+    elem_size = get_type_size(elem_type);
+    int alloc_size = elem_size * (array_size > 0 ? array_size : 1);
+
+    // Allocate on stack
+    int aligned_size = ((alloc_size + 7) / 8) * 8;
+    if (aligned_size < 8) aligned_size = 8;
+    stack_offset_ += aligned_size;
+    int base_offset = -stack_offset_;
+
+    // Initialize values from the InitializerList
+    if (auto* init_list = dynamic_cast<InitializerListNode*>(node.initializer.get())) {
+        int elem_index = 0;
+        for (auto& elem : init_list->elements) {
+            int slot = base_offset + elem_index * elem_size;
+            if (auto* desig = dynamic_cast<DesignatedInitNode*>(elem.get())) {
+                if (!desig->field_name.empty()) {
+                    int field_off = get_field_offset(get_struct_name(node.type_name), desig->field_name);
+                    if (field_off >= 0) slot = base_offset + field_off;
+                } else if (desig->array_index >= 0) {
+                    elem_index = desig->array_index;
+                    slot = base_offset + elem_index * elem_size;
+                }
+                dispatch(desig->value.get());
+            } else {
+                dispatch(elem.get());
+            }
+            if (elem_size == 1) {
+                emit("mov %al, " + std::to_string(slot) + "(%rbp)");
+            } else if (elem_size == 4) {
+                emit("movl %eax, " + std::to_string(slot) + "(%rbp)");
+            } else {
+                emit("mov %rax, " + std::to_string(slot) + "(%rbp)");
+            }
+            elem_index++;
+        }
+    }
+
+    // Return address of the storage in %rax
+    emit("lea " + std::to_string(base_offset) + "(%rbp), %rax");
 }
 
 } // namespace simplecc

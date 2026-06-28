@@ -62,6 +62,9 @@ private:
     void visit(StringLiteralNode& node) override;
     void visit(CharLiteralNode& node) override;
     void visit(IdentifierExprNode& node) override;
+    void visit(InitializerListNode& node) override;
+    void visit(DesignatedInitNode& node) override;
+    void visit(CompoundLiteralNode& node) override;
     
     // Code generation helpers
     void emit(const std::string& line);
@@ -143,11 +146,15 @@ private:
         int length;
     };
     std::map<std::string, ArrayInfo> array_info_;
+
+    // Type tracking for the current expression context (used for float literal codegen)
+    bool current_float_is_double_ = true;
     
     // Struct layout helpers
     int get_struct_size(const std::string& name);
     int get_field_offset(const std::string& struct_name, const std::string& field_name);
     int get_type_size(const std::string& type);
+    std::string get_struct_name(const std::string& type_name);
     void compute_member_address(MemberExprNode& node);
 };
 

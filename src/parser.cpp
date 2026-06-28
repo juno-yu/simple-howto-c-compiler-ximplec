@@ -264,8 +264,8 @@ ASTPtr Parser::parse() {
 
 ASTPtr Parser::parse_program() {
     auto program = std::make_unique<ProgramNode>();
-    
-    while (!is_at_end()) {
+
+    while (!is_at_end() && !has_error()) {
         ASTPtr decl;
         if (is_type_specifier()) {
             decl = parse_declaration();
@@ -586,33 +586,42 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
         }
     }
     
-    // Check for array declaration
+    // Check for array declaration (supports multi-dim: int arr[2][3])
     if (match(TokenType::LBRACKET)) {
+        int first_dim = 0, second_dim = 0;
         if (check(TokenType::INTEGER)) {
-            var->array_size = std::stoi(peek().value);
+            first_dim = std::stoi(peek().value);
+            var->array_size = first_dim;
             advance();
         }
         expect(TokenType::RBRACKET);
+        // Additional dimensions: collapse to total size
+        while (check(TokenType::LBRACKET)) {
+            advance();
+            int dim_size = 0;
+            if (check(TokenType::INTEGER)) {
+                dim_size = std::stoi(peek().value);
+                advance();
+            }
+            expect(TokenType::RBRACKET);
+            if (dim_size > 0) {
+                if (second_dim == 0) second_dim = dim_size;
+                var->array_size = (var->array_size > 0 ? var->array_size : 1) * dim_size;
+            }
+        }
+        if (second_dim > 0) {
+            multidim_inner_dim_[var->name] = second_dim;
+        }
     }
     
     if (match(TokenType::ASSIGN)) {
-        // Handle braced initializer: { expr, expr, ... }
         if (check(TokenType::LBRACE)) {
-            advance(); // consume {
-            int depth = 1;
-            while (depth > 0 && !is_at_end()) {
-                if (check(TokenType::LBRACE)) depth++;
-                if (check(TokenType::RBRACE) && depth > 0) depth--;
-                if (depth > 0) advance();
-            }
-            if (!is_at_end()) advance(); // consume closing }
-            // Create a dummy integer 0 as initializer
-            var->initializer = std::make_unique<IntegerLiteralNode>(0, var->line, var->column);
+            var->initializer = parse_brace_initializer();
         } else {
             var->initializer = parse_expression();
         }
     }
-    
+
     // Handle multiple declarators: int a, b, c;
     if (check(TokenType::COMMA)) {
         auto block = std::make_unique<BlockNode>(var->line, var->column);
@@ -623,26 +632,30 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
             auto next_var = std::make_unique<VarDeclNode>(
                 type_name, next_name.value, next_name.line, next_name.column);
             advance();
-            // Array
+            // Array (multi-dim)
             if (match(TokenType::LBRACKET)) {
                 if (check(TokenType::INTEGER)) {
                     next_var->array_size = std::stoi(peek().value);
                     advance();
                 }
                 expect(TokenType::RBRACKET);
+                while (check(TokenType::LBRACKET)) {
+                    advance();
+                    int dim_size = 0;
+                    if (check(TokenType::INTEGER)) {
+                        dim_size = std::stoi(peek().value);
+                        advance();
+                    }
+                    expect(TokenType::RBRACKET);
+                    if (dim_size > 0) {
+                        next_var->array_size = (next_var->array_size > 0 ? next_var->array_size : 1) * dim_size;
+                    }
+                }
             }
             // Initializer
             if (match(TokenType::ASSIGN)) {
                 if (check(TokenType::LBRACE)) {
-                    advance();
-                    int depth = 1;
-                    while (depth > 0 && !is_at_end()) {
-                        if (check(TokenType::LBRACE)) depth++;
-                        if (check(TokenType::RBRACE) && depth > 0) depth--;
-                        if (depth > 0) advance();
-                    }
-                    if (!is_at_end()) advance();
-                    next_var->initializer = std::make_unique<IntegerLiteralNode>(0, next_var->line, next_var->column);
+                    next_var->initializer = parse_brace_initializer();
                 } else {
                     next_var->initializer = parse_expression();
                 }
@@ -652,9 +665,68 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
         expect(TokenType::SEMICOLON);
         return std::move(block);
     }
-    
+
     expect(TokenType::SEMICOLON);
     return std::move(var);
+}
+
+ASTPtr Parser::parse_brace_initializer() {
+    int line = peek().line;
+    int col = peek().column;
+    expect(TokenType::LBRACE);
+    auto list = std::make_unique<InitializerListNode>(line, col);
+    if (!check(TokenType::RBRACE)) {
+        do {
+            ASTPtr elem;
+            if (check(TokenType::DOT)) {
+                // .field = expr
+                advance();
+                if (!check(TokenType::IDENTIFIER)) {
+                    error("Expected field name after '.'");
+                    return nullptr;
+                }
+                std::string field = peek().value;
+                advance();
+                if (!match(TokenType::ASSIGN)) {
+                    error("Expected '=' after field name");
+                    return nullptr;
+                }
+                // Use parse_assignment so comma operator doesn't grab the list separator
+                auto val = parse_assignment();
+                if (!val) return nullptr;
+                elem = std::make_unique<DesignatedInitNode>(field, std::move(val), line, col);
+            } else if (check(TokenType::LBRACKET)) {
+                // [index] = expr
+                advance();
+                if (!check(TokenType::INTEGER)) {
+                    error("Expected integer index");
+                    return nullptr;
+                }
+                int idx = std::stoi(peek().value);
+                advance();
+                if (!match(TokenType::RBRACKET)) {
+                    error("Expected ']'");
+                    return nullptr;
+                }
+                if (!match(TokenType::ASSIGN)) {
+                    error("Expected '=' after index");
+                    return nullptr;
+                }
+                auto val = parse_assignment();
+                if (!val) return nullptr;
+                elem = std::make_unique<DesignatedInitNode>(idx, std::move(val), line, col);
+            } else {
+                // Plain positional initializer: use parse_assignment to stop at comma
+                elem = parse_assignment();
+                if (!elem) return nullptr;
+            }
+            list->elements.push_back(std::move(elem));
+        } while (match(TokenType::COMMA));
+    }
+    if (!expect(TokenType::RBRACE)) {
+        return nullptr;
+    }
+    return std::move(list);
 }
 
 ASTPtr Parser::parse_struct_decl() {
@@ -1476,20 +1548,35 @@ ASTPtr Parser::parse_unary() {
             int line = tokens_[pos_ - 1].line;
             int col = tokens_[pos_ - 1].column;
             std::string type = parse_type_specifier();
+            // Handle array declarator in compound literal: (int[N]){...}
+            // Empty brackets mean deduce size from initializer.
+            if (match(TokenType::LBRACKET)) {
+                if (check(TokenType::INTEGER)) {
+                    type += "[" + peek().value + "]";
+                    advance();
+                } else {
+                    // Empty brackets - mark with -1 sentinel
+                    type += "[-1]";
+                }
+                expect(TokenType::RBRACKET);
+            }
             if (match(TokenType::RPAREN)) {
                 // Check for compound literal: (type){...}
                 if (check(TokenType::LBRACE)) {
-                    // Skip braced initializer
-                    advance();
-                    int depth = 1;
-                    while (depth > 0 && !is_at_end()) {
-                        if (check(TokenType::LBRACE)) depth++;
-                        if (check(TokenType::RBRACE) && depth > 0) depth--;
-                        if (depth > 0) advance();
+                    auto init = parse_brace_initializer();
+                    if (!init) return nullptr;
+                    // If brackets were empty, deduce size from initializer
+                    if (type.size() >= 4 && type.substr(type.size() - 4) == "[-1]") {
+                        int count = 0;
+                        if (auto* list = dynamic_cast<InitializerListNode*>(init.get())) {
+                            for (auto& e : list->elements) {
+                                if (dynamic_cast<DesignatedInitNode*>(e.get())) continue;
+                                count++;
+                            }
+                        }
+                        type = type.substr(0, type.size() - 4) + "[" + std::to_string(count) + "]";
                     }
-                    if (!is_at_end()) advance();
-                    // Return address of compound literal (simplified: just 0)
-                    return std::make_unique<IntegerLiteralNode>(0, line, col);
+                    return std::make_unique<CompoundLiteralNode>(type, std::move(init), line, col);
                 }
                 auto expr = parse_unary();
                 return std::make_unique<CastExprNode>(type, std::move(expr), line, col);
@@ -1548,30 +1635,79 @@ ASTPtr Parser::parse_unary() {
 
 ASTPtr Parser::parse_postfix() {
     auto primary = parse_primary();
-    
+
     if (!primary) return nullptr;
-    
+
+    // Helper: detect if `primary` is a multi-dim array access (IdentifierExprNode on a multi-dim var)
+    // and compute the inner dimension for offset flattening.
+    auto get_inner_dim = [&](const std::string& name) -> int {
+        // If the variable was declared as a multi-dim array, we need its inner dimension
+        // Look up in current VarDeclNodes; we use a side-channel via decl_map_ (set in parse_declaration)
+        auto it = multidim_inner_dim_.find(name);
+        if (it != multidim_inner_dim_.end()) return it->second;
+        return 0;
+    };
+
     while (true) {
         if (match(TokenType::LPAREN)) {
             // Function call
             auto call = std::make_unique<CallExprNode>(
                 static_cast<IdentifierExprNode*>(primary.get())->name,
                 primary->line, primary->column);
-            
+
             if (!check(TokenType::RPAREN)) {
                 do {
                     call->arguments.push_back(parse_assignment());
                 } while (match(TokenType::COMMA));
             }
-            
+
             expect(TokenType::RPAREN);
             primary = std::move(call);
         } else if (match(TokenType::LBRACKET)) {
-            // Array index
+            auto first_index = parse_expression();
+            expect(TokenType::RBRACKET);
+
+            // Check for second [ ] → multi-dim flatten
+            if (check(TokenType::LBRACKET)) {
+                advance();
+                auto second_index = parse_expression();
+                expect(TokenType::RBRACKET);
+                // Only flatten when the base is a multi-dim array identifier
+                if (auto* id = dynamic_cast<IdentifierExprNode*>(primary.get())) {
+                    int inner = get_inner_dim(id->name);
+                    if (inner > 0) {
+                        // Compute first_index * inner + second_index
+                        int line = primary->line, col = primary->column;
+                        auto mul = std::make_unique<BinaryExprNode>(OpKind::MUL, line, col);
+                        mul->left = std::move(first_index);
+                        auto inner_lit = std::make_unique<IntegerLiteralNode>(inner, line, col);
+                        mul->right = std::move(inner_lit);
+                        auto add = std::make_unique<BinaryExprNode>(OpKind::ADD, line, col);
+                        add->left = std::move(mul);
+                        add->right = std::move(second_index);
+                        auto flat = std::make_unique<IndexExprNode>(line, col);
+                        flat->array = std::move(primary);
+                        flat->index = std::move(add);
+                        primary = std::move(flat);
+                        continue;
+                    }
+                }
+                // Not a known multi-dim identifier: build a nested IndexExprNode
+                int line = primary->line, col = primary->column;
+                auto inner = std::make_unique<IndexExprNode>(line, col);
+                inner->array = std::move(primary);
+                inner->index = std::move(first_index);
+                auto outer = std::make_unique<IndexExprNode>(line, col);
+                outer->array = std::move(inner);
+                outer->index = std::move(second_index);
+                primary = std::move(outer);
+                continue;
+            }
+
+            // Single-dim indexing
             auto index = std::make_unique<IndexExprNode>(primary->line, primary->column);
             index->array = std::move(primary);
-            index->index = parse_expression();
-            expect(TokenType::RBRACKET);
+            index->index = std::move(first_index);
             primary = std::move(index);
         } else if (match(TokenType::DOT)) {
             // Member access
@@ -1599,7 +1735,7 @@ ASTPtr Parser::parse_postfix() {
             break;
         }
     }
-    
+
     return std::move(primary);
 }
 
@@ -1612,8 +1748,13 @@ ASTPtr Parser::parse_primary() {
     
     if (match(TokenType::FLOAT)) {
         const Token& tok = tokens_[pos_ - 1];
-        double value = std::stod(tok.value);
-        return std::make_unique<FloatLiteralNode>(value, tok.line, tok.column);
+        std::string v = tok.value;
+        bool is_float_type = (!v.empty() && v[0] == 'F');
+        if (is_float_type) v = v.substr(1);
+        double value = std::stod(v);
+        auto node = std::make_unique<FloatLiteralNode>(value, tok.line, tok.column);
+        node->is_single_precision = is_float_type;
+        return std::move(node);
     }
     
     if (match(TokenType::STRING_LITERAL)) {

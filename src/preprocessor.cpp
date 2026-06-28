@@ -27,7 +27,7 @@ std::string Preprocessor::process(const std::string& source, const std::string& 
     
     while (std::getline(stream, line)) {
         line_num++;
-        
+
         // Check if line starts with #
         std::string trimmed = line;
         size_t pos = trimmed.find_first_not_of(" \t");
@@ -138,7 +138,7 @@ std::string Preprocessor::process(const std::string& source, const std::string& 
 std::string Preprocessor::expand_macros(const std::string& text) {
     std::string result;
     size_t i = 0;
-    
+
     while (i < text.size()) {
         // Check for // or /* comments
         if (i < text.size() - 1 && text[i] == '/' && text[i+1] == '/') {
@@ -255,7 +255,7 @@ std::string Preprocessor::expand_macros(const std::string& text) {
         result += text[i];
         i++;
     }
-    
+
     return result;
 }
 

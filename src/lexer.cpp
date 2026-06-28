@@ -305,9 +305,14 @@ Token Lexer::read_number() {
     }
     
     if (!is_at_end() && (peek() == 'l' || peek() == 'L' || peek() == 'f' || peek() == 'F')) {
+        char suffix = peek();
         advance(); // skip suffix
+        if (is_float && (suffix == 'f' || suffix == 'F')) {
+            // Single-precision float: tag with marker
+            num = "F" + num;
+        }
     }
-    
+
     if (is_float) {
         return Token(TokenType::FLOAT, num, start_line, start_column);
     }

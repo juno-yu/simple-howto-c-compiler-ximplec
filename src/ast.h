@@ -60,6 +60,12 @@ enum class NodeType {
     STRING_LITERAL,
     CHAR_LITERAL,
     IDENTIFIER_EXPR,
+
+    // Initializer list (e.g., {1, 2, 3} or {.x = 1, .y = 2})
+    INITIALIZER_LIST,
+
+    // Compound literal (e.g., (int[]){1, 2, 3})
+    COMPOUND_LITERAL,
 };
 
 enum class OpKind {
@@ -125,6 +131,9 @@ struct FloatLiteralNode;
 struct StringLiteralNode;
 struct CharLiteralNode;
 struct IdentifierExprNode;
+struct InitializerListNode;
+struct DesignatedInitNode;
+struct CompoundLiteralNode;
 
 // Visitor pattern
 class ASTVisitor {
@@ -174,6 +183,9 @@ public:
     virtual void visit(StringLiteralNode& node) = 0;
     virtual void visit(CharLiteralNode& node) = 0;
     virtual void visit(IdentifierExprNode& node) = 0;
+    virtual void visit(InitializerListNode& node) = 0;
+    virtual void visit(DesignatedInitNode& node) = 0;
+    virtual void visit(CompoundLiteralNode& node) = 0;
 };
 
 struct ASTNode {
@@ -526,7 +538,8 @@ struct IntegerLiteralNode : ASTNode {
 
 struct FloatLiteralNode : ASTNode {
     double value;
-    
+    bool is_single_precision = false;  // true for `1.0f`, false for `1.0`
+
     FloatLiteralNode(double v, int l, int c)
         : ASTNode(NodeType::FLOAT_LITERAL, l, c), value(v) {}
     void accept(ASTVisitor& visitor);
@@ -550,9 +563,40 @@ struct CharLiteralNode : ASTNode {
 
 struct IdentifierExprNode : ASTNode {
     std::string name;
-    
+
     IdentifierExprNode(const std::string& n, int l, int c)
         : ASTNode(NodeType::IDENTIFIER_EXPR, l, c), name(n) {}
+    void accept(ASTVisitor& visitor);
+};
+
+// Initializer list: { expr, expr, ... } or { .field = expr, [idx] = expr, ... }
+struct InitializerListNode : ASTNode {
+    std::vector<ASTPtr> elements;  // mix of ExprNode and DesignatedInitNode
+
+    InitializerListNode(int l, int c) : ASTNode(NodeType::INITIALIZER_LIST, l, c) {}
+    void accept(ASTVisitor& visitor);
+};
+
+// Designated initializer: .field = expr or [idx] = expr
+struct DesignatedInitNode : ASTNode {
+    std::string field_name;  // empty if array index
+    int array_index;          // -1 if field name
+    ASTPtr value;
+
+    DesignatedInitNode(const std::string& field, ASTPtr val, int l, int c)
+        : ASTNode(NodeType::INITIALIZER_LIST, l, c), field_name(field), array_index(-1), value(std::move(val)) {}
+    DesignatedInitNode(int idx, ASTPtr val, int l, int c)
+        : ASTNode(NodeType::INITIALIZER_LIST, l, c), field_name(""), array_index(idx), value(std::move(val)) {}
+    void accept(ASTVisitor& visitor);
+};
+
+// Compound literal: (type){init-list}
+struct CompoundLiteralNode : ASTNode {
+    std::string type_name;   // e.g., "int" or "int[3]"
+    ASTPtr initializer;      // InitializerListNode
+
+    CompoundLiteralNode(const std::string& type, ASTPtr init, int l, int c)
+        : ASTNode(NodeType::COMPOUND_LITERAL, l, c), type_name(type), initializer(std::move(init)) {}
     void accept(ASTVisitor& visitor);
 };
 

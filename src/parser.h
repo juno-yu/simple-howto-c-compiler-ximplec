@@ -52,6 +52,8 @@ private:
     ASTPtr parse_while_stmt();
     ASTPtr parse_do_while_stmt();
     ASTPtr parse_for_stmt();
+    ASTPtr parse_initializer_list();
+    ASTPtr parse_brace_initializer();
     
     // Expression parsing (precedence climbing)
     ASTPtr parse_expression();
@@ -84,9 +86,12 @@ private:
     
     // Enum values for constant folding
     std::map<std::string, long long> enum_constants_;
-    
+
     // Typedef names for type specifier recognition
     std::set<std::string> typedef_names_;
+
+    // Multi-dim array inner dimension tracking (for [i][j] → [i*N+j] flattening)
+    std::map<std::string, int> multidim_inner_dim_;
 };
 
 } // namespace simplecc

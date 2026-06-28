@@ -46,6 +46,9 @@ void FloatLiteralNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void StringLiteralNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void CharLiteralNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void IdentifierExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void InitializerListNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void DesignatedInitNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void CompoundLiteralNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 
 const char* node_type_name(NodeType type) {
     switch (type) {
@@ -90,6 +93,8 @@ const char* node_type_name(NodeType type) {
         case NodeType::STRING_LITERAL: return "StringLiteral";
         case NodeType::CHAR_LITERAL: return "CharLiteral";
         case NodeType::IDENTIFIER_EXPR: return "IdentifierExpr";
+        case NodeType::INITIALIZER_LIST: return "InitializerList";
+        case NodeType::COMPOUND_LITERAL: return "CompoundLiteral";
     }
     return "Unknown";
 }
