@@ -251,21 +251,24 @@ This project builds a compiler for a substantial subset of C, progressing from b
 
 | Feature | Status | Lesson |
 |---------|--------|--------|
-| `__has_include` | ❌ Not implemented | — |
-| `__has_builtin` | ❌ Not implemented | — |
-| `__STDC_VERSION__` | ❌ Not implemented | — |
+| `<stdbool.h>` (bool/true/false) | ✅ Implemented | 2000 |
+| `<stdalign.h>` (alignas/alignof) | ✅ Implemented | 2001 |
+| `<stdnoreturn.h>` (noreturn) | ⚠️ Parsed (ignored) | 2002 |
+| `<stdint.h>` (int32_t/uint64_t) | ⚠️ Declared (extern) | 2003 |
+| `typeof` | ✅ Mapped to sizeof | 2004 |
+| `__STDC_VERSION__` | ✅ Defined (202311L) | 2005 |
 
 ### C23 Features
 
 | Feature | Status | Lesson |
 |---------|--------|--------|
-| `nullptr` | ❌ Not implemented | 3009 |
-| `bool` / `true` / `false` literals | ❌ Not implemented | 3000 |
-| `auto` type inference | ❌ Not implemented | 3001 |
-| `constexpr` | ❌ Not implemented | 3008 |
-| Digit separators (`1'000'000`) | ❌ Not implemented | 3004 |
+| `nullptr` | ⚠️ Via `(void*)0` | 3009 |
+| `bool` / `true` / `false` literals | ✅ Implemented | 3000 |
+| `auto` type inference | ⚠️ Parsed (type qualifier) | 3001 |
+| `constexpr` | ⚠️ Parsed (ignored) | 3008 |
+| Digit separators (`1'000'000`) | ✅ Implemented | 3004 |
 | Binary literals (`0b1010`) | ✅ Implemented | 3005 |
-| `[[attribute]]` syntax | ❌ Not implemented | 3007 |
+| `[[attribute]]` syntax | ⚠️ Via `__attribute__` | 3007 |
 | `#embed` | ❌ Not implemented | 3006 |
 
 ## Building
@@ -517,6 +520,37 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | 1013 | stdnoreturn.h | ❌ |
 | 1014 | stdalign.h | ✅ |
 | 1015 | stdatomic complete | ❌ |
+
+### C17 Standard Lessons (2000-2005)
+
+| Lesson | Topic | Compile |
+|--------|-------|---------|
+| 2000 | stdbool.h | ✅ |
+| 2001 | stdalign.h | ✅ |
+| 2002 | stdnoreturn.h | ✅ |
+| 2003 | stdint.h | ✅ |
+| 2004 | typeof | ✅ |
+| 2005 | __STDC_VERSION__ | ✅ |
+
+### C23 Standard Lessons (3000-3014)
+
+| Lesson | Topic | Compile |
+|--------|-------|---------|
+| 3000 | bool literal | ✅ |
+| 3001 | auto type | ✅ |
+| 3002 | for-init-decl | ✅ |
+| 3003 | empty structs | ✅ |
+| 3004 | digit separators | ✅ |
+| 3005 | binary literals | ✅ |
+| 3006 | #embed | ❌ |
+| 3007 | [[attribute]] | ✅ |
+| 3008 | constexpr | ✅ |
+| 3009 | nullptr | ✅ |
+| 3010 | constexpr-func | ✅ |
+| 3011 | auto-array | ✅ |
+| 3012 | noreturn-attr | ✅ |
+| 3013 | [[nodiscard]] | ✅ |
+| 3014 | predef-macros | ✅ |
 
 ## Test Results
 

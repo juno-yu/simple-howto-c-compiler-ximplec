@@ -145,6 +145,8 @@ const std::unordered_map<std::string, TokenType>& Lexer::keywords() {
         {"_Alignas", TokenType::KW_ALIGNAS},
         {"alignas", TokenType::KW_ALIGNAS},
         {"__attribute__", TokenType::KW_ATTRIBUTE},
+        {"typeof", TokenType::KW_SIZEOF}, // treat typeof as sizeof for now
+        {"__typeof__", TokenType::KW_SIZEOF},
         // Builtins treated as identifiers for function call parsing
         {"__builtin_expect", TokenType::IDENTIFIER},
         {"__builtin_popcount", TokenType::IDENTIFIER},
@@ -239,24 +241,45 @@ Token Lexer::read_number() {
     
     bool is_float = false;
     
-    while (!is_at_end() && std::isdigit(peek())) {
-        num += advance();
+    // Handle hex numbers (0x prefix)
+    if (!is_at_end() && peek() == '0' && peek_next() == 'x') {
+        num += advance(); // '0'
+        num += advance(); // 'x'
+        while (!is_at_end() && (std::isxdigit(peek()) || peek() == '\'')) {
+            if (peek() != '\'') num += advance(); else advance(); // skip separators
+        }
+        return Token(TokenType::INTEGER, num, start_line, start_column);
+    }
+    
+    // Handle binary numbers (0b prefix)
+    if (!is_at_end() && peek() == '0' && (peek_next() == 'b' || peek_next() == 'B')) {
+        num += advance(); // '0'
+        num += advance(); // 'b' or 'B'
+        while (!is_at_end() && (peek() == '0' || peek() == '1' || peek() == '\'')) {
+            if (peek() != '\'') num += advance(); else advance(); // skip separators
+        }
+        return Token(TokenType::INTEGER, num, start_line, start_column);
+    }
+    
+    // Handle octal numbers (0 prefix)
+    if (!is_at_end() && peek() == '0' && std::isdigit(peek_next()) && peek_next() != '.') {
+        num += advance(); // '0'
+        while (!is_at_end() && (std::isdigit(peek()) && peek() < '8' || peek() == '\'')) {
+            if (peek() != '\'') num += advance(); else advance(); // skip separators
+        }
+        return Token(TokenType::INTEGER, num, start_line, start_column);
+    }
+    
+    // Decimal numbers with optional digit separators
+    while (!is_at_end() && (std::isdigit(peek()) || peek() == '\'')) {
+        if (peek() != '\'') num += advance(); else advance();
     }
     
     if (!is_at_end() && peek() == '.' && std::isdigit(peek_next())) {
         is_float = true;
         num += advance(); // skip '.'
-        while (!is_at_end() && std::isdigit(peek())) {
-            num += advance();
-        }
-    }
-    
-    // Handle hex numbers
-    if (num.size() == 1 && num[0] == '0' && !is_at_end() && 
-        (peek() == 'x' || peek() == 'X')) {
-        num += advance(); // skip 'x'
-        while (!is_at_end() && std::isxdigit(peek())) {
-            num += advance();
+        while (!is_at_end() && (std::isdigit(peek()) || peek() == '\'')) {
+            if (peek() != '\'') num += advance(); else advance();
         }
     }
     
