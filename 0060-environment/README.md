@@ -53,3 +53,15 @@ flowchart LR
 - [ ] Implement setenv: add/modify environment entry
 - [ ] Implement unsetenv: remove environment entry
 - [ ] Test: `getenv("HOME")` returns home directory
+
+## Implementation Details
+
+Environment variable access is supported through extern function declarations and the standard function call code generation path.
+
+| Component | Source File | Lines | Description |
+|-----------|-------------|-------|-------------|
+| Function declaration parsing | `src/parser.cpp` | 233–250 | Parses `char *getenv(char *name)` as extern declaration with no body |
+| Type specifier parsing | `src/parser.cpp` | 148–170 | Handles pointer return types (`char *`) for getenv signature |
+| Function call codegen | `src/codegen.cpp` | 838–853 | Generates `call getenv` with argument in `%rdi` |
+| String literal codegen | `src/codegen.cpp` | 929–935 | Loads string address via `lea .Lstr_N(%rip), %rax` for string args |
+| Identifier resolution | `src/codegen.cpp` | 944–965 | Resolves function names for external linkage |

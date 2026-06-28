@@ -58,3 +58,17 @@ flowchart LR
 - [ ] Handle format string parsing
 - [ ] Handle varargs
 - [ ] Test: `printf("hello %s %d\n", "world", 42);`
+
+## Implementation Details
+
+I/O functions like `printf`, `puts`, and `putchar` are declared via `extern` with variadic (`...`) parameter support. The compiler's variadic parameter parsing (`ELLIPSIS` token) allows flexible argument counts. Function calls pass arguments via System V ABI registers.
+
+| Component | File | Line | Description |
+|-----------|------|------|-------------|
+| ELLIPSIS token | `src/token.h` | 52 | `ELLIPSIS` token type for variadic params |
+| Variadic parse | `src/parser.cpp` | 596-599 | Parses `...` as variadic parameter |
+| Extern parse | `src/parser.cpp` | 218-248 | Parses `extern` function declarations |
+| Varargs call | `src/codegen.cpp` | 838-854 | Passes up to 6 args via registers |
+| String literal | `src/codegen.cpp` | 929-936 | Emits format strings to `.rodata` |
+| Func prologue | `src/codegen.cpp` | 73-88 | Standard function prologue/epilogue |
+| Test coverage | `tests/test_io_functions.cpp` | 1-102 | Tests printf, scanf, putchar, puts declarations |

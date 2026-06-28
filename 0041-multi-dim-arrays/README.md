@@ -29,3 +29,15 @@ flowchart TD
 - [ ] Row-major offset calculation: `arr[i][j] = base + i * cols * sizeof + j * sizeof`
 - [ ] Array-to-pointer decay for each dimension
 - [ ] Test: `int m[2][3] = {{1,2,3},{4,5,6}}; return m[1][1];` → 5
+
+## Implementation Details
+
+| Component | File | Lines | Description |
+|-----------|------|-------|-------------|
+| Index expression parsing | `src/parser.cpp` | 1187-1193 | `parse_postfix()` handles `array[expr]` bracket syntax |
+| IndexExprNode structure | `src/ast.h` | 462-468 | Stores `array` and `index` AST pointers |
+| Array indexing codegen | `src/codegen.cpp` | 856-897 | Computes `base + index * elem_size` with `imul` and `add` |
+| Element size lookup | `src/codegen.cpp` | 861-867 | Reads `array_info_` map for element size from declaration |
+| Array info storage | `src/codegen.cpp` | 327-329 | `array_info_[name] = {elem_size, count}` set during VarDecl |
+| Variable codegen for arrays | `src/codegen.cpp` | 304-335 | Stack allocation: `elem_size * array_size` aligned to 8 bytes |
+| Identifier array base | `src/codegen.cpp` | 942-966 | `lea offset(%rbp), %rax` returns base address for array names |

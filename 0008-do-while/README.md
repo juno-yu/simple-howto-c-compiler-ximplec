@@ -38,3 +38,14 @@ flowchart TD
     style I fill:#f9f,stroke:#333,stroke-width:2px
     style J fill:#bbf,stroke:#333,stroke-width:2px
 ```
+
+## Implementation Details
+
+### Source Code References
+| Component | File | Lines | Description |
+|-----------|------|-------|-------------|
+| Token Definition | src/token.h | 30 | `KW_DO` token type |
+| AST Node | src/ast.h | 35, 349-355 | `DO_WHILE_STMT` node type and `DoWhileStmtNode` struct |
+| Parser | src/parser.cpp | 661, 764-779 | `parse_do_while_stmt()` function |
+| Code Generator | src/codegen.cpp | 164-165, 564-587 | `visit(DoWhileStmtNode&)` implementation |
+| Visitor Interface | src/ast.h | 149 | `visit(DoWhileStmtNode&)` pure virtual method |

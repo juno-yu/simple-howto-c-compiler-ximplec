@@ -37,3 +37,16 @@ flowchart TD
     style D fill:#bfb,stroke:#333
     style G fill:#bbf,stroke:#333
 ```
+
+## Implementation Details
+
+| Feature | File | Line(s) | Description |
+|---------|------|---------|-------------|
+| Lexer keyword | `src/lexer.cpp` | 29, 113 | `typedef` token recognition |
+| AST node | `src/ast.h` | 91, 260–266 | `TypedefDeclNode` struct |
+| AST accept | `src/ast.cpp` | 14 | `accept()` method |
+| Parser entry | `src/parser.cpp` | 370–372 | Dispatches to `parse_typedef_decl()` |
+| Parser method | `src/parser.cpp` | 573–592 | Parses source type + alias, registers in `typedef_names_` |
+| Parser context | `src/parser.h` | 40, 86 | Declaration and `typedef_names_` set |
+| Codegen | `src/codegen.cpp` | 410–412 | Stores alias → source type in `typedef_map_` |
+| Codegen map | `src/codegen.h` | 133 | `typedef_map_` member |

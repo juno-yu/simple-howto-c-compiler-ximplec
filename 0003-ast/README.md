@@ -15,7 +15,7 @@ graph TD
     B --> D[var_decl]
     C --> E[block]
     E --> F[statement*]
-    F --> G[if_stmt | while_stmt | for_stmt | return_stmt | expr_stmt]
+    F --> G["if_stmt | while_stmt | for_stmt | return_stmt | expr_stmt"]
 ```
 
 ## Implemented Features

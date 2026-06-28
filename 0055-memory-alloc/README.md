@@ -74,3 +74,17 @@ Simple bump allocator using brk syscall.
 - [ ] Implement calloc: malloc + memset
 - [ ] Implement realloc
 - [ ] Test: `int *p = malloc(sizeof(int)); *p = 42; return *p;` → 42
+
+## Implementation Details
+
+Memory allocation functions (`malloc`, `free`, `calloc`, `realloc`) are declared as `extern` and linked to the C library. The compiler handles `void*` return types, pointer dereference for writing allocated memory, and `sizeof` expressions for allocation size calculation.
+
+| Component | File | Line | Description |
+|-----------|------|------|-------------|
+| Extern parse | `src/parser.cpp` | 218-248 | Parses `extern` declarations for malloc/free |
+| Pointer types | `src/parser.cpp` | 178-180 | Parses `*` for pointer return types (`void*`) |
+| sizeof expr | `src/parser.cpp` | 1088-1109 | Parses `sizeof(type)` for allocation size |
+| sizeof codegen | `src/codegen.cpp` | 810-830 | Emits type size as immediate value |
+| Deref assign | `src/codegen.cpp` | 652-666 | Handles `*p = value` for writing allocated memory |
+| Func call | `src/codegen.cpp` | 838-854 | Generates `call` for malloc, free, etc. |
+| Test coverage | `tests/test_memory_alloc.cpp` | 1-107 | Tests malloc/free/calloc/realloc declarations |

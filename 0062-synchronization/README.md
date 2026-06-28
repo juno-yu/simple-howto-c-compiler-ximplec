@@ -62,3 +62,15 @@ flowchart LR
 - [ ] Spinlock implementation
 - [ ] Read-write locks
 - [ ] Test: producer-consumer pattern
+
+## Implementation Details
+
+Synchronization primitives are supported through extern function declarations and the standard call code generation path.
+
+| Component | Source File | Lines | Description |
+|-----------|-------------|-------|-------------|
+| Function declaration parsing | `src/parser.cpp` | 233–250 | Parses mutex/semaphore function declarations |
+| Pointer type handling | `src/parser.cpp` | 148–170 | Handles `pthread_mutex_t *` pointer parameters |
+| Function call codegen | `src/codegen.cpp` | 838–853 | Generates `call pthread_mutex_lock` etc. with mutex arg in `%rdi` |
+| Function prologue | `src/codegen.cpp` | 262–284 | Stack frame setup for synchronization wrapper functions |
+| Block statement codegen | `src/codegen.cpp` | 489–492 | Sequential execution of lock/unlock calls in function bodies |

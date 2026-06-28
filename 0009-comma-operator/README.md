@@ -33,3 +33,13 @@ flowchart TD
     style I fill:#f9f,stroke:#333,stroke-width:2px
     style J fill:#bbf,stroke:#333,stroke-width:2px
 ```
+
+## Implementation Details
+
+### Source Code References
+| Component | File | Lines | Description |
+|-----------|------|-------|-------------|
+| AST Node | src/ast.h | 111, 423-430 | `COMMA_EXPR` node type and `CommaExprNode` struct |
+| Parser | src/parser.cpp | 881-888 | Comma operator parsing in `parse_expression()` |
+| Code Generator | src/codegen.cpp | 191-192, 805-808 | `visit(CommaExprNode&)` implementation |
+| Visitor Interface | src/ast.h | 158 | `visit(CommaExprNode&)` pure virtual method |

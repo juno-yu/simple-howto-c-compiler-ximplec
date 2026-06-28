@@ -151,3 +151,17 @@ Lexer lexer("int x = 42;");
 auto tokens = lexer.tokenize();
 // tokens: [INT, ID("x"), ASSIGN, NUM("42"), SEMICOLON, EOF]
 ```
+
+## Implementation Details
+
+### Source Code References
+| Component | File | Lines | Description |
+|-----------|------|-------|-------------|
+| Token types | src/token.h | 9-100 | TokenType enum defining all token categories |
+| Keyword map | src/lexer.cpp | 91-127 | Maps keyword strings to token types |
+| Number reading | src/lexer.cpp | 209 | Reads integer and floating-point literals |
+| Identifier reading | src/lexer.cpp | 321 | Reads identifiers and keywords |
+| Operator reading | src/lexer.cpp | 339-411 | Handles all operators and delimiters |
+| Whitespace skipping | src/lexer.cpp | 160 | Skips spaces, tabs, newlines, comments |
+| Next token dispatch | src/lexer.cpp | 424-450 | Routes characters to appropriate reader |
+| Tokenize loop | src/lexer.cpp | 452-469 | Main loop producing token vector |

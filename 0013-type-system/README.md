@@ -63,3 +63,16 @@ classDiagram
 - [ ] Semantic analysis pass (type checking)
 - [ ] Test: verify type sizes on x86-64
 - [ ] Test: type mismatch errors
+
+## Implementation Details
+
+### Source Code References
+| Component | File | Lines | Description |
+|-----------|------|-------|-------------|
+| Type Specifier Parsing | src/parser.cpp | 58-70, 87-170 | `is_type_specifier()` and `parse_type_specifier()` |
+| Type Qualifiers | src/parser.cpp | 88-102 | const, volatile, static, extern, inline handling |
+| Primitive Types | src/parser.cpp | 125-137 | int, char, void, bool, float, double parsing |
+| Struct Types | src/parser.cpp | 137-170 | struct type parsing and handling |
+| Type Size Helper | src/codegen.cpp | 1197-1209 | `get_type_size()` for all primitive types |
+| Variable Types | src/codegen.cpp | 324, 360-361, 864-865 | `variable_types_` map for type tracking |
+| Array Element Size | src/codegen.cpp | 311, 389, 865 | Type size usage for array indexing and struct fields |

@@ -27,3 +27,14 @@ flowchart TD
 - [ ] Validate declaration matches definition
 - [ ] Support `extern` variable declarations
 - [ ] Test: forward declare and use function before definition
+
+## Implementation Details
+
+### Source Code References
+| Component | File | Lines | Description |
+|-----------|------|-------|-------------|
+| AST Node | src/ast.h | 82-85, 202-211 | `FunctionDeclNode` struct with body field |
+| Parser | src/parser.cpp | 433-461 | `parse_function_decl()` handles forward declarations |
+| Parser | src/parser.cpp | 452-458 | Forward declaration detection (no body) |
+| Code Generator | src/codegen.cpp | 257-261 | `visit(FunctionDeclNode&)` skips forward declarations |
+| Symbol Table | src/parser.cpp | 221 | extern declarations stored as forward declarations |

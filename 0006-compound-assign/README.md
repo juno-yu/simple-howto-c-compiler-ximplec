@@ -60,3 +60,18 @@ flowchart TD
     style E fill:#f9f,stroke:#333,stroke-width:2px
     style G fill:#bbf,stroke:#333,stroke-width:2px
 ```
+
+## Implementation Details
+
+### Source Code References
+| Component | File | Lines | Description |
+|-----------|------|-------|-------------|
+| Compound assignment tokens | src/token.h | 61-64 | Token types: PLUS_ASSIGN, MINUS_ASSIGN, STAR_ASSIGN, SLASH_ASSIGN |
+| Lexer operator recognition | src/lexer.cpp | 345-358 | Handles +=, -=, *=, /= in read_operator() |
+| CompoundAssignExprNode | src/ast.h | 403-411 | AST node for compound assignment expressions |
+| parse_assignment() | src/parser.cpp | 893-933 | Parses assignment and compound assignment operators |
+| Compound assignment parsing | src/parser.cpp | 915-930 | Matches compound tokens and creates CompoundAssignExprNode |
+| visit(CompoundAssignExprNode) | src/codegen.cpp | 708-783 | Code generation for compound assignment operations |
+| Member expression handling | src/codegen.cpp | 710-738 | Compound assignment to struct member (a.b += x) |
+| Identifier handling | src/codegen.cpp | 742-782 | Compound assignment to local variable (x += 5) |
+| Operator application | src/codegen.cpp | 762-773 | Applies ADD, SUB, MUL, DIV, MOD, BIT_AND, BIT_OR, BIT_XOR, LSHIFT, RSHIFT |

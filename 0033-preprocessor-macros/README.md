@@ -47,3 +47,14 @@ flowchart TD
 - [ ] Handle `#undef NAME`
 - [ ] Recursive expansion
 - [ ] Test: `#define PI 3.14` then `return PI;`
+
+## Implementation Details
+
+**Status: Not yet implemented.** No preprocessor source code exists in `src/`. The compiler currently passes source directly to the lexer without macro expansion. The following files would need to be created or modified:
+
+| Feature | File | Description |
+|---------|------|-------------|
+| Preprocessor phase | `src/preprocessor.cpp` *(new)* | Token-level `#define` expansion |
+| Preprocessor header | `src/preprocessor.h` *(new)* | Macro storage and expansion API |
+| Lexer integration | `src/compiler.cpp` | Pipeline integration point |
+| Lexer tokens | `src/token.h` | `KW_DEFINE`, `KW_UNDEF` token types needed |

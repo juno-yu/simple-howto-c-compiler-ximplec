@@ -36,3 +36,13 @@ flowchart TD
     style D fill:#f9f,stroke:#333,stroke-width:2px
     style K fill:#bbf,stroke:#333,stroke-width:2px
 ```
+
+## Implementation Details
+
+### Source Code References
+| Component | File | Lines | Description |
+|-----------|------|-------|-------------|
+| Token Definition | src/token.h | 31 | `KW_BOOL` token type |
+| Parser | src/parser.cpp | 62, 131-132 | `is_type_specifier()` and type parsing for bool |
+| Code Generator | src/codegen.cpp | 818-819, 1201 | bool type handling in sizeof and type size |
+| Type Size Helper | src/codegen.cpp | 1197-1209 | `get_type_size()` returns 1 for bool |

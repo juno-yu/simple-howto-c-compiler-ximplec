@@ -38,3 +38,16 @@ flowchart TD
     I --> M
     L --> M
 ```
+
+## Implementation Details
+
+| Component | Source File | Lines | Description |
+|-----------|-----------|-------|-------------|
+| Binary ADD codegen | `src/codegen.cpp` | `991-992` | Emits `add %rcx, %rax` (pointer + offset) |
+| Binary SUB codegen | `src/codegen.cpp` | `994-995` | Emits `sub %rcx, %rax` (pointer - offset) |
+| Index scaling (pointer arithmetic) | `src/codegen.cpp` | `856-897` | `IndexExprNode` multiplies index by `elem_size` for pointer/array indexing |
+| Pointer size for arithmetic | `src/codegen.cpp` | `861-866` | Looks up `elem_size` from `array_info_` or `variable_types_` |
+| Unary increment (`p++`) | `src/codegen.cpp` | `1088-1090` | `generate_unary()` dispatches operand, post-inc handled separately |
+| Post-increment codegen | `src/codegen.cpp` | `654` | Post-inc on member expressions uses saved address |
+| Pointer comparison (EQ/NE) | `src/codegen.cpp` | `1009-1016` | `cmp %rcx, %rax` + `sete`/`setne` for `==`/`!=` |
+| Pointer comparison (LT/GT) | `src/codegen.cpp` | `1017-1028` | `cmp %rcx, %rax` + `setl`/`setg` for `<`/`>` |

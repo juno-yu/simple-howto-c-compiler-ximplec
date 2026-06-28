@@ -42,3 +42,14 @@ flowchart TD
     style E fill:#ffd,stroke:#333
     style L fill:#ffd,stroke:#333
 ```
+
+## Implementation Details
+
+| Component | File | Lines | Description |
+|-----------|------|-------|-------------|
+| Function pointer declaration parsing | `src/parser.cpp` | 382-415 | Parses `int (*fp)(int, int)` syntax with parenthesized pointer name |
+| Call expression AST node | `src/ast.h` | 453-460 | `CallExprNode` stores function name and arguments |
+| Address-of operator | `src/ast.h` | 487-492 | `AddressOfExprNode` for `&function` to get function pointer |
+| Call expression codegen | `src/codegen.cpp` | 838-854 | Generates `call` instruction with System V ABI register passing |
+| Address-of codegen | `src/codegen.cpp` | 1108-1129 | `OpKind::ADDRESS_OF` handling for identifier, deref, and member expressions |
+| Identifier codegen (function address) | `src/codegen.cpp` | 942-966 | Falls through to `lea name(%rip), %rax` for function pointers |

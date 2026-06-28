@@ -61,3 +61,17 @@ flowchart LR
 - [ ] Implement memset: fill n bytes
 - [ ] Test: `strlen("hello")` → 5
 - [ ] Test: `strcmp("abc", "abd")` → negative
+
+## Implementation Details
+
+String functions are declared as `extern` and linked to the C library at link time. The compiler handles string literal codegen by emitting `.asciz` directives in the `.rodata` section and generates `call` instructions for string function invocations.
+
+| Component | File | Line | Description |
+|-----------|------|------|-------------|
+| Extern parse | `src/parser.cpp` | 218-248 | Parses `extern` function declarations |
+| String literal | `src/codegen.cpp` | 929-936 | Emits string to `.rodata` with `lea` for address |
+| `.rodata` emit | `src/codegen.cpp` | 46-53 | Collects and emits string literals section |
+| `.asciz` output | `src/codegen.cpp` | 51 | Outputs `.asciz` for null-terminated strings |
+| Func call | `src/codegen.cpp` | 838-854 | Generates `call` for strlen, strcmp, etc. |
+| Index access | `src/codegen.cpp` | 856-897 | Array/string indexing with element size scaling |
+| Test coverage | `tests/test_string_funcs.cpp` | 1-99 | Tests strlen call, string literal assignment |

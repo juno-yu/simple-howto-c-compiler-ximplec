@@ -124,3 +124,19 @@ TEST_CASE("Complete program", "[integration]") {
     REQUIRE(result.exit_code == 30);
 }
 ```
+
+## Implementation Details
+
+### Source Code References
+| Component | File | Lines | Description |
+|-----------|------|-------|-------------|
+| CompileResult struct | src/compiler.h | 8-16 | Result structure with success, assembly, error info |
+| Compiler class | src/compiler.h | 18-31 | Compiler orchestrator class declaration |
+| compile() method | src/compiler.cpp | 10-46 | Main compilation pipeline: tokenize → parse → codegen |
+| Tokenization step | src/compiler.cpp | 14-22 | Creates Lexer, tokenizes source, checks for errors |
+| Parsing step | src/compiler.cpp | 25-33 | Creates Parser, parses tokens, checks for errors |
+| Code generation step | src/compiler.cpp | 36-42 | Creates CodeGenerator, generates assembly, checks for errors |
+| compile_file() method | src/compiler.cpp | 48-60 | Reads file and delegates to compile() |
+| CLI entry point | src/main.cpp | 17 | main() function handling command-line arguments |
+| CLI argument parsing | src/main.cpp | 17-??? | Parses -o, -S, -t, -a, -h flags |
+| Pipeline orchestration | src/compiler.cpp | 10-46 | Full lexer → parser → codegen integration |

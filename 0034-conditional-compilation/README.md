@@ -52,3 +52,13 @@ flowchart TD
 - [ ] Nested conditionals
 - [ ] Handle `#pragma once`
 - [ ] Test: `#ifdef DEBUG ... #else ... #endif`
+
+## Implementation Details
+
+**Status: Not yet implemented.** No preprocessor infrastructure exists in `src/`. Conditional compilation requires the preprocessor phase first.
+
+| Feature | File | Description |
+|---------|------|-------------|
+| Conditional evaluator | `src/preprocessor.cpp` *(new)* | `#ifdef`/`#ifndef`/`#if`/`#elif`/`#else`/`#endif` handling |
+| Macro table | `src/preprocessor.h` *(new)* | Tracks `defined()` state |
+| Lexer tokens | `src/token.h` | `KW_IFDEF`, `KW_IFNDEF`, `KW_IF`, `KW_ELIF`, `KW_ELSE`, `KW_ENDIF` needed |

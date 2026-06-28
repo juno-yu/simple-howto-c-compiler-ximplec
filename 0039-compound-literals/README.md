@@ -43,3 +43,14 @@ flowchart TD
     style F fill:#ffd,stroke:#333
     style I fill:#ffd,stroke:#333
 ```
+
+## Implementation Details
+
+| Component | File | Lines | Description |
+|-----------|------|-------|-------------|
+| Cast expression parsing | `src/parser.cpp` | 1111-1126 | `parse_unary()` detects `(type)expr` cast syntax via lookahead |
+| Type specifier in cast | `src/parser.cpp` | 1115-1121 | Validates type after `(` and creates `CastExprNode` |
+| CastExprNode structure | `src/ast.h` | 444-451 | Stores `target_type` string and inner `expr` |
+| Cast codegen | `src/codegen.cpp` | 832-836 | Evaluates inner expression (type coercion not yet implemented) |
+| Address-of compound literal | `src/codegen.cpp` | 1108-1129 | `&(type){...}` uses ADDRESS_OF operator |
+| VarDeclNode initializer | `src/ast.h` | 213-222 | Initializer AST pointer for compound literal assignments |

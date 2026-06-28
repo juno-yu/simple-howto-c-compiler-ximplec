@@ -46,3 +46,16 @@ flowchart TD
     style C fill:#ffd,stroke:#333
     style K fill:#f9f,stroke:#333
 ```
+
+## Implementation Details
+
+| Feature | File | Line(s) | Description |
+|---------|------|---------|-------------|
+| Lexer keywords | `src/lexer.cpp` | 25–27, 109 | `switch`, `case`, `default` tokens |
+| AST nodes | `src/ast.h` | 92–94, 269–289 | `SwitchStmtNode`, `CaseLabelNode`, `DefaultLabelNode` |
+| AST accept | `src/ast.cpp` | 15–17 | `accept()` methods |
+| Parser entry | `src/parser.cpp` | 666–668 | Dispatches to `parse_switch_stmt()` |
+| Parser method | `src/parser.cpp` | 816–858 | Parses `switch(expr) { case… default… }` |
+| Codegen | `src/codegen.cpp` | 414–464 | If-else lowering with case comparison chain |
+| Codegen helpers | `src/codegen.cpp` | 466–471 | Case/default label visitors (no-ops) |
+| Codegen context | `src/codegen.h` | 97–98 | `current_case_label_`, `current_switch_end_` |

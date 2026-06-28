@@ -60,3 +60,15 @@ flowchart LR
 - [ ] Define signal handler types
 - [ ] Support SIGINT, SIGTERM, SIGCHLD
 - [ ] Test: install SIGINT handler, send signal
+
+## Implementation Details
+
+The compiler handles signal handling through function pointer parsing and standard function call code generation.
+
+| Component | Source File | Lines | Description |
+|-----------|-------------|-------|-------------|
+| Function pointer parsing | `src/parser.cpp` | 382–413 | Parses `void (*handler)(int)` declarations for signal handler parameters |
+| Function call codegen | `src/codegen.cpp` | 838–853 | Generates `call` instructions for signal(), sigaction(), kill(), raise() |
+| System V ABI registers | `src/codegen.cpp` | 267–268 | Maps first 6 args to `%rdi, %rsi, %rdx, %rcx, %r8, %r9` |
+| Function prologue | `src/codegen.cpp` | 262–264 | Emits `push %rbp; mov %rsp, %rbp` for handler frames |
+| Parameter passing | `src/codegen.cpp` | 288–291 | Stores parameters from registers to stack slots |

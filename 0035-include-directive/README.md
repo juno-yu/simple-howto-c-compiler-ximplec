@@ -45,3 +45,14 @@ flowchart TD
 - [ ] Include guard support (`#ifndef`/`#define`/`#endif`)
 - [ ] Prevent infinite recursion
 - [ ] Test: include a custom header with function declarations
+
+## Implementation Details
+
+**Status: Not yet implemented.** No file I/O or include processing exists in `src/`. The compiler processes a single input file with no header expansion.
+
+| Feature | File | Description |
+|---------|------|-------------|
+| Include resolver | `src/preprocessor.cpp` *(new)* | `#include <file>` / `#include "file"` processing |
+| Include guard tracking | `src/preprocessor.h` *(new)* | Prevents double-inclusion |
+| Compiler pipeline | `src/compiler.cpp` | Would need include path configuration |
+| Lexer tokens | `src/token.h` | `KW_INCLUDE` token type needed |
