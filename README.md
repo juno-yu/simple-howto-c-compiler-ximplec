@@ -238,12 +238,12 @@ This project builds a compiler for a substantial subset of C, progressing from b
 
 | Feature | Status | Lesson |
 |---------|--------|--------|
-| `_Static_assert` | ✅ Parsed (skipped) | 0087 |
-| `_Generic` | ✅ Parsed (simplified) | 0088 |
-| `_Alignas` / `_Alignof` | ✅ Parsed | 0089 |
-| `_Atomic` | ✅ Parsed (type qualifier) | 0090 |
-| `_Thread_local` | ✅ Parsed (type qualifier) | 0091 |
-| Anonymous structs | ✅ Parsed + codegen | 0092 |
+| `_Static_assert` | ✅ Parsed (skipped) | 1000 |
+| `_Generic` | ✅ Parsed (simplified) | 1001 |
+| `_Alignas` / `_Alignof` | ✅ Parsed | 1014 |
+| `_Atomic` | ✅ Parsed (type qualifier) | 1005 |
+| `_Thread_local` | ✅ Parsed (type qualifier) | 1010 |
+| Anonymous structs | ✅ Parsed + codegen | 1002 |
 
 ### C17 Features
 
@@ -494,16 +494,27 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | 0084 | Attribute (GCC) | ❌ |
 | 0085 | Builtin Functions | ❌ |
 | 0086 | Nested Functions | ❌ |
-| 0087 | Static Assert (C11) | ✅ |
-| 0088 | Generic Selection | ✅ |
-| 0089 | Alignas/Alignof | ✅ |
-| 0090 | Atomic (C11) | ✅ |
-| 0091 | Thread Local | ✅ |
-| 0092 | Anonymous Structs | ✅ |
 
-### C11/C17/C23 Standard Lessons — 📋 Planned
+### C11 Standard Lessons (1000-1015)
 
-16 C11 lessons (1000-1015), 6 C17 lessons (2000-2005), 15 C23 lessons (3000-3014) — tests created, implementation pending.
+| Lesson | Topic | Compile |
+|--------|-------|---------|
+| 1000 | Static Assert | ✅ |
+| 1001 | Generic Selection | ✅ |
+| 1002 | Anonymous Structs | ✅ |
+| 1003 | Anonymous Unions | ❌ |
+| 1004 | _Noreturn | ❌ |
+| 1005 | _Atomic | ✅ |
+| 1006 | threads.h | ❌ |
+| 1007 | aligned_alloc | ❌ |
+| 1008 | tgmath | ❌ |
+| 1009 | stdatomic.h | ❌ |
+| 1010 | _Thread_local | ✅ |
+| 1011 | Bounds Checking | ❌ |
+| 1012 | static_assert alias | ❌ |
+| 1013 | stdnoreturn.h | ❌ |
+| 1014 | stdalign.h | ✅ |
+| 1015 | stdatomic complete | ❌ |
 
 ## Test Results
 
