@@ -225,25 +225,25 @@ This project builds a compiler for a substantial subset of C, progressing from b
 
 | Feature | Lexer | Parser | Codegen | Lesson |
 |---------|-------|--------|---------|--------|
-| Statement expressions `({...})` | ❌ | — | — | 0047 |
-| Inline assembly `asm()` | ❌ | — | — | 0048 |
-| Label-as-value (`&&label`) | ❌ | — | — | — |
-| `__attribute__` | ❌ | — | — | — |
-| `__builtin_expect` | ❌ | — | — | — |
+| Statement expressions `({...})` | ❌ | — | — | 0082 |
+| Inline assembly `asm()` | ❌ | — | — | — |
+| Label-as-value (`&&label`) | ❌ | — | — | 0083 |
+| `__attribute__` | ❌ | — | — | 0084 |
+| `__builtin_expect` | ❌ | — | — | 0085 |
 | `__builtin_offsetof` | ❌ | — | — | — |
-| Nested functions | ❌ | — | — | — |
+| Nested functions | ❌ | — | — | 0086 |
 | Binary literals `0b1010` | ✅ | ✅ | ✅ | 0001 |
 
 ### C11 Features
 
 | Feature | Status | Lesson |
 |---------|--------|--------|
-| `_Static_assert` | ❌ Not implemented | 0044 |
-| `_Generic` | ❌ Not implemented | 0045 |
-| `_Alignas` / `_Alignof` | ❌ Not implemented | — |
-| `_Atomic` | ❌ Not implemented | — |
-| `_Thread_local` | ❌ Not implemented | — |
-| Anonymous structs | ❌ Not implemented | — |
+| `_Static_assert` | ❌ Not implemented | 0087 |
+| `_Generic` | ❌ Not implemented | 0088 |
+| `_Alignas` / `_Alignof` | ❌ Not implemented | 0089 |
+| `_Atomic` | ❌ Not implemented | 0090 |
+| `_Thread_local` | ❌ Not implemented | 0091 |
+| Anonymous structs | ❌ Not implemented | 0092 |
 
 ### C17 Features
 
@@ -478,6 +478,28 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 | 0073 | Compile Compiler 2 | ✅ |
 | 0074 | Compile Compiler 3 | ✅ |
 | 0075 | Bootstrap | ✅ |
+
+### GCC Extensions & C11 Features (0076-0092)
+
+| Lesson | Topic | Compile |
+|--------|-------|---------|
+| 0076 | Register Auto | ✅ |
+| 0077 | Restrict Qualifier | ✅ |
+| 0078 | Variadic Macros | ✅ |
+| 0079 | Token Pasting | ✅ |
+| 0080 | Pragma | ✅ |
+| 0081 | Standard Lib Stubs | ✅ |
+| 0082 | Statement Expr (GCC) | ❌ |
+| 0083 | Label-as-Value | ❌ |
+| 0084 | Attribute (GCC) | ❌ |
+| 0085 | Builtin Functions | ❌ |
+| 0086 | Nested Functions | ❌ |
+| 0087 | Static Assert (C11) | ❌ |
+| 0088 | Generic Selection | ❌ |
+| 0089 | Alignas/Alignof | ❌ |
+| 0090 | Atomic (C11) | ❌ |
+| 0091 | Thread Local | ❌ |
+| 0092 | Anonymous Structs | ❌ |
 
 ### C11/C17/C23 Standard Lessons — 📋 Planned
 
