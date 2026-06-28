@@ -38,6 +38,8 @@ private:
     void visit(CompoundAssignExprNode& node) override;
     void visit(TernaryExprNode& node) override;
     void visit(CommaExprNode& node) override;
+    void visit(SizeofExprNode& node) override;
+    void visit(CastExprNode& node) override;
     void visit(CallExprNode& node) override;
     void visit(IndexExprNode& node) override;
     void visit(MemberExprNode& node) override;
@@ -80,6 +82,22 @@ private:
     
     // Track if current function has returned
     bool returned_;
+    
+    // String literals for .rodata section
+    struct StringLiteral {
+        std::string label;
+        std::string value;
+    };
+    std::vector<StringLiteral> string_literals_;
+    
+    // Global variables
+    struct GlobalVar {
+        std::string name;
+        std::string type;
+        bool initialized;
+        std::string init_value;
+    };
+    std::vector<GlobalVar> global_variables_;
 };
 
 } // namespace simplecc

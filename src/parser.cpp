@@ -59,16 +59,27 @@ bool Parser::is_type_specifier() const {
     return check(TokenType::KW_INT) || 
            check(TokenType::KW_CHAR) || 
            check(TokenType::KW_VOID) ||
-           check(TokenType::KW_BOOL);
+           check(TokenType::KW_BOOL) ||
+           check(TokenType::KW_CONST);
 }
 
 std::string Parser::parse_type_specifier() {
-    if (match(TokenType::KW_INT)) return "int";
-    if (match(TokenType::KW_CHAR)) return "char";
-    if (match(TokenType::KW_VOID)) return "void";
-    if (match(TokenType::KW_BOOL)) return "bool";
-    error("Expected type specifier");
-    return "";
+    std::string result;
+    
+    // Handle const qualifier
+    if (match(TokenType::KW_CONST)) {
+        result = "const ";
+    }
+    
+    if (match(TokenType::KW_INT)) return result + "int";
+    if (match(TokenType::KW_CHAR)) return result + "char";
+    if (match(TokenType::KW_VOID)) return result + "void";
+    if (match(TokenType::KW_BOOL)) return result + "bool";
+    
+    if (result.empty()) {
+        error("Expected type specifier");
+    }
+    return result;
 }
 
 void Parser::error(const std::string& message) {
@@ -146,7 +157,14 @@ ASTPtr Parser::parse_function_decl(const std::string& type_name) {
     }
     
     expect(TokenType::RPAREN);
-    func->body = parse_block();
+    
+    // Forward declaration: no body
+    if (check(TokenType::SEMICOLON)) {
+        advance(); // consume semicolon
+        func->body = nullptr;
+    } else {
+        func->body = parse_block();
+    }
     
     return std::move(func);
 }
@@ -549,6 +567,41 @@ ASTPtr Parser::parse_multiplication() {
 }
 
 ASTPtr Parser::parse_unary() {
+    // sizeof operator
+    if (match(TokenType::KW_SIZEOF)) {
+        int line = tokens_[pos_ - 1].line;
+        int col = tokens_[pos_ - 1].column;
+        
+        if (match(TokenType::LPAREN)) {
+            // sizeof(type)
+            if (is_type_specifier()) {
+                std::string type = parse_type_specifier();
+                expect(TokenType::RPAREN);
+                return std::make_unique<SizeofExprNode>(type, line, col);
+            } else {
+                // sizeof(expr)
+                auto expr = parse_expression();
+                expect(TokenType::RPAREN);
+                return std::make_unique<SizeofExprNode>(std::move(expr), line, col);
+            }
+        } else {
+            // sizeof expr
+            auto expr = parse_unary();
+            return std::make_unique<SizeofExprNode>(std::move(expr), line, col);
+        }
+    }
+    
+    // Type cast
+    if (check(TokenType::LPAREN) && is_type_specifier()) {
+        int line = tokens_[pos_].line;
+        int col = tokens_[pos_].column;
+        advance(); // consume (
+        std::string type = parse_type_specifier();
+        expect(TokenType::RPAREN);
+        auto expr = parse_unary();
+        return std::make_unique<CastExprNode>(type, std::move(expr), line, col);
+    }
+    
     if (match(TokenType::MINUS)) {
         auto unary = std::make_unique<UnaryExprNode>(OpKind::UMINUS, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         unary->operand = parse_unary();
@@ -600,7 +653,7 @@ ASTPtr Parser::parse_postfix() {
             
             if (!check(TokenType::RPAREN)) {
                 do {
-                    call->arguments.push_back(parse_expression());
+                    call->arguments.push_back(parse_assignment());
                 } while (match(TokenType::COMMA));
             }
             

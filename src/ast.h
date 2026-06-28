@@ -34,6 +34,8 @@ enum class NodeType {
     COMPOUND_ASSIGN_EXPR,
     TERNARY_EXPR,
     COMMA_EXPR,
+    SIZEOF_EXPR,
+    CAST_EXPR,
     CALL_EXPR,
     INDEX_EXPR,
     MEMBER_EXPR,
@@ -87,6 +89,8 @@ struct AssignExprNode;
 struct CompoundAssignExprNode;
 struct TernaryExprNode;
 struct CommaExprNode;
+struct SizeofExprNode;
+struct CastExprNode;
 struct CallExprNode;
 struct IndexExprNode;
 struct MemberExprNode;
@@ -122,6 +126,8 @@ public:
     virtual void visit(CompoundAssignExprNode& node) = 0;
     virtual void visit(TernaryExprNode& node) = 0;
     virtual void visit(CommaExprNode& node) = 0;
+    virtual void visit(SizeofExprNode& node) = 0;
+    virtual void visit(CastExprNode& node) = 0;
     virtual void visit(CallExprNode& node) = 0;
     virtual void visit(IndexExprNode& node) = 0;
     virtual void visit(MemberExprNode& node) = 0;
@@ -303,6 +309,27 @@ struct CommaExprNode : ASTNode {
     
     CommaExprNode(int l, int c)
         : ASTNode(NodeType::COMMA_EXPR, l, c) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct SizeofExprNode : ASTNode {
+    std::string type_name;
+    ASTPtr expr;
+    bool is_type;
+    
+    SizeofExprNode(const std::string& type, int l, int c)
+        : ASTNode(NodeType::SIZEOF_EXPR, l, c), type_name(type), is_type(true) {}
+    SizeofExprNode(ASTPtr e, int l, int c)
+        : ASTNode(NodeType::SIZEOF_EXPR, l, c), expr(std::move(e)), is_type(false) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct CastExprNode : ASTNode {
+    std::string target_type;
+    ASTPtr expr;
+    
+    CastExprNode(const std::string& type, ASTPtr e, int l, int c)
+        : ASTNode(NodeType::CAST_EXPR, l, c), target_type(type), expr(std::move(e)) {}
     void accept(ASTVisitor& visitor);
 };
 

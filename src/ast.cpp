@@ -22,6 +22,8 @@ void AssignExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void CompoundAssignExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void TernaryExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void CommaExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void SizeofExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void CastExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void CallExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void IndexExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void MemberExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
@@ -54,6 +56,8 @@ const char* node_type_name(NodeType type) {
         case NodeType::COMPOUND_ASSIGN_EXPR: return "CompoundAssignExpr";
         case NodeType::TERNARY_EXPR: return "TernaryExpr";
         case NodeType::COMMA_EXPR: return "CommaExpr";
+        case NodeType::SIZEOF_EXPR: return "SizeofExpr";
+        case NodeType::CAST_EXPR: return "CastExpr";
         case NodeType::CALL_EXPR: return "CallExpr";
         case NodeType::INDEX_EXPR: return "IndexExpr";
         case NodeType::MEMBER_EXPR: return "MemberExpr";

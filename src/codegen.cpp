@@ -10,9 +10,54 @@ CodeGenerator::CodeGenerator()
 std::string CodeGenerator::generate(ProgramNode& program) {
     output_.str("");
     output_.clear();
+    string_literals_.clear();
+    global_variables_.clear();
     
+    // First pass: collect global variables only
+    for (auto& decl : program.declarations) {
+        if (decl->type == NodeType::VAR_DECL) {
+            auto* var = static_cast<VarDeclNode*>(decl.get());
+            GlobalVar gvar;
+            gvar.name = var->name;
+            gvar.type = var->type_name;
+            gvar.initialized = (var->initializer != nullptr);
+            if (gvar.initialized && var->initializer->type == NodeType::INTEGER_LITERAL) {
+                gvar.init_value = std::to_string(static_cast<IntegerLiteralNode*>(var->initializer.get())->value);
+            }
+            global_variables_.push_back(gvar);
+        }
+    }
+    
+    // Emit global variables
+    if (!global_variables_.empty()) {
+        emit(".data");
+        for (const auto& gvar : global_variables_) {
+            emit(".globl " + gvar.name);
+            emit_label(gvar.name);
+            if (gvar.initialized) {
+                emit(".long " + gvar.init_value);
+            } else {
+                emit(".zero 4"); // default 4 bytes for int
+            }
+        }
+    }
+    
+    // Emit string literals
+    if (!string_literals_.empty()) {
+        emit("");
+        emit(".section .rodata");
+        for (const auto& str : string_literals_) {
+            emit_label(str.label);
+            output_ << "    .asciz \"" << str.value << "\"\n";
+        }
+    }
+    
+    // Emit text section with functions
+    emit("");
     emit(".text");
-    dispatch(&program);
+    for (auto& decl : program.declarations) {
+        dispatch(decl.get());
+    }
     
     return output_.str();
 }
@@ -40,6 +85,7 @@ void CodeGenerator::emit_function_epilogue() {
     emit("mov %rbp, %rsp");
     emit("pop %rbp");
     emit("ret");
+    current_function_.clear();
 }
 
 void CodeGenerator::push(const std::string& reg) {
@@ -115,6 +161,12 @@ void CodeGenerator::dispatch(ASTNode* node) {
         case NodeType::COMMA_EXPR:
             visit(static_cast<CommaExprNode&>(*node));
             break;
+        case NodeType::SIZEOF_EXPR:
+            visit(static_cast<SizeofExprNode&>(*node));
+            break;
+        case NodeType::CAST_EXPR:
+            visit(static_cast<CastExprNode&>(*node));
+            break;
         case NodeType::CALL_EXPR:
             visit(static_cast<CallExprNode&>(*node));
             break;
@@ -151,13 +203,35 @@ void CodeGenerator::dispatch(ASTNode* node) {
 // Visitor implementations
 
 void CodeGenerator::visit(ProgramNode& node) {
+    // First pass: collect global variables
+    for (auto& decl : node.declarations) {
+        if (decl->type == NodeType::VAR_DECL) {
+            auto* var = static_cast<VarDeclNode*>(decl.get());
+            GlobalVar gvar;
+            gvar.name = var->name;
+            gvar.type = var->type_name;
+            gvar.initialized = (var->initializer != nullptr);
+            if (gvar.initialized && var->initializer->type == NodeType::INTEGER_LITERAL) {
+                gvar.init_value = std::to_string(static_cast<IntegerLiteralNode*>(var->initializer.get())->value);
+            }
+            global_variables_.push_back(gvar);
+        }
+    }
+    
+    // Second pass: generate code
     for (auto& decl : node.declarations) {
         dispatch(decl.get());
     }
 }
 
 void CodeGenerator::visit(FunctionDeclNode& node) {
+    // Skip forward declarations (no body)
+    if (!node.body) {
+        return;
+    }
+    
     returned_ = false;
+    current_function_ = node.name;
     emit_function_prologue(node.name);
     
     // Map parameters to stack slots (System V ABI: rdi, rsi, rdx, rcx, r8, r9)
@@ -198,6 +272,12 @@ void CodeGenerator::visit(FunctionDeclNode& node) {
 }
 
 void CodeGenerator::visit(VarDeclNode& node) {
+    // Global variables are handled in the first pass
+    // Only process local variables here (inside functions)
+    if (current_function_.empty()) {
+        return; // Skip global variables in code generation pass
+    }
+    
     stack_offset_ += 8;
     local_variables_[node.name] = -stack_offset_;
     
@@ -425,21 +505,67 @@ void CodeGenerator::visit(CommaExprNode& node) {
     dispatch(node.right.get());
 }
 
+void CodeGenerator::visit(SizeofExprNode& node) {
+    // Simple sizeof implementation
+    // Returns 4 for int, 1 for char, 8 for pointers, etc.
+    if (node.is_type) {
+        if (node.type_name == "int" || node.type_name == "const int") {
+            emit("mov $4, %rax");
+        } else if (node.type_name == "char" || node.type_name == "const char") {
+            emit("mov $1, %rax");
+        } else if (node.type_name == "bool") {
+            emit("mov $1, %rax");
+        } else if (node.type_name == "void") {
+            emit("mov $1, %rax");
+        } else {
+            emit("mov $8, %rax"); // default to 8 bytes
+        }
+    } else {
+        // sizeof expression - evaluate and return size based on type
+        dispatch(node.expr.get());
+        emit("mov $8, %rax"); // simplified: assume 8 bytes
+    }
+}
+
+void CodeGenerator::visit(CastExprNode& node) {
+    // Type cast - currently just evaluate the expression
+    // Full implementation would check type compatibility
+    dispatch(node.expr.get());
+}
+
 void CodeGenerator::visit(CallExprNode& node) {
     static const char* param_regs[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
     
-    // Evaluate arguments in reverse order (right to left)
+    // Evaluate arguments and push onto stack (right to left)
     int num_args = std::min((int)node.arguments.size(), 6);
     for (int i = num_args - 1; i >= 0; i--) {
         dispatch(node.arguments[i].get());
-        emit("mov %rax, " + std::string(param_regs[i]));
+        emit("push %rax");
+    }
+    
+    // Pop arguments into registers (left to right)
+    for (int i = 0; i < num_args; i++) {
+        emit("pop " + std::string(param_regs[i]));
     }
     
     emit("call " + node.function_name);
 }
 
 void CodeGenerator::visit(IndexExprNode& node) {
-    emit("# index");
+    // Load base address
+    dispatch(node.array.get());
+    emit("push %rax");
+    
+    // Load index
+    dispatch(node.index.get());
+    
+    // Compute address: base + index * element_size
+    // For now, assume char (1 byte)
+    emit("pop %rcx");
+    emit("add %rcx, %rax");
+    
+    // Load value at address
+    emit("movzbl (%rax), %eax");
 }
 
 void CodeGenerator::visit(MemberExprNode& node) {
@@ -469,7 +595,12 @@ void CodeGenerator::visit(FloatLiteralNode& node) {
 }
 
 void CodeGenerator::visit(StringLiteralNode& node) {
-    emit("# string");
+    // Add string to literal table and emit address
+    std::string label = ".Lstr_" + std::to_string(string_literals_.size());
+    string_literals_.push_back({label, node.value});
+    
+    // Load address of string into rax
+    emit("lea " + label + "(%rip), %rax");
 }
 
 void CodeGenerator::visit(CharLiteralNode& node) {
@@ -480,6 +611,16 @@ void CodeGenerator::visit(IdentifierExprNode& node) {
     if (local_variables_.count(node.name)) {
         int offset = local_variables_[node.name];
         emit("mov " + std::to_string(offset) + "(%rbp), %rax");
+    } else {
+        // Check if it's a global variable
+        for (const auto& gvar : global_variables_) {
+            if (gvar.name == node.name) {
+                emit("mov " + node.name + "(%rip), %rax");
+                return;
+            }
+        }
+        // Check if it's a function
+        emit("lea " + node.name + "(%rip), %rax");
     }
 }
 

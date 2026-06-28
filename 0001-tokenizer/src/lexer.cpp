@@ -83,6 +83,7 @@ const std::unordered_map<std::string, TokenType>& Lexer::keywords() {
         {"continue", TokenType::KW_CONTINUE},
         {"do", TokenType::KW_DO},
         {"bool", TokenType::KW_BOOL},
+        {"const", TokenType::KW_CONST},
         {"sizeof", TokenType::KW_SIZEOF},
     };
     return kw;

@@ -29,6 +29,7 @@ enum class TokenType {
     KW_CONTINUE,
     KW_DO,
     KW_BOOL,
+    KW_CONST,
     KW_SIZEOF,
     
     // Operators
