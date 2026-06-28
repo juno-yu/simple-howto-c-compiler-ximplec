@@ -168,118 +168,136 @@ struct Point p; p.x=10; p.y=20; return p.x+p.y;
 
 ## Lesson Progress
 
+**Compilation status:** 41/70 lessons compile successfully, 29 need fixes.
+
 ### Core Lessons (0001-0005) — ✅ Complete
 
-| Lesson | Topic | Tests | Status |
-|--------|-------|-------|--------|
-| 0001 | Tokenizer (Lexer) | 26 | ✅ Complete |
-| 0002 | AST Definitions | 10 | ✅ Complete |
-| 0003 | Parser (Recursive Descent) | 20 | ✅ Complete |
-| 0004 | Code Generator (x86-64) | 11 | ✅ Complete |
-| 0005 | Integration (CLI, Pipeline) | 11 | ✅ Complete |
+| Lesson | Topic | Tests | Compile |
+|--------|-------|-------|---------|
+| 0001 | Tokenizer (Lexer) | 26 | ✅ |
+| 0002 | AST Definitions | 10 | ✅ |
+| 0003 | Parser (Recursive Descent) | 20 | ✅ |
+| 0004 | Code Generator (x86-64) | 11 | ✅ |
+| 0005 | Integration (CLI, Pipeline) | 11 | ✅ |
 
-### Quick Wins (0006-0012) — ✅ Complete
+### Quick Wins (0006-0012)
 
-| Lesson | Topic | Status |
-|--------|-------|--------|
-| 0006 | Compound Assignment | ✅ Implemented |
-| 0007 | Ternary Operator | ✅ Implemented |
-| 0008 | Do-While Loops | ✅ Implemented |
-| 0009 | Comma Operator | ✅ Implemented |
-| 0010 | Bool Type | ✅ Implemented |
-| 0011 | Forward Declarations | ✅ Implemented |
-| 0012 | const Qualifier | ✅ Implemented |
+| Lesson | Topic | Compile | Fix Needed |
+|--------|-------|---------|------------|
+| 0006 | Compound Assignment | ❌ | Fix `/=` token consumption |
+| 0007 | Ternary Operator | ✅ | — |
+| 0008 | Do-While Loops | ✅ | — |
+| 0009 | Comma Operator | ✅ | — |
+| 0010 | Bool Type | ✅ | — |
+| 0011 | Forward Declarations | ✅ | — |
+| 0012 | const Qualifier | ✅ | — |
 
-### Type System (0013-0018) — ✅ Complete
+### Type System (0013-0018)
 
-| Lesson | Topic | Status |
-|--------|-------|--------|
-| 0013 | Type System | ✅ Implemented |
-| 0014 | sizeof | ✅ Implemented |
-| 0015 | Signed/Unsigned | ✅ Implemented |
-| 0016 | Type Casts | ✅ Implemented |
-| 0017 | Type Promotions | ✅ Implemented |
-| 0018 | Type-Aware Codegen | ✅ Implemented |
+| Lesson | Topic | Compile | Fix Needed |
+|--------|-------|---------|------------|
+| 0013 | Type System | ✅ | — |
+| 0014 | sizeof | ✅ | — |
+| 0015 | Signed/Unsigned | ❌ | Add `unsigned`/`signed` to type specifiers |
+| 0016 | Type Casts | ❌ | Add `double` type, fix cast expression |
+| 0017 | Type Promotions | ✅ | — |
+| 0018 | Type-Aware Codegen | ✅ | — |
 
-### Strings & Globals (0019-0021) — ✅ Complete
+### Strings & Globals (0019-0021)
 
-| Lesson | Topic | Status |
-|--------|-------|--------|
-| 0019 | String Literal Codegen | ✅ Implemented |
-| 0020 | Global Variables | ✅ Implemented |
-| 0021 | Extern Declarations | ✅ Implemented |
+| Lesson | Topic | Compile | Fix Needed |
+|--------|-------|---------|------------|
+| 0019 | String Literal Codegen | ✅ | — |
+| 0020 | Global Variables | ✅ | — |
+| 0021 | Extern Declarations | ❌ | Add `extern` to type specifier check |
 
-### Structs & Pointers (0022-0025) — ✅ Complete
+### Structs & Pointers (0022-0025)
 
-| Lesson | Topic | Status |
-|--------|-------|--------|
-| 0022 | Struct Declarations | ✅ Implemented |
-| 0023 | Struct Access | ✅ Implemented |
-| 0024 | Pointer Types | ✅ Implemented |
-| 0025 | Array Types | ✅ Implemented |
+| Lesson | Topic | Compile | Fix Needed |
+|--------|-------|---------|------------|
+| 0022 | Struct Declarations | ✅ | — |
+| 0023 | Struct Access | ✅ | — |
+| 0024 | Pointer Types | ✅ | — |
+| 0025 | Array Types | ✅ | — |
 
-### Advanced Features (0026-0032) — ✅ Complete
+### Advanced Features (0026-0032)
 
-| Lesson | Topic | Status |
-|--------|-------|--------|
-| 0026 | Pointer Arithmetic | ✅ Implemented |
-| 0027 | Unions | ✅ Parsed |
-| 0028 | Enums | ✅ Implemented |
-| 0029 | Typedef | ✅ Implemented |
-| 0030 | Switch/Case | ✅ Implemented |
-| 0031 | Goto/Labels | ✅ Implemented |
-| 0032 | Break/Continue | ✅ Implemented |
+| Lesson | Topic | Compile | Fix Needed |
+|--------|-------|---------|------------|
+| 0026 | Pointer Arithmetic | ❌ | Add braced initializer `{10,20,30}` |
+| 0027 | Unions | ❌ | Add `union` keyword + parsing |
+| 0028 | Enums | ✅ | — |
+| 0029 | Typedef | ✅ | — |
+| 0030 | Switch/Case | ✅ | — |
+| 0031 | Goto/Labels | ❌ | Add label statement parsing (IDENTIFIER `:`) |
+| 0032 | Break/Continue | ✅ | — |
 
-### Preprocessor (0033-0035) — 📋 Planned
+### Preprocessor (0033-0035)
 
-| Lesson | Topic | Status |
-|--------|-------|--------|
-| 0033 | Preprocessor Macros | 📋 Planned |
-| 0034 | Conditional Compilation | 📋 Planned |
-| 0035 | Include Directive | 📋 Planned |
+| Lesson | Topic | Compile | Fix Needed |
+|--------|-------|---------|------------|
+| 0033 | Preprocessor Macros | ❌ | Add basic `#define` pass |
+| 0034 | Conditional Compilation | ❌ | Add `#ifdef`/`#else`/`#endif` |
+| 0035 | Include Directive | ❌ | Add `#include` pass |
 
-### Advanced C (0036-0045) — 📋 Planned
+### Advanced C (0036-0045)
 
-| Lesson | Topic | Status |
-|--------|-------|--------|
-| 0036 | Function Pointers | 📋 Planned |
-| 0037 | Void Pointers | 📋 Planned |
-| 0038 | Designated Init | 📋 Planned |
-| 0039 | Compound Literals | 📋 Planned |
-| 0040 | Bitfields | 📋 Planned |
-| 0041 | Multi-Dim Arrays | 📋 Planned |
-| 0042 | Array-Pointer Decay | 📋 Planned |
-| 0043 | Float/Double | 📋 Planned |
-| 0044 | Static Assert | 📋 Planned |
-| 0045 | Generic Selection | 📋 Planned |
+| Lesson | Topic | Compile | Fix Needed |
+|--------|-------|---------|------------|
+| 0036 | Function Pointers | ❌ | Fix null-pointer in parser |
+| 0037 | Void Pointers | ❌ | Fix cast expression recognition |
+| 0038 | Designated Init | ❌ | Add `.field = val` parsing |
+| 0039 | Compound Literals | ❌ | Add `(type){...}` syntax |
+| 0040 | Bitfields | ❌ | Add `int x : N` in struct fields |
+| 0041 | Multi-Dim Arrays | ❌ | Add `arr[2][3]` and initializers |
+| 0042 | Array-Pointer Decay | ❌ | Add braced initializer `{1,2,3}` |
+| 0043 | Float/Double | ❌ | Add `float`/`double` type specifiers |
+| 0044 | Static Assert | ✅ | — |
+| 0045 | Generic | ❌ | Add `_Generic` or graceful skip |
 
-### System & Optimization (0046-0075) — 📋 Planned
+### System & Functions (0046-0065)
 
-| Lesson | Topic | Status |
-|--------|-------|--------|
-| 0046-0051 | Variadic, Inline ASM, etc. | 📋 Planned |
-| 0052-0055 | Standard Library | 📋 Planned |
-| 0056-0065 | System Programming | 📋 Planned |
-| 0066-0070 | Optimizations & Debug | 📋 Planned |
-| 0071-0075 | Self-Hosting | 📋 Planned |
+| Lesson | Topic | Compile | Fix Needed |
+|--------|-------|---------|------------|
+| 0046 | Variadic | ❌ | Add `...` parameter syntax |
+| 0047 | Statement Expr | ❌ | Add GCC `({...})` extension |
+| 0048 | Inline ASM | ❌ | Add `asm` keyword + parsing |
+| 0049 | Multi-File | ❌ | Add `extern` at top level |
+| 0050 | Static Linkage | ❌ | Add `static` keyword handling |
+| 0051 | Volatile Qualifier | ❌ | Add `volatile` keyword |
+| 0052 | Syscalls | ✅ | — |
+| 0053 | String Funcs | ✅ | — |
+| 0054 | IO Functions | ❌ | Fix `...` in function params |
+| 0055 | Memory Alloc | ✅ | — |
+| 0056 | File IO | ✅ | — |
+| 0057 | Process Control | ✅ | — |
+| 0058 | Socket Prog | ✅ | — |
+| 0059 | Signal Handling | ❌ | Fix complex function pointer syntax |
+| 0060 | Environment | ✅ | — |
+| 0061 | Thread Support | ✅ | — |
+| 0062 | Synchronization | ✅ | — |
+| 0063 | Memory Mapping | ✅ | — |
+| 0064 | Dynamic Loading | ✅ | — |
+| 0065 | IPC | ❌ | Add array parameter `int fd[2]` |
 
-### C11 Standard (1000-1015) — 📋 Planned
+### Optimization & Self-Hosting (0066-0075)
 
-| Lesson | Topic | Status |
-|--------|-------|--------|
-| 1000-1015 | _Static_assert, _Generic, _Atomic, etc. | 📋 Planned |
+| Lesson | Topic | Compile | Fix Needed |
+|--------|-------|---------|------------|
+| 0066 | Const Folding | ✅ | — |
+| 0067 | Dead Code Elim | ✅ | — |
+| 0068 | Register Alloc | ✅ | — |
+| 0069 | Function Inline | ❌ | Add `inline` keyword |
+| 0070 | Debug Info | ✅ | — |
+| 0071 | Self-Host Prep | ✅ | — |
+| 0072 | Compile Compiler 1 | ✅ | — |
+| 0073 | Compile Compiler 2 | ✅ | — |
+| 0074 | Compile Compiler 3 | ✅ | — |
+| 0075 | Bootstrap | ✅ | — |
 
-### C17 Standard (2000-2005) — 📋 Planned
+### C11/C17/C23 Standard Lessons — 📋 Planned
 
-| Lesson | Topic | Status |
-|--------|-------|--------|
-| 2000-2005 | stdbool, stdint, typeof, etc. | 📋 Planned |
-
-### C23 Standard (3000-3014) — 📋 Planned
-
-| Lesson | Topic | Status |
-|--------|-------|--------|
-| 3000-3014 | bool literal, auto, nullptr, attributes, etc. | 📋 Planned |
+16 C11 lessons (1000-1015), 6 C17 lessons (2000-2005), 15 C23 lessons (3000-3014) — tests created, implementation pending.
 
 ## Test Results
 
