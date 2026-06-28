@@ -46,6 +46,10 @@ enum class TokenType {
     KW_FLOAT,
     KW_DOUBLE,
     KW_GOTO,
+    KW_VOLATILE,
+    KW_UNION,
+    KW_INLINE,
+    ELLIPSIS,       // ...
     
     // Operators
     PLUS,           // +

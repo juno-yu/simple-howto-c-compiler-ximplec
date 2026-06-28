@@ -63,7 +63,18 @@ bool Parser::is_type_specifier() const {
         check(TokenType::KW_CONST) ||
         check(TokenType::KW_STRUCT) ||
         check(TokenType::KW_ENUM) ||
-        check(TokenType::KW_TYPEDEF)) {
+        check(TokenType::KW_TYPEDEF) ||
+        check(TokenType::KW_UNSIGNED) ||
+        check(TokenType::KW_SIGNED) ||
+        check(TokenType::KW_LONG) ||
+        check(TokenType::KW_SHORT) ||
+        check(TokenType::KW_FLOAT) ||
+        check(TokenType::KW_DOUBLE) ||
+        check(TokenType::KW_VOLATILE) ||
+        check(TokenType::KW_STATIC) ||
+        check(TokenType::KW_EXTERN) ||
+        check(TokenType::KW_UNION) ||
+        check(TokenType::KW_INLINE)) {
         return true;
     }
     // Check if current identifier is a typedef name
@@ -76,9 +87,39 @@ bool Parser::is_type_specifier() const {
 std::string Parser::parse_type_specifier() {
     std::string result;
     
-    // Handle const qualifier
-    if (match(TokenType::KW_CONST)) {
-        result = "const ";
+    // Handle qualifiers and storage class (in any order)
+    while (true) {
+        if (match(TokenType::KW_CONST)) {
+            result += "const ";
+        } else if (match(TokenType::KW_VOLATILE)) {
+            result += "volatile ";
+        } else if (match(TokenType::KW_STATIC)) {
+            result += "static ";
+        } else if (match(TokenType::KW_EXTERN)) {
+            result += "extern ";
+        } else if (match(TokenType::KW_INLINE)) {
+            result += "inline ";
+        } else {
+            break;
+        }
+    }
+    
+    // Handle signed/unsigned/long/short modifiers
+    bool is_unsigned = false;
+    bool is_signed = false;
+    int long_count = 0;
+    int short_count = 0;
+    
+    if (match(TokenType::KW_UNSIGNED)) { is_unsigned = true; result += "unsigned "; }
+    else if (match(TokenType::KW_SIGNED)) { is_signed = true; result += "signed "; }
+    
+    while (match(TokenType::KW_LONG)) { long_count++; result += "long "; }
+    while (match(TokenType::KW_SHORT)) { short_count++; result += "short "; }
+    
+    // If we had unsigned/signed but no base type yet, look for one
+    if ((is_unsigned || is_signed) && !long_count && !short_count) {
+        // Could be just `unsigned` alone (means unsigned int)
+        // Or followed by int/char
     }
     
     if (match(TokenType::KW_INT)) {
@@ -89,12 +130,23 @@ std::string Parser::parse_type_specifier() {
         result += "void";
     } else if (match(TokenType::KW_BOOL)) {
         result += "bool";
+    } else if (match(TokenType::KW_FLOAT)) {
+        result += "float";
+    } else if (match(TokenType::KW_DOUBLE)) {
+        result += "double";
     } else if (match(TokenType::KW_STRUCT)) {
         if (!check(TokenType::IDENTIFIER)) {
             error("Expected struct name");
             return result;
         }
         result += "struct " + peek().value;
+        advance();
+    } else if (match(TokenType::KW_UNION)) {
+        if (!check(TokenType::IDENTIFIER)) {
+            error("Expected union name");
+            return result;
+        }
+        result += "union " + peek().value;
         advance();
     } else if (match(TokenType::KW_ENUM)) {
         if (!check(TokenType::IDENTIFIER)) {
@@ -111,14 +163,15 @@ std::string Parser::parse_type_specifier() {
         }
         result += peek().value;
         advance();
-    } else if (result.empty()) {
+    } else if (result.empty() || is_unsigned || is_signed || long_count || short_count) {
         // Check if this is a typedef name
         if (check(TokenType::IDENTIFIER) && typedef_names_.count(peek().value)) {
-            result = peek().value;
+            result += peek().value;
             advance();
-        } else {
+        } else if (result.empty()) {
             error("Expected type specifier");
         }
+        // If we have unsigned/signed/long/short but no base type, that's OK (means int)
     }
     
     // Handle pointer qualifiers (*)
@@ -253,6 +306,52 @@ ASTPtr Parser::parse_declaration() {
                 }
             }
             error("Expected identifier after struct name");
+            return nullptr;
+        }
+    }
+    
+    // Handle union keyword (treat as struct for now)
+    if (match(TokenType::KW_UNION)) {
+        if (!check(TokenType::IDENTIFIER)) {
+            error("Expected union name");
+            return nullptr;
+        }
+        std::string union_name = peek().value;
+        advance();
+        
+        if (check(TokenType::LBRACE)) {
+            auto union_decl = std::make_unique<StructDeclNode>(
+                union_name, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+            
+            expect(TokenType::LBRACE);
+            while (!check(TokenType::RBRACE) && !is_at_end()) {
+                std::string field_type = parse_type_specifier();
+                if (!check(TokenType::IDENTIFIER)) {
+                    error("Expected field name");
+                    return nullptr;
+                }
+                const Token& field_name = peek();
+                std::string fname = field_name.value;
+                advance();
+                
+                auto field = std::make_unique<StructFieldNode>(
+                    field_type, fname, field_name.line, field_name.column);
+                union_decl->fields.push_back(std::move(field));
+                
+                expect(TokenType::SEMICOLON);
+            }
+            expect(TokenType::RBRACE);
+            expect(TokenType::SEMICOLON);
+            return std::move(union_decl);
+        } else {
+            std::string full_type = "union " + union_name;
+            if (check(TokenType::IDENTIFIER)) {
+                const Token& name_token = peek();
+                std::string var_name = name_token.value;
+                advance();
+                return parse_var_decl(full_type);
+            }
+            error("Expected identifier after union name");
             return nullptr;
         }
     }
@@ -439,17 +538,41 @@ ASTPtr Parser::parse_typedef_decl() {
 }
 
 ASTPtr Parser::parse_param() {
+    // Handle variadic parameter ...
+    if (match(TokenType::ELLIPSIS)) {
+        auto param = std::make_unique<ParamNode>(
+            "...", "...", tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+        return std::move(param);
+    }
+    
     std::string type_name = parse_type_specifier();
     
     if (!check(TokenType::IDENTIFIER)) {
-        error("Expected parameter name");
-        return nullptr;
+        // Could be array parameter like int arr[10] or just type with no name
+        if (check(TokenType::LBRACKET)) {
+            // Array parameter - consume [size] and treat as pointer
+            advance(); // consume [
+            if (check(TokenType::INTEGER)) advance(); // consume size
+            expect(TokenType::RBRACKET);
+            // Now expect the parameter name
+        }
+        if (!check(TokenType::IDENTIFIER)) {
+            error("Expected parameter name");
+            return nullptr;
+        }
     }
     
     const Token& name_token = peek();
     auto param = std::make_unique<ParamNode>(
         type_name, name_token.value, name_token.line, name_token.column);
     advance();
+    
+    // Handle array parameter syntax: name[size]
+    if (match(TokenType::LBRACKET)) {
+        if (check(TokenType::INTEGER)) advance(); // consume size
+        expect(TokenType::RBRACKET);
+        param->type_name += "*"; // decay to pointer
+    }
     
     return std::move(param);
 }
@@ -492,6 +615,16 @@ ASTPtr Parser::parse_statement() {
     if (check(TokenType::KW_GOTO)) {
         return parse_goto_stmt();
     }
+    if (check(TokenType::KW_BREAK)) {
+        advance();
+        expect(TokenType::SEMICOLON);
+        return std::make_unique<BreakStmtNode>(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+    }
+    if (check(TokenType::KW_CONTINUE)) {
+        advance();
+        expect(TokenType::SEMICOLON);
+        return std::make_unique<ContinueStmtNode>(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+    }
     if (check(TokenType::LBRACE)) {
         return parse_block();
     }
@@ -503,6 +636,14 @@ ASTPtr Parser::parse_statement() {
         }
         advance(); // consume identifier
         return parse_var_decl(type_name);
+    }
+    // Label statement: identifier COLON
+    if (check(TokenType::IDENTIFIER) && peek_next().type == TokenType::COLON) {
+        std::string label_name = peek().value;
+        advance(); // consume identifier
+        advance(); // consume colon
+        auto stmt = parse_statement();
+        return std::make_unique<LabelStmtNode>(label_name, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
     }
     return parse_expr_stmt();
 }
@@ -725,7 +866,7 @@ ASTPtr Parser::parse_assignment() {
         if (match(TokenType::PLUS_ASSIGN)) op = OpKind::ADD;
         else if (match(TokenType::MINUS_ASSIGN)) op = OpKind::SUB;
         else if (match(TokenType::STAR_ASSIGN)) op = OpKind::MUL;
-        else op = OpKind::DIV;
+        else { match(TokenType::SLASH_ASSIGN); op = OpKind::DIV; }
         
         auto compound = std::make_unique<CompoundAssignExprNode>(
             op, left->line, left->column);
@@ -913,15 +1054,21 @@ ASTPtr Parser::parse_unary() {
         }
     }
     
-    // Type cast
-    if (check(TokenType::LPAREN) && is_type_specifier()) {
-        int line = tokens_[pos_].line;
-        int col = tokens_[pos_].column;
-        advance(); // consume (
-        std::string type = parse_type_specifier();
-        expect(TokenType::RPAREN);
-        auto expr = parse_unary();
-        return std::make_unique<CastExprNode>(type, std::move(expr), line, col);
+    // Type cast: (type)expr - peek ahead to check if LPAREN is followed by a type
+    if (check(TokenType::LPAREN)) {
+        size_t saved_pos = pos_;
+        advance(); // peek past (
+        if (is_type_specifier()) {
+            int line = tokens_[pos_ - 1].line;
+            int col = tokens_[pos_ - 1].column;
+            std::string type = parse_type_specifier();
+            if (match(TokenType::RPAREN)) {
+                auto expr = parse_unary();
+                return std::make_unique<CastExprNode>(type, std::move(expr), line, col);
+            }
+        }
+        // Not a cast, restore position
+        pos_ = saved_pos;
     }
     
     if (match(TokenType::MINUS)) {
@@ -965,6 +1112,8 @@ ASTPtr Parser::parse_unary() {
 
 ASTPtr Parser::parse_postfix() {
     auto primary = parse_primary();
+    
+    if (!primary) return nullptr;
     
     while (true) {
         if (match(TokenType::LPAREN)) {

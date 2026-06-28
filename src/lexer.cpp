@@ -35,6 +35,10 @@ const char* token_type_name(TokenType type) {
         case TokenType::KW_FLOAT: return "float";
         case TokenType::KW_DOUBLE: return "double";
         case TokenType::KW_GOTO: return "goto";
+        case TokenType::KW_VOLATILE: return "volatile";
+        case TokenType::KW_UNION: return "union";
+        case TokenType::KW_INLINE: return "inline";
+        case TokenType::ELLIPSIS: return "...";
         case TokenType::QUESTION: return "?";
         case TokenType::MINUS_GT: return "->";
         case TokenType::PLUS: return "+";
@@ -115,6 +119,9 @@ const std::unordered_map<std::string, TokenType>& Lexer::keywords() {
         {"float", TokenType::KW_FLOAT},
         {"double", TokenType::KW_DOUBLE},
         {"goto", TokenType::KW_GOTO},
+        {"volatile", TokenType::KW_VOLATILE},
+        {"union", TokenType::KW_UNION},
+        {"inline", TokenType::KW_INLINE},
     };
     return kw;
 }
@@ -227,7 +234,7 @@ Token Lexer::read_number() {
         }
     }
     
-    if (!is_at_end() && (peek() == 'l' || peek() == 'L')) {
+    if (!is_at_end() && (peek() == 'l' || peek() == 'L' || peek() == 'f' || peek() == 'F')) {
         advance(); // skip suffix
     }
     
@@ -394,6 +401,7 @@ Token Lexer::read_operator() {
         case ',':
             return Token(TokenType::COMMA, ",", start_line, start_column);
         case '.':
+            if (match('.') && match('.')) return Token(TokenType::ELLIPSIS, "...", start_line, start_column);
             return Token(TokenType::DOT, ".", start_line, start_column);
         case ':':
             return Token(TokenType::COLON, ":", start_line, start_column);
