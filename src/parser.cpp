@@ -82,9 +82,16 @@ bool Parser::is_type_specifier() const {
         check(TokenType::KW_ATOMIC)) {
         return true;
     }
-    // Check if current identifier is a typedef name
-    if (check(TokenType::IDENTIFIER) && typedef_names_.count(peek().value)) {
-        return true;
+    // Check if current identifier is a typedef name or size_t
+    if (check(TokenType::IDENTIFIER)) {
+        const std::string& name = peek().value;
+        if (name == "size_t" || name == "ssize_t" || name == "ptrdiff_t" ||
+            name == "intptr_t" || name == "uintptr_t" ||
+            name == "uint8_t" || name == "uint16_t" || name == "uint32_t" || name == "uint64_t" ||
+            name == "int8_t" || name == "int16_t" || name == "int32_t" || name == "int64_t") {
+            return true;
+        }
+        return typedef_names_.count(name);
     }
     return false;
 }
@@ -208,10 +215,21 @@ std::string Parser::parse_type_specifier() {
         result += peek().value;
         advance();
     } else if (result.empty() || is_unsigned || is_signed || long_count || short_count) {
-        // Check if this is a typedef name
-        if (check(TokenType::IDENTIFIER) && typedef_names_.count(peek().value)) {
-            result += peek().value;
-            advance();
+        // Check if this is a typedef name or built-in type alias
+        if (check(TokenType::IDENTIFIER)) {
+            const std::string& name = peek().value;
+            if (name == "size_t" || name == "ssize_t" || name == "ptrdiff_t" ||
+                name == "intptr_t" || name == "uintptr_t" ||
+                name == "uint8_t" || name == "uint16_t" || name == "uint32_t" || name == "uint64_t" ||
+                name == "int8_t" || name == "int16_t" || name == "int32_t" || name == "int64_t") {
+                result += name;
+                advance();
+            } else if (typedef_names_.count(name)) {
+                result += name;
+                advance();
+            } else if (result.empty()) {
+                error("Expected type specifier");
+            }
         } else if (result.empty()) {
             error("Expected type specifier");
         }
@@ -359,6 +377,19 @@ ASTPtr Parser::parse_declaration() {
                 if (match(TokenType::COLON)) {
                     // Skip the bit width
                     if (check(TokenType::INTEGER)) advance();
+                }
+                
+                // Handle flexible array member: int data[]
+                if (check(TokenType::LBRACKET)) {
+                    advance(); // consume [
+                    if (check(TokenType::RBRACKET)) {
+                        advance(); // consume ] — flexible array
+                        field_type += "[]";
+                    } else {
+                        // Regular array field
+                        if (check(TokenType::INTEGER)) advance();
+                        expect(TokenType::RBRACKET);
+                    }
                 }
                 
                 auto field = std::make_unique<StructFieldNode>(
@@ -580,6 +611,46 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
         } else {
             var->initializer = parse_expression();
         }
+    }
+    
+    // Handle multiple declarators: int a, b, c;
+    if (check(TokenType::COMMA)) {
+        auto block = std::make_unique<BlockNode>(var->line, var->column);
+        block->statements.push_back(std::move(var));
+        while (match(TokenType::COMMA)) {
+            if (!check(TokenType::IDENTIFIER)) break;
+            const Token& next_name = peek();
+            auto next_var = std::make_unique<VarDeclNode>(
+                type_name, next_name.value, next_name.line, next_name.column);
+            advance();
+            // Array
+            if (match(TokenType::LBRACKET)) {
+                if (check(TokenType::INTEGER)) {
+                    next_var->array_size = std::stoi(peek().value);
+                    advance();
+                }
+                expect(TokenType::RBRACKET);
+            }
+            // Initializer
+            if (match(TokenType::ASSIGN)) {
+                if (check(TokenType::LBRACE)) {
+                    advance();
+                    int depth = 1;
+                    while (depth > 0 && !is_at_end()) {
+                        if (check(TokenType::LBRACE)) depth++;
+                        if (check(TokenType::RBRACE) && depth > 0) depth--;
+                        if (depth > 0) advance();
+                    }
+                    if (!is_at_end()) advance();
+                    next_var->initializer = std::make_unique<IntegerLiteralNode>(0, next_var->line, next_var->column);
+                } else {
+                    next_var->initializer = parse_expression();
+                }
+            }
+            block->statements.push_back(std::move(next_var));
+        }
+        expect(TokenType::SEMICOLON);
+        return std::move(block);
     }
     
     expect(TokenType::SEMICOLON);
@@ -1325,6 +1396,20 @@ ASTPtr Parser::parse_unary() {
             int col = tokens_[pos_ - 1].column;
             std::string type = parse_type_specifier();
             if (match(TokenType::RPAREN)) {
+                // Check for compound literal: (type){...}
+                if (check(TokenType::LBRACE)) {
+                    // Skip braced initializer
+                    advance();
+                    int depth = 1;
+                    while (depth > 0 && !is_at_end()) {
+                        if (check(TokenType::LBRACE)) depth++;
+                        if (check(TokenType::RBRACE) && depth > 0) depth--;
+                        if (depth > 0) advance();
+                    }
+                    if (!is_at_end()) advance();
+                    // Return address of compound literal (simplified: just 0)
+                    return std::make_unique<IntegerLiteralNode>(0, line, col);
+                }
                 auto expr = parse_unary();
                 return std::make_unique<CastExprNode>(type, std::move(expr), line, col);
             }

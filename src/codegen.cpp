@@ -1256,6 +1256,15 @@ int CodeGenerator::get_type_size(const std::string& type) {
     if (type == "short" || type == "const short") return 2;
     if (type == "float" || type == "const float") return 4;
     if (type == "double" || type == "const double") return 8;
+    // Integer typedefs
+    if (type == "size_t" || type == "ssize_t" || type == "ptrdiff_t" ||
+        type == "intptr_t" || type == "uintptr_t" ||
+        type == "uint64_t" || type == "int64_t") return 8;
+    if (type == "uint32_t" || type == "int32_t" ||
+        type == "unsigned int") return 4;
+    if (type == "uint16_t" || type == "int16_t" ||
+        type == "unsigned short") return 2;
+    if (type == "uint8_t" || type == "int8_t") return 1;
     // Check if it's a struct type
     std::string clean = type;
     if (clean.substr(0, 7) == "struct ") clean = clean.substr(7);

@@ -17,6 +17,7 @@ std::string Preprocessor::process(const std::string& source, const std::string& 
     macros_["__STDC_VERSION__"] = Macro("__STDC_VERSION__", "202311L");
     macros_["__x86_64__"] = Macro("__x86_64__", "1");
     macros_["__linux__"] = Macro("__linux__", "1");
+    macros_["NULL"] = Macro("NULL", "0");
     
     std::istringstream stream(source);
     std::string line;

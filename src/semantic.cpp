@@ -40,6 +40,10 @@ SemanticAnalyzer::SemanticAnalyzer() : error_line_(0), scope_level_(0) {
     types_["unsigned int"] = TypeInfo();
     types_["unsigned int"].name = "unsigned int";
     types_["unsigned int"].size = 4;
+    
+    types_["size_t"] = TypeInfo();
+    types_["size_t"].name = "unsigned long";
+    types_["size_t"].size = 8;
 }
 
 bool SemanticAnalyzer::analyze(ProgramNode& program) {

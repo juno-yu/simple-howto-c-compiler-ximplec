@@ -243,12 +243,30 @@ Token Lexer::read_number() {
     
     bool is_float = false;
     
-    // Handle hex numbers (0x prefix)
+    // Handle hex numbers (0x prefix) — may be hex float
     if (!is_at_end() && peek() == '0' && peek_next() == 'x') {
         num += advance(); // '0'
         num += advance(); // 'x'
         while (!is_at_end() && (std::isxdigit(peek()) || peek() == '\'')) {
-            if (peek() != '\'') num += advance(); else advance(); // skip separators
+            if (peek() != '\'') num += advance(); else advance();
+        }
+        // Check for hex float: 0x<hex>.<hex>p<exponent>
+        if (!is_at_end() && peek() == '.') {
+            is_float = true;
+            num += advance(); // '.'
+            while (!is_at_end() && (std::isxdigit(peek()) || peek() == '\'')) {
+                if (peek() != '\'') num += advance(); else advance();
+            }
+        }
+        if (is_float && !is_at_end() && (peek() == 'p' || peek() == 'P')) {
+            num += advance(); // 'p'
+            if (!is_at_end() && (peek() == '+' || peek() == '-')) num += advance();
+            while (!is_at_end() && std::isdigit(peek())) {
+                num += advance();
+            }
+        }
+        if (is_float) {
+            return Token(TokenType::FLOAT, num, start_line, start_column);
         }
         return Token(TokenType::INTEGER, num, start_line, start_column);
     }

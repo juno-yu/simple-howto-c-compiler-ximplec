@@ -114,10 +114,9 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | `typedef` | ✅ | ✅ | ✅ | 0029 |
 | `sizeof` | ✅ | ✅ | ✅ | 0014 |
 | Function pointers | ✅ | ⚠️ Basic | ⚠️ Basic | 0036 |
-| `size_t` | ❌ | — | — | — |
-| `NULL` | ❌ | — | — | — |
-| `void *` | ✅ | ✅ | ✅ | 0037 |
-| Flexible array members | ❌ | — | — | — |
+| `size_t` | ✅ Built-in typedef | — |
+| `NULL` | ✅ Macro (0) | — |
+| Flexible array members | ✅ Parsed | 0040 |
 
 ### Qualifiers & Storage
 
@@ -190,9 +189,9 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | Array init (`{1,2,3}`) | ✅ | ⚠️ Parsed (values skipped) | ⚠️ Zero-init | 0041 |
 | Struct init (`{.x=1}`) | ✅ | ⚠️ Parsed (values skipped) | ⚠️ Zero-init | 0038 |
 | Bitfields (`int x : 1`) | ✅ | ✅ | ⚠️ Parsed | 0040 |
-| Multiple declarators (`int a,b`) | ❌ | — | — | — |
+| Multiple declarators (`int a,b`) | ✅ | ✅ | ✅ | 0001 |
 | Function pointers (`int (*fp)(int)`) | ✅ | ✅ | ✅ | 0036 |
-| Compound literals (`(int[]){1,2}`) | ❌ | — | — | — |
+| Compound literals (`(int[]){1,2}`) | ✅ | ✅ | ⚠️ Returns 0 | 0039 |
 
 ### Preprocessor
 
