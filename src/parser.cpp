@@ -58,13 +58,15 @@ bool Parser::is_at_end() const {
 bool Parser::is_type_specifier() const {
     return check(TokenType::KW_INT) || 
            check(TokenType::KW_CHAR) || 
-           check(TokenType::KW_VOID);
+           check(TokenType::KW_VOID) ||
+           check(TokenType::KW_BOOL);
 }
 
 std::string Parser::parse_type_specifier() {
     if (match(TokenType::KW_INT)) return "int";
     if (match(TokenType::KW_CHAR)) return "char";
     if (match(TokenType::KW_VOID)) return "void";
+    if (match(TokenType::KW_BOOL)) return "bool";
     error("Expected type specifier");
     return "";
 }
@@ -204,6 +206,9 @@ ASTPtr Parser::parse_statement() {
     if (check(TokenType::KW_WHILE)) {
         return parse_while_stmt();
     }
+    if (check(TokenType::KW_DO)) {
+        return parse_do_while_stmt();
+    }
     if (check(TokenType::KW_FOR)) {
         return parse_for_stmt();
     }
@@ -281,6 +286,23 @@ ASTPtr Parser::parse_while_stmt() {
     return std::move(while_stmt);
 }
 
+ASTPtr Parser::parse_do_while_stmt() {
+    const Token& do_token = peek();
+    advance();
+    
+    auto do_while_stmt = std::make_unique<DoWhileStmtNode>(do_token.line, do_token.column);
+    
+    do_while_stmt->body = parse_statement();
+    
+    expect(TokenType::KW_WHILE);
+    expect(TokenType::LPAREN);
+    do_while_stmt->condition = parse_expression();
+    expect(TokenType::RPAREN);
+    expect(TokenType::SEMICOLON);
+    
+    return std::move(do_while_stmt);
+}
+
 ASTPtr Parser::parse_for_stmt() {
     const Token& for_token = peek();
     advance();
@@ -319,11 +341,33 @@ ASTPtr Parser::parse_for_stmt() {
 // Expression parsing with precedence climbing
 
 ASTPtr Parser::parse_expression() {
-    return parse_assignment();
+    auto left = parse_assignment();
+    
+    // Comma operator
+    while (match(TokenType::COMMA)) {
+        auto comma = std::make_unique<CommaExprNode>(
+            left->line, left->column);
+        comma->left = std::move(left);
+        comma->right = parse_assignment();
+        left = std::move(comma);
+    }
+    
+    return std::move(left);
 }
 
 ASTPtr Parser::parse_assignment() {
     auto left = parse_or();
+    
+    // Ternary operator
+    if (match(TokenType::QUESTION)) {
+        auto ternary = std::make_unique<TernaryExprNode>(
+            left->line, left->column);
+        ternary->condition = std::move(left);
+        ternary->then_expr = parse_expression();
+        expect(TokenType::COLON);
+        ternary->else_expr = parse_assignment();
+        return std::move(ternary);
+    }
     
     if (match(TokenType::ASSIGN)) {
         auto assign = std::make_unique<AssignExprNode>(
@@ -331,6 +375,23 @@ ASTPtr Parser::parse_assignment() {
         assign->target = std::move(left);
         assign->value = parse_assignment();
         return std::move(assign);
+    }
+    
+    // Compound assignment operators
+    if (check(TokenType::PLUS_ASSIGN) || check(TokenType::MINUS_ASSIGN) ||
+        check(TokenType::STAR_ASSIGN) || check(TokenType::SLASH_ASSIGN)) {
+        
+        OpKind op;
+        if (match(TokenType::PLUS_ASSIGN)) op = OpKind::ADD;
+        else if (match(TokenType::MINUS_ASSIGN)) op = OpKind::SUB;
+        else if (match(TokenType::STAR_ASSIGN)) op = OpKind::MUL;
+        else op = OpKind::DIV;
+        
+        auto compound = std::make_unique<CompoundAssignExprNode>(
+            op, left->line, left->column);
+        compound->target = std::move(left);
+        compound->value = parse_assignment();
+        return std::move(compound);
     }
     
     return std::move(left);

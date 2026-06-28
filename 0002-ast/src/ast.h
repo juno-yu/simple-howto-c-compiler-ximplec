@@ -22,6 +22,7 @@ enum class NodeType {
     EXPR_STMT,
     IF_STMT,
     WHILE_STMT,
+    DO_WHILE_STMT,
     FOR_STMT,
     BREAK_STMT,
     CONTINUE_STMT,
@@ -30,6 +31,9 @@ enum class NodeType {
     BINARY_EXPR,
     UNARY_EXPR,
     ASSIGN_EXPR,
+    COMPOUND_ASSIGN_EXPR,
+    TERNARY_EXPR,
+    COMMA_EXPR,
     CALL_EXPR,
     INDEX_EXPR,
     MEMBER_EXPR,
@@ -73,12 +77,16 @@ struct ReturnStmtNode;
 struct ExprStmtNode;
 struct IfStmtNode;
 struct WhileStmtNode;
+struct DoWhileStmtNode;
 struct ForStmtNode;
 struct BreakStmtNode;
 struct ContinueStmtNode;
 struct BinaryExprNode;
 struct UnaryExprNode;
 struct AssignExprNode;
+struct CompoundAssignExprNode;
+struct TernaryExprNode;
+struct CommaExprNode;
 struct CallExprNode;
 struct IndexExprNode;
 struct MemberExprNode;
@@ -104,12 +112,16 @@ public:
     virtual void visit(ExprStmtNode& node) = 0;
     virtual void visit(IfStmtNode& node) = 0;
     virtual void visit(WhileStmtNode& node) = 0;
+    virtual void visit(DoWhileStmtNode& node) = 0;
     virtual void visit(ForStmtNode& node) = 0;
     virtual void visit(BreakStmtNode& node) = 0;
     virtual void visit(ContinueStmtNode& node) = 0;
     virtual void visit(BinaryExprNode& node) = 0;
     virtual void visit(UnaryExprNode& node) = 0;
     virtual void visit(AssignExprNode& node) = 0;
+    virtual void visit(CompoundAssignExprNode& node) = 0;
+    virtual void visit(TernaryExprNode& node) = 0;
+    virtual void visit(CommaExprNode& node) = 0;
     virtual void visit(CallExprNode& node) = 0;
     virtual void visit(IndexExprNode& node) = 0;
     virtual void visit(MemberExprNode& node) = 0;
@@ -211,6 +223,14 @@ struct WhileStmtNode : ASTNode {
     void accept(ASTVisitor& visitor);
 };
 
+struct DoWhileStmtNode : ASTNode {
+    ASTPtr body;
+    ASTPtr condition;
+    
+    DoWhileStmtNode(int l, int c) : ASTNode(NodeType::DO_WHILE_STMT, l, c) {}
+    void accept(ASTVisitor& visitor);
+};
+
 struct ForStmtNode : ASTNode {
     ASTPtr init;
     ASTPtr condition;
@@ -254,6 +274,35 @@ struct AssignExprNode : ASTNode {
     ASTPtr value;
     
     AssignExprNode(int l, int c) : ASTNode(NodeType::ASSIGN_EXPR, l, c) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct CompoundAssignExprNode : ASTNode {
+    ASTPtr target;
+    OpKind op;
+    ASTPtr value;
+    
+    CompoundAssignExprNode(OpKind o, int l, int c)
+        : ASTNode(NodeType::COMPOUND_ASSIGN_EXPR, l, c), op(o) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct TernaryExprNode : ASTNode {
+    ASTPtr condition;
+    ASTPtr then_expr;
+    ASTPtr else_expr;
+    
+    TernaryExprNode(int l, int c)
+        : ASTNode(NodeType::TERNARY_EXPR, l, c) {}
+    void accept(ASTVisitor& visitor);
+};
+
+struct CommaExprNode : ASTNode {
+    ASTPtr left;
+    ASTPtr right;
+    
+    CommaExprNode(int l, int c)
+        : ASTNode(NodeType::COMMA_EXPR, l, c) {}
     void accept(ASTVisitor& visitor);
 };
 

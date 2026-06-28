@@ -27,6 +27,8 @@ enum class TokenType {
     KW_FOR,
     KW_BREAK,
     KW_CONTINUE,
+    KW_DO,
+    KW_BOOL,
     KW_SIZEOF,
     
     // Operators
@@ -58,6 +60,7 @@ enum class TokenType {
     PLUS_PLUS,      // ++
     MINUS_MINUS,    // --
     MINUS_GT,       // ->
+    QUESTION,       // ?
     
     // Delimiters
     SEMICOLON,      // ;

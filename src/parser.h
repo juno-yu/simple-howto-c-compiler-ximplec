@@ -40,6 +40,7 @@ private:
     ASTPtr parse_expr_stmt();
     ASTPtr parse_if_stmt();
     ASTPtr parse_while_stmt();
+    ASTPtr parse_do_while_stmt();
     ASTPtr parse_for_stmt();
     
     // Expression parsing (precedence climbing)

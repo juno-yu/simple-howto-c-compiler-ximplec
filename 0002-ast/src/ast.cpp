@@ -12,12 +12,16 @@ void ReturnStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void ExprStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void IfStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void WhileStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void DoWhileStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void ForStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void BreakStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void ContinueStmtNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void BinaryExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void UnaryExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void AssignExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void CompoundAssignExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void TernaryExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
+void CommaExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void CallExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void IndexExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
 void MemberExprNode::accept(ASTVisitor& visitor) { visitor.visit(*this); }
@@ -40,12 +44,16 @@ const char* node_type_name(NodeType type) {
         case NodeType::EXPR_STMT: return "ExprStmt";
         case NodeType::IF_STMT: return "IfStmt";
         case NodeType::WHILE_STMT: return "WhileStmt";
+        case NodeType::DO_WHILE_STMT: return "DoWhileStmt";
         case NodeType::FOR_STMT: return "ForStmt";
         case NodeType::BREAK_STMT: return "BreakStmt";
         case NodeType::CONTINUE_STMT: return "ContinueStmt";
         case NodeType::BINARY_EXPR: return "BinaryExpr";
         case NodeType::UNARY_EXPR: return "UnaryExpr";
         case NodeType::ASSIGN_EXPR: return "AssignExpr";
+        case NodeType::COMPOUND_ASSIGN_EXPR: return "CompoundAssignExpr";
+        case NodeType::TERNARY_EXPR: return "TernaryExpr";
+        case NodeType::COMMA_EXPR: return "CommaExpr";
         case NodeType::CALL_EXPR: return "CallExpr";
         case NodeType::INDEX_EXPR: return "IndexExpr";
         case NodeType::MEMBER_EXPR: return "MemberExpr";

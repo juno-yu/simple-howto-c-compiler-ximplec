@@ -81,6 +81,8 @@ const std::unordered_map<std::string, TokenType>& Lexer::keywords() {
         {"for", TokenType::KW_FOR},
         {"break", TokenType::KW_BREAK},
         {"continue", TokenType::KW_CONTINUE},
+        {"do", TokenType::KW_DO},
+        {"bool", TokenType::KW_BOOL},
         {"sizeof", TokenType::KW_SIZEOF},
     };
     return kw;
@@ -324,6 +326,8 @@ Token Lexer::read_operator() {
         case '!':
             if (match('=')) return Token(TokenType::NE, "!=", start_line, start_column);
             return Token(TokenType::NOT, "!", start_line, start_column);
+        case '?':
+            return Token(TokenType::QUESTION, "?", start_line, start_column);
         case '<':
             if (match('<')) return Token(TokenType::LSHIFT, "<<", start_line, start_column);
             if (match('=')) return Token(TokenType::LE, "<=", start_line, start_column);

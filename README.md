@@ -44,13 +44,17 @@ Source Code → Tokenizer → Parser → AST → Code Generator → Executable
 |---------|--------|
 | Integer literals | ✅ Implemented |
 | Char literals | ✅ Implemented |
-| Variables (int, char) | ✅ Implemented |
+| Variables (int, char, bool) | ✅ Implemented |
 | Arithmetic operators (+, -, *, /, %) | ✅ Implemented |
 | Comparison operators (==, !=, <, >, <=, >=) | ✅ Implemented |
 | Logical operators (&&, \|\|, !) | ✅ Implemented |
 | Bitwise operators (&, \|, ^, ~, <<, >>) | ✅ Implemented |
-| Increment/Decrement (++, --) | ✅ Parsed, codegen stub |
-| Control flow (if/else, while, for) | ✅ Implemented |
+| Assignment operators (=) | ✅ Implemented |
+| Compound assignment (+=, -=, *=, /=) | ✅ Implemented |
+| Increment/Decrement (++, --) | ✅ Implemented |
+| Ternary operator (? :) | ✅ Implemented |
+| Comma operator (,) | ✅ Implemented |
+| Control flow (if/else, while, for, do-while) | ✅ Implemented |
 | Functions with parameters | ✅ Implemented |
 | Local variables | ✅ Implemented |
 | Recursive functions | ✅ Implemented (fibonacci works) |
@@ -59,7 +63,6 @@ Source Code → Tokenizer → Parser → AST → Code Generator → Executable
 | Arrays | ❌ Not implemented |
 | Pointers | ❌ Not implemented |
 | Structs | ❌ Not implemented |
-| Compound assignment (+=, -=, etc.) | ❌ Tokens exist, parser pending |
 | sizeof | ❌ Token exists, parser pending |
 | Preprocessor | ❌ Not implemented |
 
@@ -126,24 +129,37 @@ Output: Exit code 85 (30 + 55)
 | 0004 | Code Generator (x86-64) | 11 | ✅ Complete |
 | 0005 | Integration (CLI, Pipeline) | 11 | ✅ Complete |
 
-### Feature Lessons (0006-0015) - 📋 Planned
+### Quick Wins (0006-0012) - ✅ Complete
+
+| Lesson | Topic | Status |
+|--------|-------|--------|
+| 0006 | Compound Assignment | ✅ Complete |
+| 0007 | Ternary Operator | ✅ Complete |
+| 0008 | Do-While Loops | ✅ Complete |
+| 0009 | Comma Operator | ✅ Complete |
+| 0010 | Bool Type | ✅ Complete |
+| 0011 | Forward Declarations | 📋 Planned |
+| 0012 | const Qualifier | 📋 Planned |
+
+### Feature Lessons (0013-0075) - 📋 Planned
 
 | Lesson | Topic | Complexity | Status |
 |--------|-------|------------|--------|
-| 0006 | String Literals | Medium | 📋 Planned |
-| 0007 | Arrays | Medium | 📋 Planned |
-| 0008 | Structs | Medium | 📋 Planned |
-| 0009 | Pointers | Hard | 📋 Planned |
-| 0010 | Enums and Typedefs | Easy | 📋 Planned |
-| 0011 | Do-While Loops | Easy | 📋 Planned |
-| 0012 | Switch Statements | Medium | 📋 Planned |
-| 0013 | Goto and Labels | Easy | 📋 Planned |
-| 0014 | Global Variables | Medium | 📋 Planned |
-| 0015 | Multi-File Compilation | Hard | 📋 Planned |
-
-### Type System Lessons (0016-0026) - 📋 Planned
-
-| Lesson | Topic | Complexity | Status |
+| 0013 | Type System | Hard | 📋 Planned |
+| 0014 | sizeof | Easy | 📋 Planned |
+| 0015 | Signed/Unsigned | Medium | 📋 Planned |
+| 0016 | Type Casts | Medium | 📋 Planned |
+| 0017 | Type Promotions | Medium | 📋 Planned |
+| 0018 | Type-Aware Codegen | Hard | 📋 Planned |
+| 0019 | String Literal Codegen | Easy | 📋 Planned |
+| 0020 | Global Variables | Medium | 📋 Planned |
+| 0021 | Extern Declarations | Easy | 📋 Planned |
+| 0022 | Struct Declarations | Hard | 📋 Planned |
+| 0023 | Struct Access | Medium | 📋 Planned |
+| 0024 | Pointer Types | Hard | 📋 Planned |
+| 0025 | Array Types | Hard | 📋 Planned |
+| 0026 | Pointer Arithmetic | Medium | 📋 Planned |
+| 0027-0075 | More features... | Various | 📋 Planned |
 |--------|-------|------------|--------|
 | 0016 | Ternary Operator | Easy | 📋 Planned |
 | 0017 | Compound Assignment | Easy | 📋 Planned |

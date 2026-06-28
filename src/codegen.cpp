@@ -85,6 +85,9 @@ void CodeGenerator::dispatch(ASTNode* node) {
         case NodeType::WHILE_STMT:
             visit(static_cast<WhileStmtNode&>(*node));
             break;
+        case NodeType::DO_WHILE_STMT:
+            visit(static_cast<DoWhileStmtNode&>(*node));
+            break;
         case NodeType::FOR_STMT:
             visit(static_cast<ForStmtNode&>(*node));
             break;
@@ -102,6 +105,15 @@ void CodeGenerator::dispatch(ASTNode* node) {
             break;
         case NodeType::ASSIGN_EXPR:
             visit(static_cast<AssignExprNode&>(*node));
+            break;
+        case NodeType::COMPOUND_ASSIGN_EXPR:
+            visit(static_cast<CompoundAssignExprNode&>(*node));
+            break;
+        case NodeType::TERNARY_EXPR:
+            visit(static_cast<TernaryExprNode&>(*node));
+            break;
+        case NodeType::COMMA_EXPR:
+            visit(static_cast<CommaExprNode&>(*node));
             break;
         case NodeType::CALL_EXPR:
             visit(static_cast<CallExprNode&>(*node));
@@ -266,6 +278,23 @@ void CodeGenerator::visit(WhileStmtNode& node) {
     emit_label(end_label);
 }
 
+void CodeGenerator::visit(DoWhileStmtNode& node) {
+    std::string start_label = new_label("do_while_start");
+    std::string end_label = new_label("do_while_end");
+    
+    emit_label(start_label);
+    
+    if (node.body) {
+        dispatch(node.body.get());
+    }
+    
+    dispatch(node.condition.get());
+    emit("cmp $0, %rax");
+    emit("jne " + start_label);
+    
+    emit_label(end_label);
+}
+
 void CodeGenerator::visit(ForStmtNode& node) {
     std::string start_label = new_label("for_start");
     std::string cond_label = new_label("for_cond");
@@ -324,6 +353,76 @@ void CodeGenerator::visit(AssignExprNode& node) {
             emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
         }
     }
+}
+
+void CodeGenerator::visit(CompoundAssignExprNode& node) {
+    // Load current value of target
+    if (auto* id = dynamic_cast<IdentifierExprNode*>(node.target.get())) {
+        if (local_variables_.count(id->name)) {
+            int offset = local_variables_[id->name];
+            emit("mov " + std::to_string(offset) + "(%rbp), %rax");
+        }
+    }
+    
+    // Save current value
+    emit("push %rax");
+    
+    // Evaluate right operand
+    dispatch(node.value.get());
+    
+    // Move right to rcx
+    emit("mov %rax, %rcx");
+    
+    // Pop left (current value) to rax
+    emit("pop %rax");
+    
+    // Apply operator
+    switch (node.op) {
+        case OpKind::ADD: emit("add %rcx, %rax"); break;
+        case OpKind::SUB: emit("sub %rcx, %rax"); break;
+        case OpKind::MUL: emit("imul %rcx, %rax"); break;
+        case OpKind::DIV: emit("cqo"); emit("idiv %rcx"); break;
+        case OpKind::MOD: emit("cqo"); emit("idiv %rcx"); emit("mov %rdx, %rax"); break;
+        case OpKind::BIT_AND: emit("and %rcx, %rax"); break;
+        case OpKind::BIT_OR: emit("or %rcx, %rax"); break;
+        case OpKind::BIT_XOR: emit("xor %rcx, %rax"); break;
+        case OpKind::LSHIFT: emit("shl %cl, %rax"); break;
+        case OpKind::RSHIFT: emit("shr %cl, %rax"); break;
+        default: break;
+    }
+    
+    // Store result back
+    if (auto* id = dynamic_cast<IdentifierExprNode*>(node.target.get())) {
+        if (local_variables_.count(id->name)) {
+            int offset = local_variables_[id->name];
+            emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
+        }
+    }
+}
+
+void CodeGenerator::visit(TernaryExprNode& node) {
+    std::string else_label = new_label("ternary_else");
+    std::string end_label = new_label("ternary_end");
+    
+    // Evaluate condition
+    dispatch(node.condition.get());
+    emit("cmp $0, %rax");
+    emit("je " + else_label);
+    
+    // Then expression
+    dispatch(node.then_expr.get());
+    emit("jmp " + end_label);
+    
+    // Else expression
+    emit_label(else_label);
+    dispatch(node.else_expr.get());
+    
+    emit_label(end_label);
+}
+
+void CodeGenerator::visit(CommaExprNode& node) {
+    dispatch(node.left.get());
+    dispatch(node.right.get());
 }
 
 void CodeGenerator::visit(CallExprNode& node) {
@@ -534,10 +633,30 @@ void CodeGenerator::generate_unary(UnaryExprNode& node) {
             emit("# pre-dec");
             break;
         case OpKind::POST_INC:
-            emit("# post-inc");
+            // Load current value
+            if (auto* id = dynamic_cast<IdentifierExprNode*>(node.operand.get())) {
+                if (local_variables_.count(id->name)) {
+                    int offset = local_variables_[id->name];
+                    emit("mov " + std::to_string(offset) + "(%rbp), %rax");
+                    emit("push %rax");
+                    emit("add $1, %rax");
+                    emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
+                    emit("pop %rax");
+                }
+            }
             break;
         case OpKind::POST_DEC:
-            emit("# post-dec");
+            // Load current value
+            if (auto* id = dynamic_cast<IdentifierExprNode*>(node.operand.get())) {
+                if (local_variables_.count(id->name)) {
+                    int offset = local_variables_[id->name];
+                    emit("mov " + std::to_string(offset) + "(%rbp), %rax");
+                    emit("push %rax");
+                    emit("sub $1, %rax");
+                    emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
+                    emit("pop %rax");
+                }
+            }
             break;
         default:
             error_message_ = "Unsupported unary operator";

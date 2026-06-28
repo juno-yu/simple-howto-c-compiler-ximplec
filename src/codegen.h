@@ -28,12 +28,16 @@ private:
     void visit(ExprStmtNode& node) override;
     void visit(IfStmtNode& node) override;
     void visit(WhileStmtNode& node) override;
+    void visit(DoWhileStmtNode& node) override;
     void visit(ForStmtNode& node) override;
     void visit(BreakStmtNode& node) override;
     void visit(ContinueStmtNode& node) override;
     void visit(BinaryExprNode& node) override;
     void visit(UnaryExprNode& node) override;
     void visit(AssignExprNode& node) override;
+    void visit(CompoundAssignExprNode& node) override;
+    void visit(TernaryExprNode& node) override;
+    void visit(CommaExprNode& node) override;
     void visit(CallExprNode& node) override;
     void visit(IndexExprNode& node) override;
     void visit(MemberExprNode& node) override;
