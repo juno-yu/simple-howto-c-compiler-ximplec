@@ -282,6 +282,12 @@ ASTPtr Parser::parse_declaration() {
                 std::string fname = field_name.value;
                 advance();
                 
+                // Handle bitfield syntax: int x : N
+                if (match(TokenType::COLON)) {
+                    // Skip the bit width
+                    if (check(TokenType::INTEGER)) advance();
+                }
+                
                 auto field = std::make_unique<StructFieldNode>(
                     field_type, fname, field_name.line, field_name.column);
                 struct_decl->fields.push_back(std::move(field));
@@ -373,6 +379,41 @@ ASTPtr Parser::parse_declaration() {
     
     std::string type_name = parse_type_specifier();
     
+    // Handle function pointer declarations: int (*fp)(int, int)
+    if (check(TokenType::LPAREN)) {
+        size_t saved_pos = pos_;
+        advance(); // consume (
+        if (check(TokenType::STAR)) {
+            advance(); // consume *
+            if (check(TokenType::IDENTIFIER)) {
+                std::string ptr_name = peek().value;
+                advance(); // consume name
+                if (match(TokenType::RPAREN)) {
+                    // We have int (*fp) - now check for (params)
+                    if (match(TokenType::LPAREN)) {
+                        // Skip parameters
+                        int depth = 1;
+                        while (depth > 0 && !is_at_end()) {
+                            if (check(TokenType::LPAREN)) depth++;
+                            if (check(TokenType::RPAREN)) depth--;
+                            advance();
+                        }
+                        // Now parse as variable declaration with function pointer type
+                        auto var = std::make_unique<VarDeclNode>(
+                            type_name + "(*)()", ptr_name, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+                        if (match(TokenType::ASSIGN)) {
+                            var->initializer = parse_expression();
+                        }
+                        expect(TokenType::SEMICOLON);
+                        return std::move(var);
+                    }
+                }
+            }
+        }
+        // Not a function pointer, restore and try normal path
+        pos_ = saved_pos;
+    }
+    
     if (!check(TokenType::IDENTIFIER)) {
         error("Expected identifier after type");
         return nullptr;
@@ -434,7 +475,20 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
     }
     
     if (match(TokenType::ASSIGN)) {
-        var->initializer = parse_expression();
+        // Handle braced initializer: { expr, expr, ... }
+        if (check(TokenType::LBRACE)) {
+            advance(); // consume {
+            int depth = 1;
+            while (depth > 0 && !is_at_end()) {
+                if (check(TokenType::LBRACE)) depth++;
+                if (check(TokenType::RBRACE)) depth--;
+                if (depth > 0) advance();
+            }
+            // Create a dummy integer 0 as initializer
+            var->initializer = std::make_unique<IntegerLiteralNode>(0, var->line, var->column);
+        } else {
+            var->initializer = parse_expression();
+        }
     }
     
     expect(TokenType::SEMICOLON);
