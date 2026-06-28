@@ -90,8 +90,8 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | Integer (octal `0777`) | ✅ | ✅ | ✅ | 0001 |
 | Char (`'a'`, `'\n'`) | ✅ | ✅ | ✅ | 0001 |
 | String (`"hello"`) | ✅ | ✅ | ✅ | 0019 |
-| Float (`3.14`, `3.14f`) | ✅ | ✅ | ⚠️ Parsed | 0043 |
-| Hex float (`0x1.0p10`) | ✅ | ⚠️ Parsed | ⚠️ Returns 0 | 0043 |
+| Float (`3.14`, `3.14f`) | ✅ | ✅ | ⚠️ Parsed, zero-init only | 0043 |
+| Hex float (`0x1.0p10`) | ✅ | ✅ | ⚠️ Tokenized, zero-init only | 0043 |
 
 ### Types
 
@@ -101,8 +101,8 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | `char` | ✅ | ✅ | ✅ | 0013 |
 | `void` | ✅ | ✅ | ✅ | 0013 |
 | `bool` / `_Bool` | ✅ | ✅ | ✅ | 0010 |
-| `float` | ✅ | ✅ | ⚠️ Parsed | 0043 |
-| `double` | ✅ | ✅ | ⚠️ Parsed | 0043 |
+| `float` | ✅ | ✅ | ⚠️ Parsed, stored as int | 0043 |
+| `double` | ✅ | ✅ | ⚠️ Parsed, stored as int | 0043 |
 | `long` / `long long` | ✅ | ✅ | ✅ | 0015 |
 | `short` | ✅ | ✅ | ✅ | 0015 |
 | `signed` / `unsigned` | ✅ | ✅ | ✅ | 0015 |
@@ -113,10 +113,10 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | `enum` | ✅ | ✅ | ✅ | 0028 |
 | `typedef` | ✅ | ✅ | ✅ | 0029 |
 | `sizeof` | ✅ | ✅ | ✅ | 0014 |
-| Function pointers | ✅ | ⚠️ Basic | ⚠️ Basic | 0036 |
-| `size_t` | ✅ Built-in typedef | — |
-| `NULL` | ✅ Macro (0) | — |
-| Flexible array members | ✅ Parsed | 0040 |
+| Function pointers | ✅ | ✅ | ✅ Indirect call | 0036 |
+| `size_t` | ✅ | ✅ | ✅ Built-in typedef | — |
+| `NULL` | ✅ | ✅ | ✅ Macro → 0 | — |
+| Flexible array members | ✅ | ✅ | ⚠️ Parsed, no codegen | 0040 |
 
 ### Qualifiers & Storage
 
@@ -127,11 +127,11 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | `static` | ✅ | ✅ | ✅ | 0050 |
 | `extern` | ✅ | ✅ | ✅ | 0021 |
 | `inline` | ✅ | ✅ | ✅ | 0069 |
-| `register` | ✅ | ✅ | ⚠️ Parsed | 0076 |
-| `auto` | ✅ | ✅ | ⚠️ Parsed | 0076 |
-| `restrict` | ✅ | ✅ | ⚠️ Parsed | 0077 |
-| `_Thread_local` | ✅ | ✅ | ⚠️ Parsed | 1010 |
-| `_Atomic` | ✅ | ✅ | ⚠️ Parsed | 1005 |
+| `register` | ✅ | ✅ | ⚠️ Parsed, treated as auto | 0076 |
+| `auto` | ✅ | ✅ | ⚠️ Parsed, treated as auto | 0076 |
+| `restrict` | ✅ | ✅ | ⚠️ Parsed, no effect on codegen | 0077 |
+| `_Thread_local` | ✅ | ✅ | ⚠️ Parsed, no effect on codegen | 1010 |
+| `_Atomic` | ✅ | ✅ | ⚠️ Parsed, no effect on codegen | 1005 |
 
 ### Operators
 
@@ -177,7 +177,7 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | Forward declarations | ✅ | ✅ | ✅ | 0011 |
 | Parameters (6 reg ABI) | ✅ | ✅ | ✅ | 0001 |
 | Recursive calls | ✅ | ✅ | ✅ | 0001 |
-| Variadic (`...`) | ✅ | ✅ | ⚠️ Parsed | 0046 |
+| Variadic (`...`) | ✅ | ✅ | ⚠️ Parsed, no va_arg support | 0046 |
 | Nested functions (GCC) | ❌ | — | — | — |
 
 ### Declarations & Initializers
