@@ -61,44 +61,25 @@ int main(int argc, char* argv[]) {
     simplecc::Compiler compiler;
     
     if (assembly_only) {
-        std::vector<std::pair<std::string, std::string>> compiled_files; // (filename, assembly)
+        // Use compile_files for proper multi-file support with state reset between files
+        auto result = compiler.compile_files(input_files);
         
-        for (const auto& input_file : input_files) {
-            auto result = compiler.compile_file(input_file);
-            
-            if (!result.success) {
-                std::cerr << input_file << ": " << result.error_message << std::endl;
-                return 1;
-            }
-            
-            compiled_files.push_back({input_file, result.assembly});
+        if (!result.success) {
+            std::cerr << result.error_filename << ": " << result.error_message << std::endl;
+            return 1;
         }
         
         if (input_files.size() == 1 && output_file == "a.out") {
             // Single file, no -o: print to stdout
-            std::cout << compiled_files[0].second;
-        } else if (input_files.size() > 1 && output_file == "a.out") {
-            // Multiple files, no -o: write individual .s files
-            for (const auto& [filename, assembly] : compiled_files) {
-                std::string asm_file = filename + ".s";
-                std::ofstream out(asm_file);
-                out << assembly;
-                out.close();
-                
-                std::cout << "Assembly written to " << asm_file << std::endl;
-            }
+            std::cout << result.combined_assembly;
         } else {
-            // -o specified: write combined assembly to output file
-            std::string combined_assembly;
-            for (const auto& [filename, assembly] : compiled_files) {
-                combined_assembly += assembly;
-                combined_assembly += "\n";
-            }
-            
+            // Write combined assembly to output file
             std::ofstream out(output_file);
-            out << combined_assembly;
+            out << result.combined_assembly;
             out.close();
-            std::cout << "Assembly written to " << output_file << std::endl;
+            if (input_files.size() > 1 || output_file != "a.out") {
+                std::cout << "Assembly written to " << output_file << std::endl;
+            }
         }
     } else {
         for (const auto& input_file : input_files) {

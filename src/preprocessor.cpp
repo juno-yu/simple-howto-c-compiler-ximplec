@@ -8,6 +8,15 @@ namespace simplecc {
 
 Preprocessor::Preprocessor() : error_line_(0) {}
 
+void Preprocessor::reset() {
+    error_message_.clear();
+    error_line_ = 0;
+    macros_.clear();
+    condition_stack_.clear();
+    was_true_stack_.clear();
+    included_files_.clear();
+}
+
 std::string Preprocessor::process(const std::string& source, const std::string& filename) {
     error_message_.clear();
     error_line_ = 0;
@@ -18,6 +27,9 @@ std::string Preprocessor::process(const std::string& source, const std::string& 
     macros_["__x86_64__"] = Macro("__x86_64__", "1");
     macros_["__linux__"] = Macro("__linux__", "1");
     macros_["NULL"] = Macro("NULL", "0");
+    macros_["true"] = Macro("true", "1");
+    macros_["false"] = Macro("false", "0");
+    macros_["__bool_true_false_are_defined"] = Macro("__bool_true_false_are_defined", "1");
     
     std::istringstream stream(source);
     std::string line;
@@ -336,6 +348,11 @@ std::string Preprocessor::expand_macro_call(const Macro& macro, const std::vecto
         std::string hash_pattern = "#" + macro.params[i];
         size_t pos = 0;
         while ((pos = result.find(hash_pattern, pos)) != std::string::npos) {
+            // Skip if this # is part of ## (preceded by another #)
+            if (pos > 0 && result[pos - 1] == '#') {
+                pos += hash_pattern.size();
+                continue;
+            }
             result.replace(pos, hash_pattern.size(), "\"" + expanded_args[i] + "\"");
             pos += expanded_args[i].size() + 2;
         }
@@ -545,6 +562,15 @@ std::vector<std::string> Preprocessor::split_args(const std::string& args) {
     
     if (!current.empty()) {
         result.push_back(current);
+    }
+    
+    // Trim whitespace from each parameter
+    for (auto& s : result) {
+        size_t start = s.find_first_not_of(" \t");
+        size_t end = s.find_last_not_of(" \t");
+        if (start != std::string::npos) {
+            s = s.substr(start, end - start + 1);
+        }
     }
     
     return result;

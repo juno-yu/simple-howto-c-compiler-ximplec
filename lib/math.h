@@ -2,6 +2,9 @@
 
 #define M_PI 3.14159265358979323846
 
+int abs(int x);
+long labs(long x);
+
 double sin(double x);
 double cos(double x);
 double tan(double x);

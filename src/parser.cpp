@@ -107,8 +107,6 @@ std::string Parser::parse_type_specifier() {
             result += "volatile ";
         } else if (match(TokenType::KW_STATIC)) {
             result += "static ";
-        } else if (match(TokenType::KW_EXTERN)) {
-            result += "extern ";
         } else if (match(TokenType::KW_INLINE)) {
             result += "inline ";
         } else if (match(TokenType::KW_REGISTER)) {
@@ -302,7 +300,6 @@ ASTPtr Parser::parse_program() {
 ASTPtr Parser::parse_declaration() {
     // Handle extern keyword
     if (match(TokenType::KW_EXTERN)) {
-        // extern declarations - parse as forward declarations
         std::string type_name = parse_type_specifier();
         if (!check(TokenType::IDENTIFIER)) {
             error("Expected identifier after extern");
@@ -310,35 +307,31 @@ ASTPtr Parser::parse_declaration() {
         }
         const Token& name_token = peek();
         std::string name = name_token.value;
-        advance();
         
-        // Check if this is a function or variable extern declaration
+        // Check if function or variable before advancing
+        size_t saved_pos = pos_;
+        advance(); // consume name
+        
         if (check(TokenType::LPAREN)) {
-            // extern function declaration
+            // Function declaration
             auto func = std::make_unique<FunctionDeclNode>(
                 type_name, name, name_token.line, name_token.column);
-            
-            // Function parameters
+            advance(); // consume (
             if (!check(TokenType::RPAREN)) {
                 do {
                     auto param = parse_param();
-                    if (param) {
-                        func->params.push_back(std::move(param));
-                    }
+                    if (param) func->params.push_back(std::move(param));
                 } while (match(TokenType::COMMA));
             }
             expect(TokenType::RPAREN);
-            
             expect(TokenType::SEMICOLON);
-            func->body = nullptr; // extern = no body
+            func->body = nullptr;
             return std::move(func);
         } else {
-            // extern variable declaration
-            auto var = std::make_unique<VarDeclNode>(
-                type_name, name, name_token.line, name_token.column);
-            var->is_extern = true;
-            expect(TokenType::SEMICOLON);
-            return std::move(var);
+            // Variable declaration — delegate to parse_var_decl for multi-declarator support
+            pos_ = saved_pos; // back before the identifier name
+            advance();        // consume the identifier name
+            return parse_var_decl(type_name, true);
         }
     }
     
@@ -612,10 +605,11 @@ ASTPtr Parser::parse_function_decl(const std::string& type_name) {
     return std::move(func);
 }
 
-ASTPtr Parser::parse_var_decl(const std::string& type_name) {
+ASTPtr Parser::parse_var_decl(const std::string& type_name, bool is_extern) {
     const Token& name_token = tokens_[pos_ - 1];
     auto var = std::make_unique<VarDeclNode>(
         type_name, name_token.value, name_token.line, name_token.column);
+    var->is_extern = is_extern;
     
     // Skip __attribute__((...)) if present
     while (check(TokenType::KW_ATTRIBUTE)) {
@@ -675,15 +669,24 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
         }
     }
 
-    // Handle multiple declarators: int a, b, c;
+    // Handle multiple declarators: int a, b, c; or char *p, *q;
     if (check(TokenType::COMMA)) {
         auto block = std::make_unique<BlockNode>(var->line, var->column);
         block->statements.push_back(std::move(var));
         while (match(TokenType::COMMA)) {
+            // Handle pointer prefix: *q in "char *p, *q"
+            while (match(TokenType::STAR)) {
+                // Skip qualifiers after * (e.g., const, volatile, restrict)
+                while (check(TokenType::KW_CONST) || check(TokenType::KW_VOLATILE) ||
+                       check(TokenType::KW_RESTRICT) || check(TokenType::KW_ATOMIC)) {
+                    advance();
+                }
+            }
             if (!check(TokenType::IDENTIFIER)) break;
             const Token& next_name = peek();
             auto next_var = std::make_unique<VarDeclNode>(
                 type_name, next_name.value, next_name.line, next_name.column);
+            next_var->is_extern = is_extern;
             advance();
             // Array (multi-dim)
             if (match(TokenType::LBRACKET)) {
@@ -1261,6 +1264,7 @@ ASTPtr Parser::parse_for_stmt() {
         // parse_var_decl stops at `;` only via the for-loop's semicolon below
     } else if (!check(TokenType::SEMICOLON)) {
         for_stmt->init = parse_expression();
+        expect(TokenType::SEMICOLON);
     } else {
         advance(); // skip semicolon
     }

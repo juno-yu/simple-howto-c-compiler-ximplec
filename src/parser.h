@@ -34,7 +34,7 @@ private:
     ASTPtr parse_program();
     ASTPtr parse_declaration();
     ASTPtr parse_function_decl(const std::string& type_name);
-    ASTPtr parse_var_decl(const std::string& type_name);
+    ASTPtr parse_var_decl(const std::string& type_name, bool is_extern = false);
     ASTPtr parse_struct_decl();
     ASTPtr parse_enum_decl();
     ASTPtr parse_typedef_decl();

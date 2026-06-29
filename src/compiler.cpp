@@ -13,10 +13,25 @@ Compiler::Compiler() {
     preprocessor_.define_macro("__STDC_VERSION__", "202311L");
     preprocessor_.define_macro("__x86_64__", "1");
     preprocessor_.define_macro("__linux__", "1");
+    preprocessor_.define_macro("true", "1");
+    preprocessor_.define_macro("false", "0");
+    preprocessor_.define_macro("__bool_true_false_are_defined", "1");
 }
 
 CompileResult Compiler::compile(const std::string& source) {
     CompileResult result;
+    
+    // Reset state for this compilation unit
+    preprocessor_.reset();
+    semantic_.reset();
+    // Re-define built-in macros after reset
+    preprocessor_.define_macro("__STDC__", "1");
+    preprocessor_.define_macro("__STDC_VERSION__", "202311L");
+    preprocessor_.define_macro("__x86_64__", "1");
+    preprocessor_.define_macro("__linux__", "1");
+    preprocessor_.define_macro("true", "1");
+    preprocessor_.define_macro("false", "0");
+    preprocessor_.define_macro("__bool_true_false_are_defined", "1");
     
     // Preprocess
     std::string preprocessed = preprocessor_.process(source);
@@ -77,6 +92,33 @@ CompileResult Compiler::compile_file(const std::string& filename) {
     buffer << file.rdbuf();
     
     return compile(buffer.str());
+}
+
+MultiFileCompileResult Compiler::compile_files(const std::vector<std::string>& filenames) {
+    MultiFileCompileResult result;
+    result.success = true;
+    
+    std::string combined_assembly;
+    
+    for (const auto& filename : filenames) {
+        auto file_result = compile_file(filename);
+        
+        if (!file_result.success) {
+            result.success = false;
+            result.error_message = file_result.error_message;
+            result.error_filename = filename;
+            result.error_line = file_result.error_line;
+            return result;
+        }
+        
+        if (!combined_assembly.empty()) {
+            combined_assembly += "\n";
+        }
+        combined_assembly += file_result.assembly;
+    }
+    
+    result.combined_assembly = combined_assembly;
+    return result;
 }
 
 } // namespace simplecc

@@ -46,6 +46,58 @@ SemanticAnalyzer::SemanticAnalyzer() : error_line_(0), scope_level_(0) {
     types_["size_t"].size = 8;
 }
 
+void SemanticAnalyzer::reset() {
+    error_message_.clear();
+    error_line_ = 0;
+    scope_level_ = 0;
+    symbols_.clear();
+    types_.clear();
+    scope_stack_.clear();
+    current_function_.clear();
+    current_return_type_.clear();
+    
+    // Re-initialize built-in types
+    types_["int"] = TypeInfo();
+    types_["int"].name = "int";
+    types_["int"].size = 4;
+    
+    types_["char"] = TypeInfo();
+    types_["char"].name = "char";
+    types_["char"].size = 1;
+    
+    types_["void"] = TypeInfo();
+    types_["void"].name = "void";
+    types_["void"].size = 0;
+    
+    types_["bool"] = TypeInfo();
+    types_["bool"].name = "bool";
+    types_["bool"].size = 1;
+    
+    types_["long"] = TypeInfo();
+    types_["long"].name = "long";
+    types_["long"].size = 8;
+    
+    types_["short"] = TypeInfo();
+    types_["short"].name = "short";
+    types_["short"].size = 2;
+    
+    types_["float"] = TypeInfo();
+    types_["float"].name = "float";
+    types_["float"].size = 4;
+    
+    types_["double"] = TypeInfo();
+    types_["double"].name = "double";
+    types_["double"].size = 8;
+    
+    types_["unsigned int"] = TypeInfo();
+    types_["unsigned int"].name = "unsigned int";
+    types_["unsigned int"].size = 4;
+    
+    types_["size_t"] = TypeInfo();
+    types_["size_t"].name = "unsigned long";
+    types_["size_t"].size = 8;
+}
+
 bool SemanticAnalyzer::analyze(ProgramNode& program) {
     push_scope();
     

@@ -2,5 +2,4 @@
 
 #define NULL ((void*)0)
 
-typedef long size_t;
-typedef long ptrdiff_t;
+#define offsetof(type, member) ((int)&((type*)0)->member)

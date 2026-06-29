@@ -313,15 +313,14 @@ This compiler is a substantial subset of C but not a complete C23 implementation
 - `...` parameter lists are accepted; `va_start` / `va_arg` / `va_end` are not implemented. Variadic functions are emitted as zero-argument functions.
 
 ### Preprocessor
-- **No standard library bundled** — `#include <stdio.h>` fails because headers aren't shipped. `#include "file.h"` works for files in the same directory.
 - **`#pragma` is ignored** — including `#pragma once`, diagnostic pragmas, etc.
 - **`#line` is ignored.**
 - **`__VA_OPT__` is not implemented.**
 - **Macro recursion is not detected** — recursive macros can hang the compiler.
 
 ### Standard Library
-- No bundled C standard library. `<stdio.h>`, `<stdlib.h>`, `<string.h>`, `<math.h>`, `<stdint.h>`, `<threads.h>`, `<stdatomic.h>`, etc. are not shipped.
-- Standard library functions are called via system `gcc`/`ld` link. They are not compiled by this project.
+- **`lib/` directory provides basic stubs** for `<stdio.h>`, `<stdlib.h>`, `<string.h>`, `<math.h>`, `<ctype.h>`, `<stdint.h>`, `<stdbool.h>`, `<assert.h>`, `<errno.h>`, `<stddef.h>`. These declare common functions/types but don't provide implementations.
+- Standard library functions are linked via system `gcc`/`ld` from libc/libm.
 
 ### Inline Assembly
 - **Basic form `asm("nop")` works** — assembly text is passed through to output.
@@ -449,7 +448,7 @@ int main() {
 
 **Lesson status:** 105 lessons ✅ Complete, 15 lessons ⚠️ Partial. See each lesson's README for details of what is and is not implemented.
 
-**Compilation status:** 113/118 lessons with example programs compile successfully. The 5 failures are all due to `#include <*.h>` for non-bundled standard library headers (e.g., `<stdio.h>`, `<stdbool.h>`, `<assert.h>`). All 5 are documented as requiring user-provided headers.
+**Compilation status:** 118/126 lessons with example programs compile and run correctly. 8 lessons are skipped (known limitations: nested functions, float/double, for-init assignment, multi-dim arrays, token pasting, standard lib stubs, GCC extensions).
 
 **Test status:** 6/6 test suites pass (tokenizer, AST, parser, codegen, integration, lessons 0076-1014).
 

@@ -778,6 +778,17 @@ void CodeGenerator::visit(AssignExprNode& node) {
         if (local_variables_.count(id->name)) {
             int offset = local_variables_[id->name];
             emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
+        } else {
+            // Check if it's a global variable
+            for (const auto& gvar : global_variables_) {
+                if (gvar.name == id->name) {
+                    int sz = get_type_size(gvar.type);
+                    if (sz == 1) emit("mov %al, " + id->name + "(%rip)");
+                    else if (sz == 4) emit("movl %eax, " + id->name + "(%rip)");
+                    else emit("mov %rax, " + id->name + "(%rip)");
+                    return;
+                }
+            }
         }
     }
 }
@@ -948,13 +959,11 @@ void CodeGenerator::visit(CallExprNode& node) {
         return;
     }
     
-    // Handle __builtin_popcount: call external popcount
-    // For simplicity, just call as external function
+    // Handle __builtin_popcount: inline popcount using popcnt instruction
     if (node.function_name == "__builtin_popcount") {
         if (!node.arguments.empty()) {
             dispatch(node.arguments[0].get());
-            emit("mov %rax, %rdi");
-            emit("call __popcount_stub");
+            emit("popcnt %eax, %eax");
         }
         return;
     }

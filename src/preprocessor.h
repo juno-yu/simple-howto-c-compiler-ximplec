@@ -23,6 +23,9 @@ public:
     Preprocessor();
     ~Preprocessor() = default;
     
+    // Reset state for separate compilation of a new file
+    void reset();
+    
     std::string process(const std::string& source, const std::string& filename = "<stdin>");
     
     bool has_error() const { return !error_message_.empty(); }

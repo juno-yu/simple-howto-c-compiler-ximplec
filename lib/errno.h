@@ -1,6 +1,6 @@
 #pragma once
 
-int errno;
+extern int errno;
 
 #define EDOM 33
 #define ERANGE 34
@@ -9,3 +9,34 @@ int errno;
 #define ENOMEM 12
 #define ENOENT 2
 #define EIO 5
+#define EBADF 9
+#define EACCES 13
+#define EFAULT 14
+#define EBUSY 16
+#define EEXIST 17
+#define ENOTDIR 20
+#define EISDIR 21
+#define EMFILE 24
+#define ENOSPC 28
+#define EPIPE 32
+#define EAGAIN 11
+#define EWOULDBLOCK 11
+#define EINPROGRESS 115
+#define EALREADY 114
+#define ENOTSOCK 88
+#define EDESTADDRREQ 89
+#define EMSGSIZE 90
+#define EPROTOTYPE 91
+#define ENOPROTOOPT 92
+#define EPROTONOSUPPORT 93
+#define ESOCKTNOSUPPORT 94
+#define ENOTSUP 95
+#define ENETUNREACH 101
+#define ECONNABORTED 103
+#define ECONNRESET 104
+#define ENOBUFS 105
+#define EISCONN 106
+#define ENOTCONN 107
+#define ETIMEDOUT 110
+#define ECONNREFUSED 111
+#define EHOSTUNREACH 113

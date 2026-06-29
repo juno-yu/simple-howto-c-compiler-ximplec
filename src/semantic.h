@@ -53,6 +53,9 @@ public:
     SemanticAnalyzer();
     ~SemanticAnalyzer() = default;
     
+    // Reset state for separate compilation of a new file
+    void reset();
+    
     bool analyze(ProgramNode& program);
     
     bool has_error() const { return !error_message_.empty(); }
