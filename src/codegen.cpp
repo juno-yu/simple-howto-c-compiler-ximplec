@@ -39,18 +39,8 @@ std::string CodeGenerator::generate(ProgramNode& program) {
             if (gvar.initialized) {
                 emit(".long " + gvar.init_value);
             } else {
-                emit(".zero 4"); // default 4 bytes for int
+                emit(".zero 4");
             }
-        }
-    }
-    
-    // Emit string literals
-    if (!string_literals_.empty()) {
-        emit("");
-        emit(".section .rodata");
-        for (const auto& str : string_literals_) {
-            emit_label(str.label);
-            output_ << "    .asciz \"" << str.value << "\"\n";
         }
     }
     
@@ -59,6 +49,16 @@ std::string CodeGenerator::generate(ProgramNode& program) {
     emit(".text");
     for (auto& decl : program.declarations) {
         dispatch(decl.get());
+    }
+    
+    // Emit string literals (collected during codegen)
+    if (!string_literals_.empty()) {
+        emit("");
+        emit(".section .rodata");
+        for (const auto& str : string_literals_) {
+            emit_label(str.label);
+            output_ << "    .asciz \"" << str.value << "\"\n";
+        }
     }
     
     return output_.str();

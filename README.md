@@ -670,3 +670,18 @@ int main() {
 - [chibicc - Small C Compiler](https://github.com/rui314/chibicc)
 - [Writing a C Compiler](https://norasandler.com/2017/11/29/Write-a-Compiler.html)
 - [x86-64 SysV ABI](https://refspecs.linuxbase.org/elf/x86_64-abi-0.99.pdf)
+
+### Additional Lessons (0088-0097)
+
+| Lesson | Topic | Status |
+|--------|-------|--------|
+| 0088 | String Concatenation | ✅ |
+| 0089 | Brace Init (Struct) | ⚠️ Partial |
+| 0090 | For-Loop Comma | ✅ |
+| 0091 | __builtin_offsetof | ⚠️ Partial |
+| 0092 | Packed Struct | ⚠️ Partial |
+| 0093 | Anonymous Enum | ⚠️ Partial |
+| 0094 | Typedef Func Ptr | ⚠️ Partial |
+| 0095 | Nested Struct Init | ⚠️ Partial |
+| 0096 | ND Array Init | ⚠️ Partial |
+| 0097 | Designated Init Array | ⚠️ Partial |

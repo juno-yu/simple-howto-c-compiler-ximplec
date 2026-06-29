@@ -1051,6 +1051,12 @@ ASTPtr Parser::parse_return_stmt() {
 }
 
 ASTPtr Parser::parse_expr_stmt() {
+    // Handle empty statement (standalone semicolon)
+    if (check(TokenType::SEMICOLON)) {
+        int line = peek().line, col = peek().column;
+        advance();
+        return std::make_unique<ExprStmtNode>(line, col);
+    }
     const Token& expr_token = peek();
     auto expr = parse_expression();
     
@@ -1129,7 +1135,7 @@ ASTPtr Parser::parse_for_stmt() {
         for_stmt->init = parse_var_decl(type);
         // parse_var_decl stops at `;` only via the for-loop's semicolon below
     } else if (!check(TokenType::SEMICOLON)) {
-        for_stmt->init = parse_expr_stmt();
+        for_stmt->init = parse_expression();
     } else {
         advance(); // skip semicolon
     }

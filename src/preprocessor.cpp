@@ -132,6 +132,47 @@ std::string Preprocessor::process(const std::string& source, const std::string& 
         }
     }
     
+    // String literal concatenation: merge adjacent "..." "..." tokens
+    // This is C translation phase 6, done here as a final preprocessor step
+    {
+        std::string result;
+        size_t i = 0;
+        while (i < output.size()) {
+            if (output[i] != '"') {
+                result += output[i];
+                i++;
+                continue;
+            }
+            std::string str;
+            while (i < output.size() && output[i] != '\n') {
+                if (output[i] == '\\' && i + 1 < output.size()) {
+                    str += output[i]; str += output[i+1]; i += 2; continue;
+                }
+                str += output[i];
+                i++;
+                if (!str.empty() && str.back() == '"') break;
+            }
+            size_t j = i;
+            while (j < output.size() && (output[j] == ' ' || output[j] == '\t' || output[j] == '\n' || output[j] == '\r')) j++;
+            if (j < output.size() && output[j] == '"') {
+                if (!str.empty() && str.back() == '"') str.pop_back();
+                i = j + 1;
+                while (i < output.size() && output[i] != '\n') {
+                    if (output[i] == '\\' && i + 1 < output.size()) {
+                        str += output[i]; str += output[i+1]; i += 2; continue;
+                    }
+                    str += output[i];
+                    i++;
+                    if (!str.empty() && str.back() == '"') break;
+                }
+            } else {
+                i = j;
+            }
+            result += str;
+        }
+        output = result;
+    }
+
     return output;
 }
 
