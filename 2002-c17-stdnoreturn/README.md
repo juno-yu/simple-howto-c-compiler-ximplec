@@ -1,31 +1,36 @@
 # Lesson 2002: stdnoreturn.h (C17)
 
-## Status: ✅ Complete | Standard: C17 | Effort: Trivial
+## Status: ⚠️ Partial | Standard: C17 | Effort: Trivial
 
 ## Objective
 
 Provide `noreturn` macro.
 
+## How It Works
+
+simplecc ships **no** `<stdnoreturn.h>` in `lib/`. The keyword form is recognised by the lexer directly:
+
+```cpp
+// src/lexer.cpp:148-149
+{"_Noreturn", TokenType::KW_STATIC}, // treat as storage class for now
+{"noreturn",  TokenType::KW_STATIC},
+```
+
+so a header shim is unnecessary. The bundled example in `2002-c17-stdnoreturn/src/example.c` is a stub that does not use the qualifier.
+
 ## C17 Notes
 
-- No changes from C11
-- `<stdnoreturn.h>` provides: `noreturn`
-- Maps to `_Noreturn`
+- No changes from C11.
+- `<stdnoreturn.h>` provides: `noreturn`.
+- Maps to `_Noreturn`.
 
-## Implementation
+## Limitations
 
-- Header defines: `#define noreturn _Noreturn`
+- No real noreturn codegen — see lesson 1004.
 
-## Processing Flow
+## Source Code References
 
-```mermaid
-flowchart TD
-    A["noreturn void func()"] --> B[Preprocessor expands to _Noreturn]
-    B --> C[Parse function declaration]
-    C --> D[Mark function with noreturn attribute]
-    D --> E[Function body analysis]
-    E --> F{All paths return?}
-    F -->|No - correct| G[Accept: function never returns]
-    F -->|Yes - warning| H[Warning: noreturn function returns]
-    G --> I[Code generation with noreturn hint]
-```
+| Component | File | Status |
+|-----------|------|--------|
+| `<stdnoreturn.h>` | `lib/` | ❌ Not present (unnecessary, the keyword works) |
+| `noreturn` keyword | `src/lexer.cpp:149` | `noreturn` → `KW_STATIC` |

@@ -1,12 +1,16 @@
 # Lesson 1009: <stdatomic.h> (C11)
 
-## Status: ✅ Complete | Standard: C11 | Effort: Medium
+## Status: ⚠️ Skeleton | Standard: C11 | Effort: Medium
 
 ## Objective
 
 Standard atomic types and operations.
 
-## Types
+## How It Works
+
+simplecc ships **no** `<stdatomic.h>` header in `lib/`. The bundled example in `1009-c11-stdatomic/src/example.c` is a stub that returns `42`. The `_Atomic` qualifier (lesson 1005) is recognised but produces no lock-prefixed code.
+
+## Types (aspirational)
 
 ```c
 atomic_bool
@@ -18,7 +22,7 @@ atomic_uintptr_t
 atomic_ptrdiff_t
 ```
 
-## Operations
+## Operations (aspirational)
 
 | Function | Description |
 |----------|-------------|
@@ -34,25 +38,9 @@ atomic_ptrdiff_t
 | `atomic_fetch_and(obj, arg)` | Bitwise AND |
 | `atomic_fetch_xor(obj, arg)` | Bitwise XOR |
 
-## Atomic Operation Flow
+## Source Code References
 
-```mermaid
-graph TD
-    A["atomic_store(&obj, val)"] --> B["Store value to obj"]
-    C["atomic_load(&obj)"] --> D["Read value from obj"]
-    E["atomic_exchange(&obj, val)"] --> F["Swap obj and val, return old"]
-    G["atomic_compare_exchange_strong(&obj, &exp, des)"] --> H{obj == exp?}
-    H -->|Yes| I["obj = des, return true"]
-    H -->|No| J["exp = obj, return false"]
-    K["atomic_fetch_add(&obj, arg)"] --> L["obj += arg, return old"]
-```
-
-## Implementation Checklist
-
-- [ ] Define `atomic_*` types (wrap underlying type)
-- [ ] Implement `atomic_store` / `atomic_load`
-- [ ] Implement `atomic_compare_exchange`
-- [ ] Implement `atomic_fetch_*` operations
-- [ ] Memory fence instructions
-- [ ] `atomic_thread_fence` function
-- [ ] Test: lock-free counter
+| Component | File | Status |
+|-----------|------|--------|
+| `<stdatomic.h>` | `lib/` | ❌ Not present |
+| `_Atomic` qualifier | `src/parser.cpp:120-121` | Appended to type string only |

@@ -4,71 +4,72 @@
 
 ## Objective
 
-Implement signal handling functions.
+Enable programs to install and dispatch signal handlers using the
+standard POSIX signal functions (`signal`, `sigaction`, `kill`,
+`raise`) by declaring the functions as `extern` and letting the
+linker resolve the calls against the system C library.
 
-## Signal Handling Overview
+## Implementation
 
-```mermaid
-flowchart TD
-    A[Signal Handling] --> B[Registration]
-    A --> C[Generation]
-    A --> D[Types]
+`simplecc` does not ship a bundled `<signal.h>` header — the user
+declares the prototypes they need. The typical set is:
 
-    B --> E[signal]
-    B --> F[sigaction]
-
-    C --> G[kill]
-    C --> H[raise]
-
-    D --> I[SIGINT]
-    D --> J[SIGTERM]
-    D --> K[SIGCHLD]
-    D --> L[SIGSEGV]
-
-    E -->|"signal(sig, handler)"| M[Register handler]
-    F -->|"sigaction(sig, act, oldact)"| N[Advanced registration]
-    G -->|"kill(pid, sig)"| O[Send signal to process]
-    H -->|"raise(sig)"| P[Send signal to self]
+```c
+// User-declared prototypes
+typedef void (*sighandler_t)(int);
+sighandler_t signal(int signum, sighandler_t handler);
+int          sigaction(int signum, const void *act, void *oldact);
+int          kill(int pid, int signum);
+int          raise(int signum);
 ```
 
-## Signal Flow
+The codegen produces a `call <name>` for each declaration. Function
+pointer parameters (`sighandler_t handler`) are loaded into the
+appropriate register as 8-byte pointer values.
 
-```mermaid
-flowchart LR
-    A[Process A] -->|"kill(pid, SIGINT)"| B[Kernel]
-    B -->|"Deliver signal"| C[Process B]
-    C --> D{Handler?}
-    D -->|Yes| E[Run handler]
-    D -->|No| F[Default action]
-    E --> G[Return to execution]
+## What Works
+
+- All of `signal` / `sigaction` / `kill` / `raise` when declared as
+  `extern`.
+- Function-pointer types — `void (*handler)(int)` is parsed by
+  `parse_function_pointer` in the declaration path
+  (`src/parser.cpp:527-547`) and stored as a type with `(*)`
+  in the middle.
+- The `signal` function is one of the few standard C functions whose
+  return type is a function pointer — the codegen leaves the result
+  in `%rax` as a normal pointer.
+- Multi-argument calls (`sigaction(signum, act, oldact)` lowers to
+  three register moves followed by `call sigaction`).
+
+## Limitations
+
+- No bundled `<signal.h>` header. The user must declare the
+  prototypes and the signal numbers (`SIGINT`, `SIGTERM`, etc.).
+- No `sigset_t` / `sigemptyset` / `sigaddset` support beyond what
+  the user can hand-roll.
+- The function-pointer return type is recognised but the AST does
+  not enforce a function-pointer type for the first argument to
+  `signal`.
+
+## Example
+
+```c
+int main() {
+    int x = 42;
+    return x;
+}
 ```
 
-## Functions
+The example does not actually use any signal functions — it returns
+42 from `main` to exercise the basic compilation path. Tests in
+`tests/test_signal_handling.cpp` cover the standard declarations.
 
-| Function | Complexity |
-|----------|------------|
-| `signal(sig, handler)` | Medium |
-| `sigaction(sig, act, oldact)` | Medium |
-| `kill(pid, sig)` | Easy |
-| `raise(sig)` | Easy |
+## Source Code References
 
-## Implementation Checklist
-
-- [ ] Implement signal() via rt_sigaction syscall
-- [ ] Implement sigaction() wrapper
-- [ ] Implement kill() via kill syscall
-- [ ] Define signal handler types
-- [ ] Support SIGINT, SIGTERM, SIGCHLD
-- [ ] Test: install SIGINT handler, send signal
-
-## Implementation Details
-
-The compiler handles signal handling through function pointer parsing and standard function call code generation.
-
-| Component | Source File | Lines | Description |
-|-----------|-------------|-------|-------------|
-| Function pointer parsing | `src/parser.cpp` | 382–413 | Parses `void (*handler)(int)` declarations for signal handler parameters |
-| Function call codegen | `src/codegen.cpp` | 838–853 | Generates `call` instructions for signal(), sigaction(), kill(), raise() |
-| System V ABI registers | `src/codegen.cpp` | 267–268 | Maps first 6 args to `%rdi, %rsi, %rdx, %rcx, %r8, %r9` |
-| Function prologue | `src/codegen.cpp` | 262–264 | Emits `push %rbp; mov %rsp, %rbp` for handler frames |
-| Parameter passing | `src/codegen.cpp` | 288–291 | Stores parameters from registers to stack slots |
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| `parse_declaration` | `src/parser.cpp:300-336` | `extern` declarations produce a no-body `FunctionDeclNode` |
+| Function pointer types | `src/parser.cpp:527-547` | `void (*)(int)` parameter parsing |
+| `parse_function_decl` | `src/parser.cpp:578-615` | Forward decl path |
+| Forward-decl emit | `src/codegen.cpp:305-309` | Skips emission when `body == nullptr` |
+| Function call codegen | `src/codegen.cpp:1288-1364` | System V ABI register assignment |

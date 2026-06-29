@@ -1,5 +1,7 @@
 # Lesson 0005: Integration
 
+## Status: ✅ Complete | Phase: Core
+
 ## Objective
 
 Combine all components into a working compiler with end-to-end testing.
@@ -10,33 +12,40 @@ Combine all components into a working compiler with end-to-end testing.
 
 ```mermaid
 graph LR
-    A[.c file] --> B[Tokenizer]
-    B --> C[Parser]
-    C --> D[AST]
-    D --> E[Code Gen]
-    E --> F[.s file]
-    F --> G[as]
-    G --> H[.o file]
-    H --> I[ld]
-    I --> J[executable]
-    
+    A[.c file] --> B[Preprocessor]
+    B --> C[Lexer]
+    C --> D[Parser]
+    D --> E[AST]
+    E --> F[Semantic analysis]
+    F --> G[Code Gen]
+    G --> H[.s file]
+    H --> I[as]
+    I --> J[.o file]
+    J --> K[ld]
+    K --> L[executable]
+
     style A fill:#f9f,stroke:#333
-    style J fill:#9f9,stroke:#333
+    style L fill:#9f9,stroke:#333
 ```
 
 ### Error Handling Flow
 
 ```mermaid
 flowchart TD
-    A[Source Code] --> B{Tokenizer}
+    A[Source Code] --> B{Preprocessor}
     B -->|Error| C[Report: line, column, message]
-    B -->|OK| D{Parser}
+    B -->|OK| D{Lexer}
     D -->|Error| C
-    D -->|OK| E{Code Gen}
+    D -->|OK| E{Parser}
     E -->|Error| C
-    E -->|OK| F[Output assembly]
-    
-    C --> G[Exit with error code]
+    E -->|OK| F{Semantic}
+    F -->|Warnings| G[Continue]
+    F -->|OK| G
+    G --> H{Code Gen}
+    H -->|Error| C
+    H -->|OK| I[Output assembly]
+
+    C --> J[Exit with error code]
 ```
 
 ### Test Strategy
@@ -44,18 +53,18 @@ flowchart TD
 ```mermaid
 graph TD
     subgraph "Unit Tests"
-        U1[Tokenizer tests]
+        U1[Lexer tests]
         U2[Parser tests]
         U3[AST tests]
         U4[Codegen tests]
     end
-    
+
     subgraph "Integration Tests"
         I1[End-to-end compile + run]
         I2[Error message tests]
         I3[Multiple file tests]
     end
-    
+
     U1 --> I1
     U2 --> I1
     U3 --> I1
@@ -69,12 +78,62 @@ graph TD
 | File | Purpose |
 |------|---------|
 | `src/main.cpp` | CLI entry point |
-| `src/compiler.h` | Orchestrator class |
-| `src/compiler.cpp` | Pipeline management |
-| `tests/test_integration.cpp` | End-to-end tests |
-| `tests/test_files/*.c` | Test C programs |
+| `src/compiler.h` | `Compiler` orchestrator + `CompileResult` struct |
+| `src/compiler.cpp` | Pipeline: preprocess → tokenize → parse → semantic → codegen |
+| `src/preprocessor.h` / `src/preprocessor.cpp` | Macro expansion and `#include` handling |
+
+### `compile()` Orchestration
+
+Each phase is run in sequence; the first error halts the pipeline and is
+returned in `CompileResult`. Semantic analysis never aborts the
+compilation (only warnings are produced).
+
+```cpp
+// src/compiler.cpp:21
+CompileResult Compiler::compile(const std::string& source) {
+    CompileResult result;
+
+    // 1. Reset preprocessor + semantic state, redefine built-in macros
+    preprocessor_.reset();
+    semantic_.reset();
+    preprocessor_.define_macro("__STDC__", "1");
+    preprocessor_.define_macro("__STDC_VERSION__", "202311L");
+    preprocessor_.define_macro("__x86_64__", "1");
+    preprocessor_.define_macro("__linux__", "1");
+    // ... true, false, __bool_true_false_are_defined ...
+
+    // 2. Preprocess
+    std::string preprocessed = preprocessor_.process(source);
+    if (preprocessor_.has_error()) { /* report preprocessor error */ return result; }
+
+    // 3. Tokenize
+    Lexer lexer(preprocessed);
+    auto tokens = lexer.tokenize();
+    if (lexer.has_error()) { /* report lexer error */ return result; }
+
+    // 4. Parse
+    Parser parser(tokens);
+    auto ast = parser.parse();
+    if (parser.has_error()) { /* report parser error */ return result; }
+
+    // 5. Semantic analysis (warnings only, does not fail)
+    semantic_.analyze(static_cast<ProgramNode&>(*ast));
+
+    // 6. Generate code
+    CodeGenerator codegen;
+    result.assembly = codegen.generate(static_cast<ProgramNode&>(*ast));
+    if (codegen.has_error()) { /* report codegen error */ return result; }
+
+    result.success = true;
+    return result;
+}
+```
 
 ### Compiler CLI
+
+The CLI is in `src/main.cpp`. It supports `-o` for output name, `-S` to
+keep the `.s` file, `-t` to dump tokens, `-a` to dump the AST, and `-h`
+for help.
 
 ```bash
 Usage: simplecc [options] <file.c>
@@ -87,7 +146,13 @@ Options:
     -h            Show help
 ```
 
-### Integration Test Cases
+### Multi-File Support
+
+`compile_files()` (in `src/compiler.cpp:97-122`) compiles each file in
+isolation, then concatenates their assembly. Globals and `extern`
+declarations can therefore span translation units.
+
+## Integration Test Cases
 
 | Test | Input | Expected Output |
 |------|-------|-----------------|
@@ -118,25 +183,29 @@ TEST_CASE("Complete program", "[integration]") {
             return x + y;
         }
     )";
-    
+
     Compiler compiler;
     auto result = compiler.compile(source);
-    REQUIRE(result.exit_code == 30);
+    REQUIRE(result.success);
+    REQUIRE(result.error_message.empty());
+
+    // Assemble + run via system() to verify behaviour
+    // ...
+    REQUIRE(exit_code == 30);
 }
 ```
 
 ## Implementation Details
 
 ### Source Code References
+
 | Component | File | Lines | Description |
 |-----------|------|-------|-------------|
-| CompileResult struct | src/compiler.h | 8-16 | Result structure with success, assembly, error info |
-| Compiler class | src/compiler.h | 18-31 | Compiler orchestrator class declaration |
-| compile() method | src/compiler.cpp | 10-46 | Main compilation pipeline: tokenize → parse → codegen |
-| Tokenization step | src/compiler.cpp | 14-22 | Creates Lexer, tokenizes source, checks for errors |
-| Parsing step | src/compiler.cpp | 25-33 | Creates Parser, parses tokens, checks for errors |
-| Code generation step | src/compiler.cpp | 36-42 | Creates CodeGenerator, generates assembly, checks for errors |
-| compile_file() method | src/compiler.cpp | 48-60 | Reads file and delegates to compile() |
-| CLI entry point | src/main.cpp | 17 | main() function handling command-line arguments |
-| CLI argument parsing | src/main.cpp | 17-??? | Parses -o, -S, -t, -a, -h flags |
-| Pipeline orchestration | src/compiler.cpp | 10-46 | Full lexer → parser → codegen integration |
+| `CompileResult` struct | src/compiler.h | 11-19 | `success`, `assembly`, `error_message`, `error_line/column` |
+| `MultiFileCompileResult` struct | src/compiler.h | 22-30 | Same fields for `compile_files()` |
+| `Compiler` class | src/compiler.h | 32-53 | Owns `Preprocessor` and `SemanticAnalyzer` |
+| Built-in macros | src/compiler.cpp | 10-19, 28-34 | `__STDC__`, `__STDC_VERSION__`, `__x86_64__`, `__linux__`, `true`, `false` |
+| `compile()` pipeline | src/compiler.cpp | 21-81 | Preprocess → tokenize → parse → semantic → codegen |
+| `compile_file()` | src/compiler.cpp | 83-95 | Read file contents and delegate to `compile()` |
+| `compile_files()` | src/compiler.cpp | 97-122 | Per-file compile + concatenate assembly output |
+| CLI entry point | src/main.cpp | — | `main()` parses flags and invokes the compiler |

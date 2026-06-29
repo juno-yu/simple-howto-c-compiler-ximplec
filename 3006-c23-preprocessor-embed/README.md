@@ -1,66 +1,82 @@
 # Lesson 3006: #embed (C23)
 
-## Status: ✅ Complete | Standard: C23 | Effort: Medium
+## Status: ✅ Complete (file → integer list) | Standard: C23 | Effort: Medium
 
 ## Objective
 
-Include binary data directly in source code.
+Include binary file contents as a comma-separated integer list.
+
+## How It Works
+
+The preprocessor dispatches `#embed` to `handle_embed`, which reads the named file and emits one integer per byte:
+
+```cpp
+// src/preprocessor.cpp:145-147
+} else if (dir_name == "embed") {
+    // #embed "filename" - embed binary file contents
+    output += handle_embed(dir_args) + "\n";
+}
+```
+
+```cpp
+// src/preprocessor.cpp:587-631
+std::string Preprocessor::handle_embed(const std::string& args) {
+    // Parse filename from args: "filename" or <filename>
+    std::string filename;
+    size_t start = args.find_first_not_of(" \t");
+    if (start == std::string::npos) {
+        error_message_ = "#embed: missing filename";
+        return "";
+    }
+    if (args[start] == '"') {
+        size_t end = args.find('"', start + 1);
+        if (end == std::string::npos) {
+            error_message_ = "#embed: unterminated filename";
+            return "";
+        }
+        filename = args.substr(start + 1, end - start - 1);
+    } else if (args[start] == '<') {
+        // ... same shape for angle-bracket form ...
+    } else {
+        filename = args.substr(start);
+        // Trim trailing whitespace
+    }
+    // Read binary file
+    std::string content = read_file(filename);
+    if (content.empty() && !error_message_.empty()) {
+        return "";
+    }
+    // Convert to comma-separated integer values
+    std::string result;
+    for (size_t i = 0; i < content.size(); i++) {
+        if (i > 0) result += ", ";
+        result += std::to_string(static_cast<unsigned char>(content[i]));
+    }
+    return result;
+}
+```
+
+The result string is then spliced into the surrounding token stream, exactly where a C23 `const unsigned char data[] = { #embed "f.bin" };` would have its initialiser.
 
 ## Syntax
 
 ```c
-// Include file contents as comma-separated integers
 const unsigned char icon[] = {
     #embed "icon.png"
 };
-
-// With fallback
-const unsigned char data[] = {
-    #embed "data.bin"
-    // if file not found, use fallback:
-    , 0x00, 0xFF, 0x01
-};
 ```
 
-## Comparison with GCC Extension
+## Limitations
 
-```c
-// GCC (before C23)
-#include "data.bin"  // includes as text, problematic
+- No fallback list — the C23 form `, 0x00, 0xFF, ...` after the directive is **not** honoured. Anything after `#embed` on its own line is processed as the next preprocessor line.
+- No `__has_embed` or limit/prefix/suffix parameters.
+- Missing file is a hard error (no default).
+- The bundled example in `3006-c23-preprocessor-embed/src/example.c` is a stub that does not use `#embed`; it just returns `0`.
 
-// C23 #embed
-const char data[] = { #embed "data.bin" };  // proper binary include
-```
+## Source Code References
 
-## Implementation Checklist
-
-- [ ] Parse `#embed "filename"` directive
-- [ ] Read file as binary
-- [ ] Generate comma-separated integer list
-- [ ] Handle fallback if file not found
-- [ ] Support include path search
-- [ ] Test: embed small binary file
-- [ ] Test: error on missing file without fallback
-
-## Flow Diagram
-
-```mermaid
-flowchart TD
-    A[Source: #embed "file.bin"] --> B[Preprocessor]
-    B --> C{Directive Type?}
-    C -->|#embed| D[Parse Embed Directive]
-    C -->|Other| E[Normal Processing]
-    D --> F[Extract Filename]
-    F --> G[Search Include Path]
-    G --> H{File Found?}
-    H -->|Yes| I[Read Binary Contents]
-    H -->|No| J{Fallback Provided?}
-    J -->|Yes| K[Use Fallback Values]
-    J -->|No| L[Error: File Not Found]
-    I --> M[Convert to Byte Array]
-    K --> M
-    M --> N[Generate Comma-Separated List]
-    N --> O[Insert into AST]
-    O --> P[Codegen]
-    P --> Q[Data Section in Assembly]
-```
+| Component | File:Line | Description |
+|-----------|-----------|---|
+| Directive dispatch | `src/preprocessor.cpp:145-147` | `#embed` → `handle_embed` |
+| `handle_embed` | `src/preprocessor.cpp:587-631` | Parse filename, read bytes, format as ints |
+| File reader | `src/preprocessor.cpp:533` | `Preprocessor::read_file` |

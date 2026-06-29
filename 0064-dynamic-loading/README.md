@@ -4,74 +4,78 @@
 
 ## Objective
 
-Load shared libraries at runtime.
+Enable programs to load shared libraries at runtime using the POSIX
+`dlopen` / `dlsym` / `dlclose` / `dlerror` functions, by declaring
+the functions as `extern` and letting the linker resolve the calls
+against `libdl` (which provides the dynamic-loader glue).
 
-## Dynamic Loading Overview
+## Implementation
 
-```mermaid
-flowchart TD
-    A[Dynamic Loading] --> B[Library Loading]
-    A --> C[Symbol Lookup]
-    A --> D[Library Unloading]
-    A --> E[Error Handling]
+`simplecc` does not ship a bundled `<dlfcn.h>` header — the user
+declares the prototypes they need:
 
-    B --> F[dlopen]
-    C --> G[dlsym]
-    D --> H[dlclose]
-    E --> I[dlerror]
+```c
+// User-declared prototypes
+void *dlopen(const char *filename, int flags);
+void *dlsym(void *handle, const char *symbol);
+int   dlclose(void *handle);
+char *dlerror(void);
 
-    F -->|"dlopen(filename, flags)"| J[Load library]
-    G -->|"dlsym(handle, symbol)"| K[Find symbol]
-    H -->|"dlclose(handle)"| L[Unload library]
-    I -->|"dlerror()"| M[Get error message]
+// Common flag values (also user-declared)
+#define RTLD_LAZY  1
+#define RTLD_NOW   2
+#define RTLD_GLOBAL 0x100
 ```
 
-## Dynamic Loading Flow
+The codegen produces a `call dlopen` / `call dlsym` with arguments
+loaded into `%rdi` and `%rsi` per the System V ABI. The
+function-pointer result from `dlsym` is left in `%rax` and can be
+called indirectly (the codegen supports indirect `call *%rax` for
+function-pointer variables — see `src/codegen.cpp:1343-1364`).
 
-```mermaid
-sequenceDiagram
-    participant App
-    participant dlopen
-    participant Library
-    participant dlsym
+## What Works
 
-    App->>dlopen: dlopen("libm.so", RTLD_LAZY)
-    dlopen->>Library: Load library
-    Library-->>dlopen: Handle
-    dlopen-->>App: Return handle
-    App->>dlsym: dlsym(handle, "sin")
-    dlsym->>Library: Lookup symbol
-    Library-->>dlsym: Function pointer
-    dlsym-->>App: Return pointer
-    App->>Library: Call sin()
+- All of `dlopen` / `dlsym` / `dlclose` / `dlerror` when declared
+  as `extern`.
+- `void *` return type — the library handle is left in `%rax`
+  and can be passed back to `dlsym` and `dlclose`.
+- String arguments — the library path is loaded with
+  `lea .Lstr_N(%rip), %rax` (`src/codegen.cpp:1534-1541`).
+- Linking against `-ldl` is required at link time.
+
+## Limitations
+
+- No bundled `<dlfcn.h>` header. The user must declare the
+  prototypes and the `RTLD_*` flag values.
+- The compiler does not implement the dynamic loader; `libdl` is
+  the one that actually maps the shared library into memory.
+- Function-pointer types returned by `dlsym` are stored in `void *`
+  locals; calling them requires either casting to a function-pointer
+  type or storing them in a `void (*)(int)` variable (the latter
+  works with the indirect-call path in `src/codegen.cpp:1352-1361`).
+
+## Example
+
+```c
+void *dlopen(char *path, int flags);
+void *dlsym(void *handle, char *symbol);
+
+int main() {
+    return 0;
+}
 ```
 
-## Functions
+The example does not actually load a library — it returns 0 from
+`main` to exercise the prototype-parsing path. Tests in
+`tests/test_dynamic_loading.cpp` cover the standard declarations.
 
-| Function | Complexity |
-|----------|------------|
-| `dlopen()` | Hard |
-| `dlsym()` | Hard |
-| `dlclose()` | Easy |
-| `dlerror()` | Easy |
+## Source Code References
 
-## Implementation Checklist
-
-- [ ] Implement dlopen: parse ELF, load segments
-- [ ] Implement dlsym: symbol lookup
-- [ ] Implement dlclose: unload library
-- [ ] Implement dlerror: error reporting
-- [ ] Support RTLD_LAZY, RTLD_NOW
-- [ ] Test: load libm, call sin()
-
-## Implementation Details
-
-Dynamic loading is supported through extern function declarations and the standard function call code generation.
-
-| Component | Source File | Lines | Description |
-|-----------|-------------|-------|-------------|
-| Function declaration parsing | `src/parser.cpp` | 233–250 | Parses `void *dlopen(char *path, int flags)` declarations |
-| Pointer return types | `src/parser.cpp` | 148–170 | Handles `void *` return type for dlopen/dlsym handles |
-| Function call codegen | `src/codegen.cpp` | 838–853 | Generates `call dlopen`/`call dlsym` with arguments |
-| String argument loading | `src/codegen.cpp` | 929–935 | Loads library path string via `lea .Lstr_N(%rip), %rax` |
-| Function pointer casts | `src/codegen.cpp` | 832–836 | Type cast handling for `dlsym` return value assignment |
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| `parse_declaration` | `src/parser.cpp:300-336` | `extern` declarations produce a no-body `FunctionDeclNode` |
+| Pointer-type parsing | `src/parser.cpp:255-262` | `void *` and `char *` parameters |
+| `parse_function_decl` | `src/parser.cpp:578-615` | Forward decl path |
+| Forward-decl emit | `src/codegen.cpp:305-309` | Skips emission when `body == nullptr` |
+| Function call codegen | `src/codegen.cpp:1288-1364` | System V ABI register assignment |
+| Indirect call | `src/codegen.cpp:1352-1361` | `call *%rax` for function-pointer variables |

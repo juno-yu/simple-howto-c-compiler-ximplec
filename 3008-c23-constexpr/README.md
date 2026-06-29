@@ -1,12 +1,23 @@
 # Lesson 3008: constexpr (C23)
 
-## Status: ✅ Complete | Standard: C23 | Effort: Medium
+## Status: ⚠️ Skeleton | Standard: C23 | Effort: Medium
 
 ## Objective
 
-Compile-time constant expressions.
+Compile-time constant expressions (C23).
 
-## Syntax
+## How It Works
+
+simplecc has **no** `constexpr` keyword. Searching the lexer and parser for `constexpr` returns no matches:
+
+```text
+$ grep -R "constexpr" src/
+(no matches)
+```
+
+The bundled example in `3008-c23-constexpr/src/example.c` is a stub that does not use the qualifier; it returns `42` from a plain `int x = 42;`.
+
+## Syntax (aspirational)
 
 ```c
 constexpr int size = 10;
@@ -14,34 +25,14 @@ constexpr int arr[size] = {0};
 constexpr int square(int x) { return x * x; }
 ```
 
-## Implementation Checklist
+## Limitations
 
-- [ ] Parse `constexpr` keyword
-- [ ] Validate initializer is constant expression
-- [ ] Use in array sizes and switch cases
-- [ ] Support constexpr functions
-- [ ] Test: `constexpr int x = 42;` → compile-time constant
+- No `constexpr` keyword.
+- No constant-expression validator.
+- No constexpr functions (see lesson 3010).
 
-## Flow Diagram
+## Source Code References
 
-```mermaid
-flowchart TD
-    A[Source: constexpr int x = 42] --> B[Lexer]
-    B --> C{constexpr keyword?}
-    C -->|Yes| D[Parse constexpr declaration]
-    C -->|No| E[Normal declaration]
-    D --> F[Validate initializer]
-    F --> G{Is constant expression?}
-    G -->|Yes| H[Mark as compile-time constant]
-    G -->|No| I[Error: not constant]
-    H --> J[Store in symbol table]
-    J --> K[Use in array sizes]
-    J --> L[Use in switch cases]
-    J --> M[Evaluate at compile time]
-    K --> N[Parser]
-    L --> N
-    M --> N
-    N --> O[AST: ConstexprDecl]
-    O --> P[Codegen]
-    P --> Q[Assembly with constants]
-```
+| Component | File | Status |
+|-----------|------|--------|
+| `constexpr` keyword | `src/lexer.cpp` | ❌ Not defined |

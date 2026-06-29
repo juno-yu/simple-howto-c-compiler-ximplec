@@ -1,39 +1,40 @@
 # Lesson 3011: auto Arrays (C23)
 
-## Status: ✅ Complete | Standard: C23 | Effort: Easy
+## Status: ⚠️ Partial | Standard: C23 | Effort: Easy
 
 ## Objective
 
-Infer array size from initializer.
+Infer array size and element type from initializer.
+
+## How It Works
+
+The bundled example in `3011-c23-auto-array/src/example.c` does **not** actually use `auto arr[]` — it uses `int arr[] = {1, 2, 3};`, which is a normal C99 inferred-size array. The `auto` keyword exists (lesson 3001) but does not flow into the array declarator: `auto arr[]` is parsed but the size is not deduced from the initializer list and the program segfaults at runtime.
+
+```text
+$ simplecc -S /tmp/test.c   (auto arr[] = {1, 2, 3};)
+$ gcc -o x test.c.s
+$ ./x
+Segmentation fault
+```
+
+The first-decl slot is consumed in `parse_var_decl` (`src/parser.cpp:640-670`) as a single `[N]`. An empty `[]` after `auto` ends up as a zero-length array layout because no size is recorded.
 
 ## Syntax
 
 ```c
-auto arr[] = {1, 2, 3};       // int[3]
-auto arr2[] = {1.0, 2.0};     // double[2]
+auto arr[] = {1, 2, 3};       // ⚠️ compiles, segfaults at runtime
+int  arr[] = {1, 2, 3};       // ✅ plain C99 inferred-size array
 ```
 
-## Implementation Checklist
+## Limitations
 
-- [ ] Parse `auto arr[] = {init-list}`
-- [ ] Infer element type from initializer
-- [ ] Infer size from number of elements
-- [ ] Test: `auto a[] = {1,2,3}; return sizeof(a);` → 12
+- `auto arr[]` does not infer the element count.
+- `auto` does not combine with the array declarator to produce a sized type.
 
-## Flow Diagram
+## Source Code References
 
-```mermaid
-flowchart TD
-    A[Source: auto arr[] = 1,2,3] --> B[Lexer]
-    B --> C{auto with array?}
-    C -->|Yes| D[Parse auto array declaration]
-    C -->|No| E[Normal declaration]
-    D --> F[Parse initializer list]
-    F --> G[Count elements: 3]
-    G --> H[Infer element type: int]
-    H --> I[Infer size: 3]
-    I --> J[Generate array type: int[3]]
-    J --> K[AST: AutoArrayDecl]
-    K --> L[Codegen]
-    L --> M[Assembly: allocate 12 bytes]
-```
+| Component | File:Line | Description |
+|-----------|-----------|---|
+| Array decl | `src/parser.cpp:640-670` | Reads one or more `[N]` brackets |
+| `auto` keyword | `src/lexer.cpp:136` | `auto` → `KW_AUTO` |
+| `auto` qualifier | `src/parser.cpp:114-115` | Appended to type |

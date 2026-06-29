@@ -1,10 +1,10 @@
 # Lesson 1006: Threads (C11)
 
-## Status: ✅ Complete | Standard: C11 | Effort: Hard
+## Status: ⚠️ Skeleton | Standard: C11 | Effort: Hard
 
 ## Objective
 
-Thread creation, joining, and synchronization.
+Recognize the C11 threading API surface.
 
 ## API
 
@@ -30,33 +30,29 @@ cnd_broadcast(&cond);
 cnd_destroy(&cond);
 ```
 
-## Implementation
+## How It Works
 
-Typically wraps POSIX threads (pthreads) or Win32 threads.
+simplecc ships **no** `<threads.h>` header in `lib/`, no thread-storage lowering, and no wrapper for `pthread_create` / `pthread_join`. The bundled example in `1006-c11-threads/src/example.c` is a stub that returns the literal `42` without ever calling `thrd_create`.
 
-## Implementation Checklist
+## Implementation (intended)
 
-- [ ] Implement `thrd_create` (wraps pthread_create)
-- [ ] Implement `thrd_join` (wraps pthread_join)
-- [ ] Implement `thrd_detach` (wraps pthread_detach)
-- [ ] Implement `mtx_init/lock/unlock/destroy`
-- [ ] Implement `cnd_init/wait/signal/broadcast/destroy`
-- [ ] Implement `call_once` (wraps pthread_once)
-- [ ] Thread-local storage (`tss_*`)
-- [ ] Test: producer-consumer with mutex and condition variable
+Typically wraps POSIX threads (pthreads) or Win32 threads. None of that is present in the current source.
 
-## Processing Flow
+## What Works
 
-```mermaid
-flowchart TD
-    A["_Thread_local int x = 0"] --> B[Parse _Thread_local qualifier]
-    B --> C[Allocate per-thread storage]
-    C --> D[Initialize in thread startup]
-    D --> E[Access via TLS segment]
-    E --> F[Cleanup in thread exit]
+| Feature | Status |
+|---------|--------|
+| `thrd_create` | ❌ No header |
+| `thrd_join` | ❌ |
+| `thrd_detach` | ❌ |
+| `mtx_init/lock/unlock/destroy` | ❌ |
+| `cnd_init/wait/signal/broadcast/destroy` | ❌ |
+| `call_once` | ❌ |
+| `tss_*` thread-local storage | ❌ |
 
-    G["thrd_create(&t, func, arg)"] --> H[Wrap pthread_create]
-    H --> I[Thread begins execution]
-    I --> J["thrd_join(t, &res)"]
-    J --> K[Thread cleanup]
-```
+## Source Code References
+
+| Component | File | Status |
+|-----------|------|--------|
+| `<threads.h>` | `lib/` | ❌ Not present |
+| Codegen | `src/codegen.cpp` | No thread-aware path |

@@ -1,12 +1,12 @@
 # Lesson 1008: <tgmath.h> (Type-Generic Math)
 
-## Status: ✅ Complete | Standard: C11 | Effort: Medium
+## Status: ⚠️ Skeleton | Standard: C11 | Effort: Medium
 
 ## Objective
 
 Type-generic math macros using `_Generic`.
 
-## Example
+## Example (aspirational)
 
 ```c
 #include <tgmath.h>
@@ -23,7 +23,11 @@ long double ld = sqrtl(3.14L); // calls sqrtl(long double)
 )(x)
 ```
 
-## Functions in tgmath.h
+## How It Works
+
+simplecc ships **no** `<tgmath.h>` header in `lib/`. The bundled example in `1008-c11-tgmath/src/example.c` is a stub that returns `42` without touching the math library. The compiler's `_Generic` (lesson 1001) ignores the type of the controlling expression and returns the first/default branch, which is enough to parse a tgmath macro but not enough to make a correct dispatch.
+
+## Functions in tgmath.h (aspirational)
 
 | Category | Functions |
 |----------|-----------|
@@ -33,23 +37,9 @@ long double ld = sqrtl(3.14L); // calls sqrtl(long double)
 | Hyperbolic | `sinh`, `cosh`, `tanh` |
 | Logarithmic | `log`, `log2`, `log10`, `exp` |
 
-## Type-Generic Dispatch Flow
+## Source Code References
 
-```mermaid
-graph TD
-    A["sqrt(x)"] --> B{"_Generic dispatch"}
-    B -->|"float"| C["sqrtf(x)"]
-    B -->|"double"| D["sqrt(x)"]
-    B -->|"long double"| E["sqrtl(x)"]
-    C --> F["float result"]
-    D --> G["double result"]
-    E --> H["long double result"]
-```
-
-## Implementation Checklist
-
-- [ ] Define type-generic macros for math functions
-- [ ] Use `_Generic` to dispatch to correct version
-- [ ] Support float, double, long double variants
-- [ ] Complex number support (optional)
-- [ ] Test: `sqrt(4.0)` returns double, `sqrtf(4.0f)` returns float
+| Component | File | Status |
+|-----------|------|--------|
+| `<tgmath.h>` | `lib/` | ❌ Not present |
+| `_Generic` simplification | `src/parser.cpp:1674-1702` | Returns first/default branch only |

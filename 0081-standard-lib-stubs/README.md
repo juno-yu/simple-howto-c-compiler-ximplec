@@ -4,66 +4,96 @@
 
 ## Objective
 
-Document and demonstrate the convention for using standard library functions in programs compiled by `simplecc`. Standard library headers are **not bundled** with this project; the compiled object code links against the **system** libc/libm at link time.
+Document and demonstrate the convention for using standard library
+functions in programs compiled by `simplecc`. A minimal set of
+bundled headers lives in `lib/` and is automatically searched by
+the preprocessor for `#include <...>` directives. Anything not in
+`lib/` is linked against the system C library at link time.
 
 ## How It Works
 
-`simplecc` produces x86-64 GAS assembly that calls functions by name (e.g., `printf`, `malloc`, `strlen`). At link time, the system `gcc`/`ld` resolves these names against the system's C standard library. The user is responsible for providing declarations (via their own header files) for any function they call.
+`simplecc` produces x86-64 GAS assembly that calls functions by name
+(e.g. `printf`, `malloc`, `strlen`). At link time, the system
+`gcc`/`ld` resolves these names against the system's C standard
+library. The user is responsible for providing declarations for any
+function they call — either by `#include`-ing a bundled header
+(from `lib/`) or by writing their own.
 
-## Bundled Stubs
+## Bundled Headers (`lib/`)
 
-The project does not ship a standard library, but the following function families are commonly used and are linked at build time:
+The preprocessor searches the `lib/` directory for any
+`#include <...>` (and quote-includes as a fallback). The bundled
+headers are minimal — they declare the common functions and a few
+constants but do not implement anything:
 
-| Header | Functions | Link With |
-|--------|-----------|-----------|
-| `<stdio.h>` | `printf`, `scanf`, `fopen`, `fclose`, `fread`, `fwrite` | `-lc` (libc) |
-| `<stdlib.h>` | `malloc`, `free`, `calloc`, `realloc`, `exit`, `atoi` | `-lc` |
-| `<string.h>` | `strlen`, `strcpy`, `strcmp`, `memcpy`, `memset` | `-lc` |
-| `<math.h>` | `sin`, `cos`, `sqrt`, `pow`, `exp`, `log` | `-lm` (libm) |
-| `<ctype.h>` | `isdigit`, `isalpha`, `toupper`, `tolower` | `-lc` |
-| `<stdint.h>` | `int32_t`, `uint64_t`, `INT_MAX`, etc. | `-lc` |
-| `<threads.h>` | `thrd_create`, `mtx_lock`, `cnd_wait` | `-lpthread` |
-| `<stdatomic.h>` | `atomic_int`, `atomic_load`, `atomic_store` | `-latomic` (often) |
+| Header | Contents | Link With |
+|--------|----------|-----------|
+| `lib/assert.h` | `assert(expr)` macro | `-lc` |
+| `lib/ctype.h` | `isdigit`/`isalpha`/`isspace`/`toupper`/`tolower` | `-lc` |
+| `lib/errno.h` | `errno` decl + `EDOM`/`ERANGE`/`EINVAL`/etc. | `-lc` |
+| `lib/math.h` | `sin`/`cos`/`sqrt`/`pow`/`exp`/`log`/etc. | `-lm` |
+| `lib/stdalign.h` | `alignas` / `alignof` macros | header-only |
+| `lib/stdbool.h` | `true` / `false` macros | header-only |
+| `lib/stddef.h` | `NULL` and `offsetof` macro | header-only |
+| `lib/stdint.h` | `INT8_MIN`/`INT32_MAX`/`UINT64_MAX`/etc. | header-only |
+| `lib/stdio.h` | `printf`/`fopen`/`fread`/`fwrite`/`FILE`/etc. | `-lc` |
+| `lib/stdlib.h` | `malloc`/`free`/`calloc`/`realloc`/`exit`/etc. | `-lc` |
+| `lib/string.h` | `strlen`/`strcmp`/`strcpy`/`memcpy`/`memset`/etc. | `-lc` |
 
-## Limitations
-
-- **No bundled headers.** `#include <stdio.h>` fails because the file is not in the include path. Users must write their own minimal declarations.
-- **No standard library test suite** — each program is responsible for declaring the functions it uses.
-- **No freestanding mode** — assume hosted environment.
+The preprocessor reads the header directly and inlines it as text
+into the output, so there is no separate "header" compilation pass.
+See `src/preprocessor.cpp:95-130` for the `#include` resolution
+logic.
 
 ## Example
 
-A program that uses standard library functions:
+A program that uses standard library functions via the bundled
+headers:
 
 ```c
-// User must declare these manually:
-int printf(const char *fmt, ...);
-void *malloc(long size);
-void free(void *ptr);
-int strlen(const char *s);
-void *memcpy(void *dst, const void *src, long n);
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 int main() {
-    char *buf = (char *)malloc(64);
+    char *buf = malloc(64);
     int n = strlen("hello");
     memcpy(buf, "hello", n + 1);
     printf("len=%d buf=%s\n", n, buf);
     free(buf);
-    return 0;
+    exit(0);
 }
 ```
 
+The bundled `lib/stdio.h` declares `printf`, `lib/stdlib.h` declares
+`malloc`/`free`/`exit`, and `lib/string.h` declares `strlen`/`memcpy`.
+The actual implementations come from the system C library at link
+time.
+
 ## Building Programs That Use stdlib
 
-```bash
+```sh
 ./build/simplecc -S program.c -o program.s
-gcc -o program program.s         # links against libc automatically
+gcc -o program program.s              # links against libc automatically
 ./program
 ```
 
 For math: `gcc -o program program.s -lm`.
 For threads: `gcc -o program program.s -lpthread`.
 
+## Limitations
+
+- The bundled headers are minimal — they do not declare every
+  function in the corresponding standard. Functions not declared
+  must be hand-declared as `extern` in the source.
+- **No freestanding mode** — assume hosted environment with libc
+  available at link time.
+
 ## Source Code References
 
-- No special compiler support — the program simply references external symbols that the linker resolves.
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| `#include` resolution | `src/preprocessor.cpp:95-130` | Looks up `lib/<name>` for angle-bracket and quote includes |
+| Bundled headers | `lib/*.h` | Declarations for the common stdlib functions |
+| Function call codegen | `src/codegen.cpp:1288-1364` | Emits `call` instructions for `extern` declarations |
+| Forward-decl skip | `src/codegen.cpp:305-309` | Skips emission for `extern` declarations |

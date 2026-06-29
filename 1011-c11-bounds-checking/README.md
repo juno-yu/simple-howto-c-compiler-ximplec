@@ -1,12 +1,16 @@
 # Lesson 1011: Bounds Checking (C11 Annex K)
 
-## Status: ✅ Complete | Standard: C11 (Annex K) | Effort: Medium
+## Status: ⚠️ Skeleton | Standard: C11 (Annex K) | Effort: Medium
 
 ## Objective
 
 Secure versions of string/memory functions with bounds checking.
 
-## Functions
+## How It Works
+
+The bundled example in `1011-c11-bounds-checking/src/example.c` simply returns `arr[1]` from a 3-element array — there is no `strcpy_s`, `sprintf_s`, or `fopen_s` shim. simplecc ships **no** `<string.h>` `_s` variants and no `<stdio.h>` `_s` variants in `lib/`.
+
+## Functions (aspirational)
 
 | Secure Function | Replaces |
 |-----------------|----------|
@@ -17,22 +21,9 @@ Secure versions of string/memory functions with bounds checking.
 | `scanf_s(fmt, ...)` | `scanf` |
 | `fopen_s(pFile, filename, mode)` | `fopen` |
 
-## Bounds Checking Flow
+## Source Code References
 
-```mermaid
-graph TD
-    A["strcpy_s(dest, destsz, src)"] --> B{strlen of src < destsz?}
-    B -->|Yes| C["Copy src to dest"]
-    B -->|No| D["Invoke constraint handler / abort"]
-    E["sprintf_s(buf, bufsz, fmt, ...)"] --> F{Output < bufsz?}
-    F -->|Yes| G["Format into buf"]
-    F -->|No| D
-```
-
-## Implementation Checklist
-
-- [ ] Implement `strcpy_s` with bounds check
-- [ ] Implement `strncpy_s` with null termination
-- [ ] Implement `sprintf_s` with buffer size
-- [ ] Invoke constraint handler on error (or abort)
-- [ ] Test: buffer overflow prevented by bounds check
+| Component | File | Status |
+|-----------|------|--------|
+| `<string.h>` | `lib/string.h` | Standard functions only, no `_s` variants |
+| `<stdio.h>` | `lib/stdio.h` | Standard functions only, no `_s` variants |

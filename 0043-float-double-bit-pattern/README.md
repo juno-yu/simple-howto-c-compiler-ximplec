@@ -33,23 +33,23 @@ implement real float arithmetic**. The SSE lesson adds real `addss`/`ucomiss`/et
 | Hex float literals `0x1.0p10` | ✅ | Tokenized as FLOAT token |
 | Float storage (4 bytes for float) | ✅ | Allocated as 4-byte slots on stack |
 | Float storage (8 bytes for double) | ✅ | Allocated as 8-byte slots on stack |
-| Float assignment from literal | ✅ | Bits stored correctly via `mov` to stack |
+| Float assignment from literal | ✅ | Bits stored correctly via `movss` to stack |
 | `&float` address-of | ✅ | Works via `lea` |
 | `(int*)&f` pointer cast | ✅ | Type-safe deref reads 4 bytes |
-| Float arithmetic (`+`, `-`, `*`, `/`) | ❌ | Not supported — SSE instructions needed |
-| Float comparisons (`==`, `<`) | ❌ | Not supported — SSE comparison needed |
+| Float arithmetic (`+`, `-`, `*`, `/`) | ❌ | Not supported here — see SSE lesson |
+| Float comparisons (`==`, `<`) | ❌ | Not supported here — see SSE lesson |
 | Float return values | ❌ | Stored as int bits, not returned via `%xmm0` |
-| Float ↔ int conversion (implicit) | ❌ | Not implemented |
-| SSE2 instructions (`movss`, `addss`) | ❌ | Not generated |
+| Float ↔ int conversion (implicit) | ❌ | Not implemented here — see SSE lesson |
+| SSE2 instructions (`movss`, `addss`) | ❌ | Not generated here — see SSE lesson |
 | `long double` (80-bit) | ❌ | Not supported |
 | Float params/returns via `%xmm0`–`%xmm7` | ❌ | System V ABI requires this |
 | Implicit int-to-float promotion | ❌ | Not implemented |
 
 ## What Works
 
-Float/double storage, address-of, and pointer-casts are fully working. The following
-example compiles, runs, and returns 1 (asserting `sz1==4`, `sz2==8`, and
-`bits==1078523331` for `f = 3.14f`):
+Float/double storage, address-of, and pointer-casts are fully working. The
+following example compiles, runs, and returns `1` (asserting `sz1==4`, `sz2==8`,
+and `bits==1078523331` for `f = 3.14f`):
 
 ```c
 int main() {
@@ -67,19 +67,42 @@ int main() {
 }
 ```
 
-The float `3.14f` has its IEEE 754 bit pattern stored at the variable's stack slot.
-The `(int*)&f` cast produces an `int*` pointing at that slot, and `*p` reads the
-4-byte float bits as an integer.
+Run it end-to-end:
 
-**Limitation:** arithmetic, comparison, and ABI-compliant parameter/return passing
-still fall back to bit-pattern storage without SSE. The example above stays in the
-"storage / address-of / cast" subset, which is fully working.
+```bash
+./build/simplecc -S 0043-float-double-bit-pattern/src/example.c -o /tmp/example.s
+gcc -o /tmp/example /tmp/example.s
+/tmp/example ; echo "exit: $?"       # → exit: 1
+```
+
+The float `3.14f` has its IEEE 754 bit pattern stored at the variable's stack
+slot. The `(int*)&f` cast produces an `int*` pointing at that slot, and `*p`
+reads the 4-byte float bits as an integer. The generated assembly for the load
++ store is:
+
+```asm
+movss -24(%rbp), %xmm0        ; load f (4 bytes, SSE width)
+lea  -24(%rbp), %rax          ; compute &f
+mov  %rax, -32(%rbp)          ; store int* p
+mov  $0, %rax                 ; (initial *p = 0, then f = 3.14f)
+mov  $1078523331, %eax        ; bit pattern of 3.14f
+movd %eax, %xmm0              ; transfer to SSE register
+movss %xmm0, -24(%rbp)        ; store back
+mov  -32(%rbp), %rax
+movl (%rax), %eax             ; *p reads 4 bytes (movl, not mov)
+```
+
+**Limitation:** arithmetic, comparison, and ABI-compliant parameter/return
+passing still fall back to bit-pattern storage without SSE. The example above
+stays in the "storage / address-of / cast" subset, which is fully working.
 
 ## What Doesn't Work and Why
 
 ### 1. Float arithmetic — SSE instructions needed
 
-The core blocker: x86-64 integer instructions (`addq`, `subq`, etc.) do not produce correct IEEE 754 results when applied to raw float bit patterns. For example:
+The core blocker: x86-64 integer instructions (`addq`, `subq`, etc.) do not
+produce correct IEEE 754 results when applied to raw float bit patterns. For
+example:
 
 ```c
 float a = 1.0f;
@@ -88,12 +111,15 @@ float c = a + b;  // WRONG: integer add gives garbage, not 3.0f
 ```
 
 To fix this, the codegen must:
+
 - Detect when a binary/unary op involves float or double operands
 - Emit `movss`/`movsd` to load operands into XMM registers
 - Emit `addss`/`addsd`/`subss`/`mulss`/`divss` etc.
 - Store result back with `movss`/`movsd`
 
-This requires knowing the operand types at codegen time (a whole-expression type inference pass) and adding SSE instruction emission to the binary/unary visitors.
+This requires knowing the operand types at codegen time (a whole-expression
+type inference pass) and adding SSE instruction emission to the binary/unary
+visitors.
 
 ### 2. Float comparisons — SSE comparison needed
 
@@ -102,53 +128,60 @@ float a = 1.0f;
 if (a < 2.0f) { ... }
 ```
 
-Needs `ucomiss`/`ucomisd` to compare floats, then `setb`/`setnbe` etc. to get the boolean. The current integer `cmp` does not produce correct results for float bit patterns.
+Needs `ucomiss`/`ucomisd` to compare floats, then `setb`/`setnbe` etc. to get
+the boolean. The current integer `cmp` does not produce correct results for
+float bit patterns.
 
 ### 3. Float return values — System V ABI mismatch
 
 The System V x86-64 ABI specifies:
+
 - Float/double args go in `%xmm0`–`%xmm7`
 - Float/double return values go in `%xmm0`
 
-Currently the compiler puts everything in `%rax`. If a function returns a float, the caller might read from `%xmm0` (empty) and the callee puts it in `%rax` — mismatch.
+If a function returns a float, the caller might read from `%xmm0` (empty) and
+the callee puts it in `%rax` — mismatch.
 
 ### 4. Float ↔ int implicit conversion
 
-C allows implicit conversion between float and int (e.g., `int x = 3.5f;` → 3, `float y = 42;` → 42.0f). This requires:
+C allows implicit conversion between float and int (e.g., `int x = 3.5f;` → 3,
+`float y = 42;` → 42.0f). This requires:
+
 - `cvttss2si` / `cvttsd2si` for float→int (truncation)
 - `cvtsi2ss` / `cvtsi2sd` for int→float
 - Detection of mixed-type expressions to pick the right conversion
 
 ### 5. The "double deref" gotcha
 
-When writing `int bits = *(int*)&f`, the assembly loads 8 bytes (the full rax) instead of 4 bytes. This was fixed by:
+When writing `int bits = *(int*)&f`, the assembly originally loaded 8 bytes
+(the full rax) instead of 4 bytes. This was fixed by:
+
 - Tracking variable types in `variable_types_` map
 - Using `get_type_size()` to determine load width (1/2/4/8 bytes)
 - Emitting `movl` (4 bytes) for int-sized loads instead of `mov` (8 bytes)
 
-However, **the fix is incomplete** for some code paths — the return value in `%rax` can still have upper bytes from a previous 8-byte load. The `$?` shell builtin only shows the lower 8 bits, so this can mask issues.
+The current `generate_unary` `DEREF` case peeks at the operand's type (for an
+`IdentifierExprNode` or `CastExprNode`) and chooses the matching `movzbl`/
+`movzwl`/`movl`/`mov` width.
 
-### 6. `$?` only shows lower 8 bits
+## How the Bit Pattern Reaches the Stack
 
-On Linux, `return 1078523331;` shows as `$? = 195` because the shell uses `WEXITSTATUS` which only keeps the lower 8 bits. This is not a compiler bug — the actual value is in `%rax`. To verify the full return value, use a C wrapper:
-
-```c
-// compile and run the program
-int main() {
-    float f = 3.14f;
-    int *p = (int*)&f;
-    return *p;  // returns 1078523331, $? shows 195
-}
-// verify with:
-// gcc -o test test.c && ./test; echo $?  →  195
-// but the value is correct: 0x4048F5C3 = 1078523331
-```
+The old, pre-SSE approach was to load the bit pattern as a 32/64-bit integer
+into `%rax` and `movl`/`mov` it onto the stack. The current source has
+**already moved past that**: the `FloatLiteralNode::visit` visitor (see the
+SSE lesson) now transfers the bit pattern from `%eax` to `%xmm0` and uses
+`movss`/`movsd` to store it on the stack. So the bit-pattern lesson now
+"works" only for code that *doesn't* do float arithmetic — `(int*)&f` style
+pointer aliasing, `sizeof(float)`, and direct float literal assignment all
+still produce the right bit pattern at the right stack slot.
 
 ## Future Work
 
-To complete float support, implement in order:
+To complete float support, see the SSE lesson
+(`0043-float-double-sse/README.md`). It implements, in order:
 
-1. **Type inference for expressions**: when a BinaryExprNode has float-typed children, mark the expression as float-typed
+1. **Type inference for expressions**: when a `BinaryExprNode` has float-typed
+   children, mark the expression as float-typed
 2. **SSE loads/stores**: `movss` / `movsd` instead of `mov` for float/double
 3. **SSE arithmetic**: `addss`/`addsd`/`subss`/`mulss`/`divss`/`sqrtss`
 4. **SSE comparisons**: `ucomiss`/`ucomisd` + `setb`/`setnbe`/`sete`
@@ -157,15 +190,24 @@ To complete float support, implement in order:
 
 ## Source Code References
 
+> **Note:** The current codegen implements the SSE approach. The line numbers
+> below point to the *current* source layout — the entries marked "old" are the
+> sites where the bit-pattern approach used to live before being replaced by
+> SSE. The SSE replacements are in
+> [`0043-float-double-sse`](../0043-float-double-sse/README.md).
+
 | Component | File | Description |
 |-----------|------|-------------|
-| Lexer | `src/lexer.cpp:240-314` | Float literal lexing, `f` suffix handling |
-| Parser | `src/parser.cpp:174-178` | `float`/`double` type specifier |
-| Parser | `src/parser.cpp:1749-1755` | Float literal → `FloatLiteralNode` with `is_single_precision` |
-| AST | `src/ast.h:527-533` | `FloatLiteralNode::is_single_precision` |
-| Codegen | `src/codegen.cpp:1071-1091` | Float literal → IEEE 754 bit pattern in `%rax` |
-| Codegen | `src/codegen.cpp:375-381` | VarDeclNode stores 4/8 bytes correctly |
-| Codegen | `src/codegen.cpp:872-893` | sizeof float=4, double=8 |
-| Codegen | `src/codegen.cpp:1159-1177` | IdentifierExprNode loads by variable size |
-| Codegen | `src/codegen.cpp:1323-1354` | DerefExprNode/UnaryExprNode DEREF loads by type size |
-| Codegen | `src/codegen.cpp:1391-1394` | `get_type_size`: float=4, double=8 |
+| Lexer | `src/lexer.cpp:240-325` | Float literal lexing, `f` suffix marker, hex float `0x1.0p10` |
+| Parser — type spec | `src/parser.cpp:175-178` | `float` / `double` keyword in type chain |
+| Parser — float literal | `src/parser.cpp:1957-1966` | `FLOAT` token → `FloatLiteralNode` with `is_single_precision` |
+| AST | `src/ast.h:552-559` | `FloatLiteralNode` (value, `is_single_precision`) |
+| Codegen — float literal (now SSE) | `src/codegen.cpp:1509-1532` | `FloatLiteralNode::visit` loads into `%xmm0` via `movd`/`movq` |
+| Codegen — float load | `src/codegen.cpp:1547-1615` | `IdentifierExprNode::visit`: `movss`/`movsd` for float/double, `movl`/`mov` for int |
+| Codegen — float store | `src/codegen.cpp:459-552` | `VarDeclNode::visit` allocates 4/8-byte slots and stores via `movss`/`movsd` |
+| Codegen — float assign | `src/codegen.cpp:892-989` | `AssignExprNode::visit` writes float value to a variable slot via `movss`/`movsd` |
+| Codegen — deref width | `src/codegen.cpp:1906-1939` | `DEREF` case in `generate_unary`: 1/2/4/8-byte `mov` family |
+| Codegen — type sizes | `src/codegen.cpp:2065-2091` | `get_type_size`: `float=4`, `double=8` |
+| Codegen — sizeof | `src/codegen.cpp:1120-1146` | `SizeofExprNode::visit` returns 4/8 for float/double |
+| Codegen — `&f` type | `src/codegen.cpp:2334-2338` | `infer_expr_type` ADDRESS_OF returns `"<inner>*"` (e.g. `"float*"`) |
+| Codegen — load from capture | `src/codegen.cpp:1584-1599` | Reads 1/2/4/8 bytes from a captured variable via the `__ctx` pointer |

@@ -4,28 +4,54 @@
 
 ## Objective
 
-Provide `alignas` and `alignof` macros.
+Provide `alignas` and `alignof` macros that expand to the C11 keywords.
 
-## Usage
+## How It Works
+
+Two layers cooperate:
+
+1. The header shim maps the macro names to the keyword tokens.
+2. The lexer also accepts the lower-case spellings as keywords directly, so the header is optional.
+
+```c
+// lib/stdalign.h
+#define alignas _Alignas
+#define alignof _Alignof
+```
+
+```cpp
+// src/lexer.cpp:143-146
+{"_Alignof", TokenType::KW_ALIGNOF},
+{"alignof",  TokenType::KW_ALIGNOF},
+{"_Alignas", TokenType::KW_ALIGNAS},
+{"alignas",  TokenType::KW_ALIGNAS},
+```
+
+The C11 keywords themselves are handled in `parse_type_specifier` (skip `_Alignas`) and `parse_unary` (lower `_Alignof` to `SizeofExprNode`) — see lesson 1007 for the full walkthrough.
+
+## Example
 
 ```c
 #include <stdalign.h>
 
-alignas(16) char buffer[256];
-size_t a = alignof(int);  // typically 4
+int main() {
+    int x = alignof(int);  // returns 4
+    return x;
+}
 ```
 
-## Alignment Macro Flow
+## What Works
 
-```mermaid
-graph TD
-    A["alignas(N) var"] --> B["_Alignas(N) var"]
-    C["alignof(T)"] --> D["_Alignof(T)"]
-    B --> E["Variable placed at N-byte boundary"]
-    D --> F["Returns alignment requirement of T"]
-```
+| Feature | Status |
+|---------|--------|
+| `alignof(int)` returns 4 | ✅ |
+| `alignas(N)` parsed and skipped | ✅ |
+| Real alignment-aware allocation | ❌ — no padding/alignment logic in codegen |
 
-## Implementation
+## Source Code References
 
-- `alignas(N)` → `_Alignas(N)`
-- `alignof(T)` → `_Alignof(T)`
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| Header shim | `lib/stdalign.h` | `#define alignas _Alignas` etc. |
+| Lexer aliases | `src/lexer.cpp:143-146` | Both spellings accepted |
+| `_Alignof` parse | `src/parser.cpp:1653-1672` | Reuses `SizeofExprNode` |

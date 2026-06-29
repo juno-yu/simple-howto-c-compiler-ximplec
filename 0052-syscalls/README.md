@@ -1,63 +1,116 @@
 # Lesson 0052: System Calls
 
-## Status: ✅ Complete | Phase: Stdlib Tier A | Effort: Medium (4-6h)
+## Status: ✅ Complete | Phase: Stdlib Tier A | Effort: Medium
 
 ## Objective
 
-Implement Linux syscall interface for I/O and memory.
+Enable programs to issue Linux x86-64 system calls via `extern` function
+declarations and via inline assembly. The compiler itself does not
+implement a syscall ABI or wrappers; it relies on the user declaring
+the prototype and linking against the system C library (or writing the
+raw syscall instruction via `asm`).
 
-## Syscall Interface
+## Calling Convention (x86-64 Linux)
 
-```mermaid
-flowchart LR
-    A[C Code] --> B[Load syscall number into %rax]
-    B --> C[Load args into %rdi, %rsi, %rdx, %r10, %r8, %r9]
-    C --> D[Execute syscall instruction]
-    D --> E[Return value in %rax]
-    E --> F{Check for error}
-    F -->|rax >= 0| G[Success]
-    F -->|rax < 0| H[Error - errno]
+| Register | Role |
+|----------|------|
+| `%rax`   | Syscall number |
+| `%rdi`   | 1st argument |
+| `%rsi`   | 2nd argument |
+| `%rdx`   | 3rd argument |
+| `%r10`   | 4th argument |
+| `%r8`    | 5th argument |
+| `%r9`    | 6th argument |
+| `syscall`| Trap instruction |
+| return   | Value in `%rax` (negative `-errno` on error) |
+
+## Common Syscall Numbers
+
+| Nr | Name | Use |
+|----|------|-----|
+| 0  | `read` | `read(fd, buf, len)` |
+| 1  | `write` | `write(fd, buf, len)` |
+| 2  | `open` | `open(path, flags, mode)` |
+| 3  | `close` | `close(fd)` |
+| 9  | `mmap` | `mmap(...)` |
+| 12 | `brk`  | `brk(addr)` — heap management |
+| 39 | `getpid` | `getpid()` |
+| 57 | `fork` | `fork()` |
+| 59 | `execve` | `execve(path, argv, envp)` |
+| 60 | `exit` | `exit(code)` |
+| 61 | `wait4` | `wait4(pid, status, opts, rusage)` |
+
+## Implementation in `simplecc`
+
+`simplecc` does not emit `syscall` instructions directly. Instead, the
+program declares the desired function (or wrapper) as `extern` and the
+linker resolves the call against the system C library:
+
+```c
+extern long write(int fd, const void *buf, unsigned long count);
+extern void exit(int code);
+
+int main() {
+    write(1, "hello\n", 6);
+    exit(0);
+}
 ```
 
-## Syscall Numbers (x86-64 Linux)
+The codegen produces a normal `call write` (or `call exit`) using the
+System V argument-passing convention — the first 6 integer arguments go
+into `%rdi, %rsi, %rdx, %rcx, %r8, %r9` (see
+`src/codegen.cpp:1300-1341`).
 
-```mermaid
-flowchart TD
-    A[Linux Syscalls] --> B[0 - read]
-    A --> C[1 - write]
-    A --> D[2 - open]
-    A --> E[3 - close]
-    A --> F[9 - mmap]
-    A --> G[12 - brk]
-    A --> H[57 - fork]
-    A --> I[59 - execve]
-    A --> J[60 - exit]
+For a raw syscall, the user can drop a `syscall` instruction into
+`asm("...")`:
 
-    C --> K[write(fd, buf, len)]
-    K --> L["%rax = 1, %rdi = fd, %rsi = buf, %rdx = len"]
-
-    J --> M[exit(code)]
-    M --> N["%rax = 60, %rdi = code"]
+```c
+int main() {
+    asm("mov $1, %rax");     // SYS_write
+    asm("mov $1, %rdi");     // fd = 1 (stdout)
+    asm("lea msg(%rip), %rsi");
+    asm("mov $6, %rdx");     // len = 6
+    asm("syscall");
+    asm("mov $60, %rax");    // SYS_exit
+    asm("xor %rdi, %rdi");
+    asm("syscall");
+    return 0;
+}
 ```
 
-## Implementation Checklist
+## What Works
 
-- [ ] `syscall` instruction wrapper
-- [ ] `write(fd, buf, len)` → syscall 1
-- [ ] `read(fd, buf, len)` → syscall 0
-- [ ] `brk(addr)` → syscall 12 (for malloc)
-- [ ] `exit(code)` → syscall 60
-- [ ] Test: write "hello" to stdout via syscall
+- External function declarations for syscall wrappers (`write`, `read`,
+  `exit`, etc.) — they are emitted as standard `call` instructions
+  with correct argument register assignment.
+- Inline assembly for hand-rolled syscall sequences.
 
-## Implementation Details
+## Limitations
 
-System calls are accessed through `extern` function declarations. The compiler parses these declarations and generates `call` instructions that the linker resolves to the actual syscall wrappers. The compiler also supports inline assembly for direct syscall instruction generation.
+- The compiler does not generate the `mov $N, %rax` / argument
+  shuffling sequence automatically from a `syscall(...)` intrinsic.
+- The standard System V callee-saved register set (`%rbx`, `%rbp`,
+  `%r12..%r15`) is not preserved around `asm` calls — the user is
+  responsible.
+- No automatic errno propagation.
 
-| Component | File | Line | Description |
-|-----------|------|------|-------------|
-| Extern parse | `src/parser.cpp` | 218-248 | Parses `extern` declarations (no body) |
-| Forward decl | `src/parser.cpp` | 248 | Sets `func->body = nullptr` for extern |
-| Func call | `src/codegen.cpp` | 838-854 | Generates `call` instruction for function calls |
-| Arg passing | `src/codegen.cpp` | 842-851 | Maps args to System V ABI registers (%rdi, %rsi, etc.) |
-| Param regs | `src/codegen.cpp` | 839 | Defines `%rdi`, `%rsi`, `%rdx`, `%rcx`, `%r8`, `%r9` |
-| Test coverage | `tests/test_syscalls.cpp` | 1-79 | Tests syscall generation, inline asm for write/exit |
+## Example
+
+```c
+int main() { return 42; }
+```
+
+The trivial example program in `src/example.c` does not actually issue
+a syscall — the function returns 42 to the OS via the normal
+`main → return` path. Tests in `tests/test_syscalls.cpp` cover
+declaration forms and a few inline-asm sequences.
+
+## Source Code References
+
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| `parse_declaration` | `src/parser.cpp:300-336` | Parses `extern` function declarations |
+| `parse_function_decl` | `src/parser.cpp:578-615` | Distinguishes forward decls from definitions |
+| Forward-decl emit | `src/codegen.cpp:305-309` | Skips emission when `body == nullptr` |
+| `call` codegen | `src/codegen.cpp:1288-1364` | Argument register assignment, then `call` |
+| Inline asm | `src/codegen.cpp:1492-1496` | Emits `asm("...")` body verbatim |

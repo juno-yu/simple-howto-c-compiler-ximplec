@@ -1,58 +1,91 @@
-# Lesson 0051: volatile Qualifier
+# Lesson 0051: `volatile` Qualifier
 
-## Status: ✅ Complete | Phase: System Integration | Effort: Easy (2-3h)
+## Status: ✅ Complete | Phase: System Integration | Effort: Easy
 
 ## Objective
 
-Implement `volatile` to prevent optimization on memory accesses.
+Recognize the `volatile` type qualifier. The compiler accepts it in the
+type-specifier chain and on pointer types, and propagates the qualifier
+into the type string. The codegen does not currently treat `volatile`
+accesses differently from regular accesses — every load/store is already
+emitted as a concrete `mov` into or out of memory, which preserves
+volatile semantics at the assembly level.
 
-## volatile Qualifier Behavior
+## Syntax
 
-```mermaid
-flowchart LR
-    A[volatile Variable] --> B[Every read = memory load]
-    A --> C[Every write = memory store]
-    A --> D[No register caching]
-    B --> E[No optimization allowed]
-    C --> E
-    D --> E
-    E --> F[Hardware-mapped I/O]
-    E --> G[Interrupt flags]
-    E --> H[Memory-mapped registers]
+```c
+volatile int status;
+const volatile int hardware_register = 0x1234;
+int *volatile ptr;            // volatile pointer to int
+volatile int *p;              // pointer to volatile int
 ```
 
-## volatile vs const
+## Implementation
 
-```mermaid
-flowchart TD
-    A[Type Qualifiers] --> B[const]
-    A --> C[volatile]
-    B --> D[Read-only - compiler enforces]
-    C --> E[Always re-read from memory]
-    D --> F[Cannot modify]
-    E --> G[Compiler must not cache]
-    A --> H[const volatile]
-    H --> I[Read-only but always from memory]
-    H --> J[Hardware status registers]
+The keyword is recognised by the lexer (`src/lexer.cpp:132`) and added
+to the type-specifier chain. `parse_type_specifier` consumes it and
+appends the literal text to the type string:
+
+```cpp
+// src/parser.cpp:106
+} else if (match(TokenType::KW_VOLATILE)) {
+    result += "volatile ";
+}
 ```
 
-## Implementation Checklist
+`is_type_specifier` (src/parser.cpp:58-97) recognises `KW_VOLATILE` as
+the start of a type so that declarations like
+`volatile int x = 0;` are parsed correctly.
 
-- [ ] Parse `volatile` keyword
-- [ ] Disable register caching for volatile reads
-- [ ] Generate memory load/store for every volatile access
-- [ ] Test: volatile read generates memory load every iteration
+The codegen strips `volatile` from the type string before computing
+sizes and struct names:
 
-## Implementation Details
+```cpp
+// src/codegen.cpp:2116
+strip("const"); strip("volatile"); strip("static"); strip("extern");
+strip("register"); strip("auto"); strip("inline"); strip("restrict");
+```
 
-The `volatile` qualifier is implemented across the lexer, token definitions, and parser. The compiler recognizes `volatile` as a type qualifier and parses it alongside `const`, `static`, and `extern`.
+This is a deliberate "no-op" treatment: every load of a local variable
+in the current codegen is emitted as a real `mov` from its stack slot
+into `%rax`, and every store is a real `mov` to the slot. Volatile
+semantics are therefore preserved by accident — the compiler already
+never caches a value in a register across statements.
 
-| Component | File | Line | Description |
-|-----------|------|------|-------------|
-| Token type | `src/token.h` | 49 | `KW_VOLATILE` enum value definition |
-| Token name | `src/lexer.cpp` | 38 | Maps `KW_VOLATILE` to string `"volatile"` |
-| Keyword map | `src/lexer.cpp` | 122 | Registers `"volatile"` as `KW_VOLATILE` keyword |
-| Type specifier | `src/parser.cpp` | 73 | Recognizes `KW_VOLATILE` in `is_type_specifier()` |
-| Qualifier parse | `src/parser.cpp` | 94-95 | Parses `volatile` keyword and appends to type string |
-| Type string | `src/parser.cpp` | 87-105 | `parse_type_specifier()` handles qualifiers in any order |
-| Test coverage | `tests/test_volatile_qualifier.cpp` | 1-87 | Tests volatile int, volatile pointer, const volatile |
+## What Works
+
+- `volatile` is accepted in any position in the type specifier.
+- `volatile` is accepted in pointer chains (`volatile int *`, `int *volatile`).
+- `const volatile` combinations are accepted.
+- Loads and stores of `volatile` objects are emitted as concrete
+  memory-touching instructions (existing codegen behavior).
+
+## Limitations
+
+- No formal "every read is a memory load" guarantee is documented in
+  the codegen — it just happens to be true today. A future pass that
+  caches values in registers across statements would need to special-case
+  volatile accesses.
+- No diagnostic is produced for code that takes the address of a
+  `volatile` object and aliases a non-volatile pointer to it.
+
+## Example
+
+```c
+int main() {
+    volatile int x = 10;
+    x++;
+    return x;       // returns 11
+}
+```
+
+## Source Code References
+
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| `KW_VOLATILE` token | `src/token.h:49` | Token type definition |
+| `token_name` | `src/lexer.cpp:38` | Maps `KW_VOLATILE` to `"volatile"` |
+| Keyword map | `src/lexer.cpp:132` | `"volatile"` → `KW_VOLATILE` |
+| `is_type_specifier` | `src/parser.cpp:73` | Recognises `KW_VOLATILE` |
+| Qualifier parse | `src/parser.cpp:106-107` | Appends `volatile ` to the type string |
+| Type sanitization | `src/codegen.cpp:2116` | Strips `volatile` before computing size/name |

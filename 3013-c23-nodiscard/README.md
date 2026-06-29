@@ -1,53 +1,35 @@
 # Lesson 3013: [[nodiscard]] (C23)
 
-## Status: ✅ Complete | Standard: C23 | Effort: Easy
+## Status: ⚠️ Partial | Standard: C23 | Effort: Easy
 
 ## Objective
 
 Warn when function return value is ignored.
 
-## Syntax
+## How It Works
+
+simplecc does **not** recognise C23 `[[...]]` syntax — the lexer has no `[[` token (see lesson 3007). The bundled example in `3013-c23-nodiscard/src/example.c` is a stub that does not use the attribute; it returns `0` from `int main() { return 0; }`.
+
+The GCC `__attribute__((warn_unused_result))` form is recognised by `__attribute__` skipping (lesson 3007) but the `warn_unused_result` name is not separately checked.
+
+## Syntax (aspirational)
 
 ```c
 [[nodiscard]] int critical_operation(void);
 [[nodiscard("error code")]] int error_prone(void);
 
-// Warning: ignoring return value
 critical_operation();  // compiler warns
 ```
 
-## Use Cases
+## Limitations
 
-- Error codes: `[[nodiscard]] int fclose(FILE *);`
-- Resource allocation: `[[nodiscard]] void *malloc(size_t);`
-- Pure functions: `[[nodiscard]] int compute(int);`
+- `[[nodiscard]]` is **not** recognised.
+- No unused-result warning is emitted in any path.
+- `(void)f();` cast-to-void is parsed but no diagnostic is generated for missing casts.
 
-## Implementation Checklist
+## Source Code References
 
-- [ ] Parse `[[nodiscard]]` on functions
-- [ ] Parse `[[nodiscard("msg")]]` with message
-- [ ] Warn when return value is discarded
-- [ ] Don't warn in void context: `(void)f();`
-- [ ] Test: `[[nodiscard]] int f(void); f();` → warning
-
-## Flow Diagram
-
-```mermaid
-flowchart TD
-    A[Source: [[nodiscard]] int f] --> B[Lexer]
-    B --> C{Double bracket?}
-    C -->|Yes| D[Parse attribute]
-    C -->|No| E[Normal token]
-    D --> F{Attribute name: nodiscard?}
-    F -->|Yes| G[Set NODISCARD flag]
-    F -->|No| H[Ignore unknown attribute]
-    G --> I[Attach to function declaration]
-    H --> I
-    I --> J[Parser]
-    J --> K[AST: FuncDecl with nodiscard]
-    K --> L{Function call without using result?}
-    L -->|Yes| M[Generate warning]
-    L -->|No| N[Normal codegen]
-    M --> O[Assembly with warning metadata]
-    N --> O
-```
+| Component | File:Line | Description |
+|-----------|-----------|---|
+| `[[` token | `src/lexer.cpp` | ❌ Not defined |
+| `__attribute__` skipping | `src/parser.cpp:129-138` | Discards any attribute |

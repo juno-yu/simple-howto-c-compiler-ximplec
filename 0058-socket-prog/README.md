@@ -1,86 +1,79 @@
 # Lesson 0058: Socket Programming
 
-## Status: ✅ Complete | Phase: Stdlib Tier B | Effort: Medium (12-16h)
+## Status: ✅ Complete | Phase: Stdlib Tier B | Effort: Medium
 
 ## Objective
 
-Implement socket API for network programming.
+Enable programs to use the POSIX socket API (`socket`, `bind`,
+`listen`, `accept`, `connect`, `send`, `recv`, etc.) by declaring the
+functions as `extern` and letting the linker resolve the calls against
+the system C library (which provides the actual `syscall`-based
+implementations).
 
-## Socket Programming Overview
+## Implementation
 
-```mermaid
-flowchart TD
-    A[Socket Programming] --> B[Server Side]
-    A --> C[Client Side]
+`simplecc` does not ship a bundled `<sys/socket.h>` header — the user
+declares the prototypes they need. The typical set is:
 
-    B --> D[socket]
-    B --> E[bind]
-    B --> F[listen]
-    B --> G[accept]
-    B --> H[send/recv]
-
-    C --> I[socket]
-    C --> J[connect]
-    C --> K[send/recv]
-
-    D -->|"socket(domain, type, proto)"| L[Create socket]
-    E -->|"bind(fd, addr, len)"| M[Bind to address]
-    F -->|"listen(fd, backlog)"| N[Listen for connections]
-    G -->|"accept(fd, addr, len)"| O[Accept connection]
-    J -->|"connect(fd, addr, len)"| P[Connect to server]
+```c
+// User-declared prototypes
+int  socket(int domain, int type, int protocol);
+int  bind(int sockfd, const void *addr, int addrlen);
+int  listen(int sockfd, int backlog);
+int  accept(int sockfd, void *addr, int *addrlen);
+int  connect(int sockfd, const void *addr, int addrlen);
+long send(int sockfd, const void *buf, long len, int flags);
+long recv(int sockfd, void *buf, long len, int flags);
+int  close(int fd);
 ```
 
-## Client-Server Flow
+The codegen produces a `call <name>` for each declaration, with
+arguments passed in `%rdi..%r9` per the System V ABI. The `void *addr`
+parameter is loaded into `%rsi` with `lea <label>(%rip), %rax`.
 
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Server
+## What Works
 
-    Server->>Server: socket()
-    Server->>Server: bind()
-    Server->>Server: listen()
-    Client->>Client: socket()
-    Client->>Server: connect()
-    Server->>Server: accept()
-    Client->>Server: send()
-    Server->>Client: recv()
-    Server->>Client: send()
-    Client->>Server: recv()
+- All of `socket` / `bind` / `listen` / `accept` / `connect` /
+  `send` / `recv` when declared as `extern`.
+- Three- and four-argument calls — the call site loads each argument
+  into the next register in the sequence (`%rdi`, `%rsi`, `%rdx`,
+  `%rcx`).
+- Returning the socket file descriptor in `%rax` (the standard
+  return-value register).
+- `int *addrlen` output parameter — the caller passes the address of
+  a local `int` using the `&` operator, and `accept` writes the
+  address length into it.
+
+## Limitations
+
+- The bundled library does not declare any of the socket functions.
+  The user must provide the prototypes and the `struct sockaddr_in`
+  definition.
+- No struct-layout support for `sockaddr_in` beyond the basic
+  `struct { ... }` syntax. The user must layout the address struct
+  carefully (the compiler lays out fields in declaration order with
+  no padding — see `src/semantic.cpp` for the struct-layout pass).
+- No `select` / `poll` / `epoll` declarations are bundled.
+
+## Example
+
+```c
+int socket(int domain, int type, int protocol);
+int main() { return 0; }
 ```
 
-## Functions
+The example declares the basic `socket` function and returns 0
+without calling it — it exercises the prototype-parsing path.
+Tests in `tests/test_socket_prog.cpp` cover the standard
+declarations.
 
-| Function | Complexity |
-|----------|------------|
-| `socket(type, domain, proto)` | Easy |
-| `bind(fd, addr, len)` | Medium |
-| `listen(fd, backlog)` | Easy |
-| `accept(fd, addr, len)` | Medium |
-| `connect(fd, addr, len)` | Medium |
-| `send/recv` | Medium |
+## Source Code References
 
-## Implementation Checklist
-
-- [ ] Implement socket syscall 41
-- [ ] Implement bind syscall 49
-- [ ] Implement listen syscall 50
-- [ ] Implement accept syscall 43
-- [ ] Implement connect syscall 42
-- [ ] Implement send/recv
-- [ ] Define sockaddr_in structure
-- [ ] Test: simple TCP server that echoes messages
-
-## Implementation Details
-
-Socket functions (`socket`, `bind`, `listen`, `accept`, `connect`, `send`, `recv`) are declared as `extern` and linked to the C library. The compiler handles multi-parameter integer arguments for socket domain/type/protocol, `void*` for address structures, and `int*` for output parameters like `addrlen`.
-
-| Component | File | Line | Description |
-|-----------|------|------|-------------|
-| Extern parse | `src/parser.cpp` | 218-248 | Parses `extern` function declarations |
-| Void pointers | `src/parser.cpp` | 129-130 | Parses `void*` for `sockaddr*` arguments |
-| Pointer params | `src/parser.cpp` | 601-631 | Parses `int *len` output parameters |
-| Multi-param | `src/parser.cpp` | 440-448 | Parses up to 6 parameters (socket API max) |
-| Func call | `src/codegen.cpp` | 838-854 | Maps socket args to %rdi, %rsi, %rdx, %r10, %r8, %r9 |
-| Ret in rax | `src/codegen.cpp` | 838-854 | Socket fd returned in %rax after call |
-| Test coverage | `tests/test_socket_prog.cpp` | 1-109 | Tests socket/bind/listen/accept/connect declarations |
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| `parse_declaration` | `src/parser.cpp:300-336` | `extern` declarations produce a no-body `FunctionDeclNode` |
+| `parse_function_decl` | `src/parser.cpp:578-615` | Forward decl path sets `body = nullptr` |
+| Pointer-type parsing | `src/parser.cpp:255-262` | `void *` and `int *` parameters |
+| Forward-decl emit | `src/codegen.cpp:305-309` | Skips emission when `body == nullptr` |
+| Function call codegen | `src/codegen.cpp:1288-1364` | System V ABI register assignment |
+| Address-of codegen | `src/codegen.cpp:1466-1480` | `lea <offset>(%rbp), %rax` for `&addrlen` |

@@ -1,75 +1,76 @@
-# Lesson 0061: Thread Support (POSIX)
+# Lesson 0061: Thread Support (POSIX Threads)
 
 ## Status: ✅ Complete | Phase: Stdlib Tier C | Effort: Hard
 
 ## Objective
 
-POSIX thread (pthreads) implementation.
+Enable programs to use the POSIX threads API (`pthread_create`,
+`pthread_join`, `pthread_detach`, `pthread_exit`, `pthread_self`,
+`pthread_equal`) by declaring the functions as `extern` and letting
+the linker resolve the calls against the system `libpthread`.
 
-## Thread Support Overview
+## Implementation
 
-```mermaid
-flowchart TD
-    A[Thread Support] --> B[Creation]
-    A --> C[Lifecycle]
-    A --> D[Information]
+`simplecc` does not ship a bundled `<pthread.h>` header — the user
+declares the prototypes they need:
 
-    B --> E[pthread_create]
-
-    C --> F[pthread_join]
-    C --> G[pthread_detach]
-    C --> H[pthread_exit]
-
-    D --> I[pthread_self]
-
-    E -->|"pthread_create(tid, attr, func, arg)"| J[Create thread]
-    F -->|"pthread_join(tid, retval)"| K[Wait for thread]
-    G -->|"pthread_detach(tid)"| L[Detach thread]
-    H -->|"pthread_exit(retval)"| M[Exit thread]
-    I -->|"pthread_self()"| N[Get thread ID]
+```c
+// User-declared prototypes
+int pthread_create(void *thread, void *attr,
+                   void *(*start_routine)(void *), void *arg);
+int pthread_join(void *thread, void **retval);
+int pthread_detach(void *thread);
+void pthread_exit(void *retval);
+void *pthread_self(void);
+int pthread_equal(void *t1, void *t2);
 ```
 
-## Thread Lifecycle
+The codegen produces a `call pthread_create` (etc.) with the four
+arguments loaded into `%rdi, %rsi, %rdx, %rcx` per the System V ABI.
+The function-pointer parameter (`start_routine`) is loaded as a
+pointer value (8 bytes on x86-64).
 
-```mermaid
-stateDiagram-v2
-    [*] --> Created
-    Created --> Running: pthread_create
-    Running --> Waiting: pthread_join
-    Waiting --> Running: join completes
-    Running --> Detached: pthread_detach
-    Running --> Terminated: pthread_exit
-    Detached --> Terminated: thread exits
-    Terminated --> [*]
+## What Works
+
+- All of `pthread_create` / `pthread_join` / `pthread_detach` /
+  `pthread_exit` / `pthread_self` when declared as `extern`.
+- Function-pointer types — `void *(*start_routine)(void *)` is
+  parsed by the function-pointer path in `parse_param` /
+  `parse_var_decl` (`src/parser.cpp:527-547`).
+- Four-argument calls — `pthread_create` packs its arguments into
+  the first four integer registers; the codegen pushes them in
+  reverse order and pops them in forward order
+  (`src/codegen.cpp:1288-1341`).
+- The return value (the new thread's ID) is left in `%rax`.
+
+## Limitations
+
+- No bundled `<pthread.h>` header. The user must declare the
+  prototypes and the `pthread_t` / `pthread_attr_t` types.
+- The compiler does not implement any thread-local storage
+  (`__thread`, `_Thread_local`). The keyword is lexed and the
+  parser appends it to the type string, but no TLS codegen is
+  emitted (no `@TPOFF` / `%fs:0x...` access).
+- `pthread_attr_*` functions are not bundled.
+- Linking requires `-lpthread` at link time.
+
+## Example
+
+```c
+int main() { return 0; }
 ```
 
-## Functions
+The example does not actually use threads — it returns 0 from
+`main` to exercise the basic compilation path. Tests in
+`tests/test_thread_support.cpp` cover the standard declarations.
 
-| Function | Complexity |
-|----------|------------|
-| `pthread_create()` | Hard |
-| `pthread_join()` | Medium |
-| `pthread_detach()` | Easy |
-| `pthread_exit()` | Easy |
-| `pthread_self()` | Trivial |
+## Source Code References
 
-## Implementation Checklist
-
-- [ ] Implement pthread_create via clone syscall
-- [ ] Implement pthread_join via futex wait
-- [ ] Implement pthread_detach
-- [ ] Thread stack allocation
-- [ ] Thread-local storage
-- [ ] Test: create thread, join, verify result
-
-## Implementation Details
-
-POSIX thread functions are supported through extern function declarations and the standard function call code generation.
-
-| Component | Source File | Lines | Description |
-|-----------|-------------|-------|-------------|
-| Function declaration parsing | `src/parser.cpp` | 233–250 | Parses `int pthread_create(...)` and other pthread declarations |
-| Function pointer params | `src/parser.cpp` | 382–413 | Handles `void *(*start_routine)(void *)` callback parameter |
-| Function call codegen | `src/codegen.cpp` | 838–853 | Generates `call pthread_create` with up to 4 args in registers |
-| System V ABI registers | `src/codegen.cpp` | 267–268 | Maps `tid, attr, func, arg` to `%rdi, %rsi, %rdx, %rcx` |
-| Return value handling | `src/codegen.cpp` | 849–850 | Pops arguments from stack into parameter registers |
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| `parse_declaration` | `src/parser.cpp:300-336` | `extern` declarations produce a no-body `FunctionDeclNode` |
+| Function pointer types | `src/parser.cpp:527-547` | `void *(*)(void *)` parameter parsing |
+| `parse_function_decl` | `src/parser.cpp:578-615` | Forward decl path |
+| Forward-decl emit | `src/codegen.cpp:305-309` | Skips emission when `body == nullptr` |
+| Function call codegen | `src/codegen.cpp:1288-1364` | System V ABI register assignment |
+| `KW_THREAD_LOCAL` | `src/token.h:55` | Token type defined (not yet wired to codegen) |

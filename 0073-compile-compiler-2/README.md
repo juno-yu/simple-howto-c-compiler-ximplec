@@ -1,14 +1,17 @@
-# Lesson 0073: Compile Compiler (Parser) — Self-Hosting Step
+# Lesson 0073: Self-Hosting Milestone 2 — Compile the Parser
 
 ## Status: ⚠️ Partial | Phase: Self-Hosting | Effort: Hard
 
-## Status
+## Objective
 
-Placeholder lesson in the self-hosting roadmap. See [Lesson 0072](../0072-compile-compiler-1/README.md) for context.
+Placeholder lesson in the self-hosting roadmap. See
+[Lesson 0072](../0072-compile-compiler-1/README.md) for the broader
+context.
 
 ## Limitation
 
-The compiler is in C++17 with STL dependencies. A C port is required before any self-hosting milestone can be reached.
+The compiler is in C++17 with STL dependencies. A C port is required
+before any self-hosting milestone can be reached.
 
 ## Example
 

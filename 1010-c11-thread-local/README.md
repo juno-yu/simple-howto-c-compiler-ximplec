@@ -1,41 +1,54 @@
 # Lesson 1010: _Thread_local (C11)
 
-## Status: ✅ Complete | Standard: C11 | Effort: Medium
+## Status: ✅ Complete (parser-level) | Standard: C11 | Effort: Medium
 
 ## Objective
 
-Thread-local storage for per-thread data.
+Recognise `_Thread_local` as a storage-class qualifier.
 
 ## Syntax
 
 ```c
-_thread_local int counter = 0;  // each thread has its own copy
-__thread int tls_var;           // GCC extension (same)
+_Thread_local int counter = 0;  // each thread has its own copy
+__thread int tls_var;           // GCC extension
 ```
 
-## Semantics
+## How It Works
 
-```mermaid
-graph TD
-    A["_Thread_local int x = 0"] --> B[Thread 1: x = 0]
-    A --> C[Thread 2: x = 0]
-    A --> D[Thread 3: x = 0]
-    B --> E["x++ → Thread 1: x = 1"]
-    C --> F["x++ → Thread 2: x = 1"]
-    D --> G["x++ → Thread 3: x = 1"]
+`_Thread_local` is a real keyword (`src/lexer.cpp:138`) and is consumed inside `parse_type_specifier`. The qualifier is recorded as part of the type string but does not switch the codegen to a TLS segment:
+
+```cpp
+// src/lexer.cpp:138
+{"_Thread_local", TokenType::KW_THREAD_LOCAL},
 ```
 
-## Implementation
+```cpp
+// src/parser.cpp:118-119
+} else if (match(TokenType::KW_THREAD_LOCAL)) {
+    result += "_Thread_local ";
+}
+```
 
-- On Linux: uses `__thread` GCC extension or `thread_local` (C23)
-- Storage in TLS segment of ELF
-- Accessed via FS/GS segment register offset
+```cpp
+// src/parser.cpp:81 — counted as a type specifier start
+check(TokenType::KW_THREAD_LOCAL) ||
+```
 
-## Implementation Checklist
+The example in `1010-c11-thread-local/src/example.c` declares `_Thread_local int tls_var = 42;` and returns it from `main`. Since only `main` runs, the value is the regular local and the program returns `42`. There is no TLS codegen path, no `__thread` mapping, and no `.tdata`/`.tbss` emission.
 
-- [ ] Parse `_Thread_local` keyword
-- [ ] Allocate in TLS segment (.tdata/.tbss)
-- [ ] Access via FS-relative addressing
-- [ ] Initialize per-thread on thread creation
-- [ ] Destroy on thread exit
-- [ ] Test: increment counter in 3 threads, verify isolation
+## What Works
+
+| Feature | Status |
+|---------|--------|
+| `_Thread_local int x;` parses | ✅ |
+| Single-threaded use | ✅ |
+| `__thread` extension | ❌ Not recognised |
+| Actual TLS segment storage | ❌ Codegen treats it as a normal local |
+
+## Source Code References
+
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| Token recognition | `src/lexer.cpp:138` | `_Thread_local` → `KW_THREAD_LOCAL` |
+| Type-specifier recognition | `src/parser.cpp:81` | Listed in `is_type_specifier` |
+| Qualifier string | `src/parser.cpp:118-119` | Appended to type |

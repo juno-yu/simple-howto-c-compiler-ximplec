@@ -4,49 +4,47 @@
 
 ## Objective
 
-Binary integer literal syntax.
+Binary integer literal syntax (`0b` / `0B`).
+
+## How It Works
+
+The lexer recognises `0b` (or `0B`) as a binary-literal prefix and accumulates 0/1 digits. Digit separators (`'`) are accepted in the same loop:
+
+```cpp
+// src/lexer.cpp:280-288 — binary literal (0b prefix)
+if (!is_at_end() && peek() == '0' && (peek_next() == 'b' || peek_next() == 'B')) {
+    num += advance(); // '0'
+    num += advance(); // 'b' or 'B'
+    while (!is_at_end() && (peek() == '0' || peek() == '1' || peek() == '\'')) {
+        if (peek() != '\'') num += advance(); else advance(); // skip separators
+    }
+    return Token(TokenType::INTEGER, num, start_line, start_column);
+}
+```
+
+The token's text starts with `0b` and is later converted by the parser using `std::stoll(s.substr(2), nullptr, 2)`:
+
+```cpp
+// src/parser.cpp:1948
+value = std::stoll(s.substr(2), nullptr, 2);
+```
 
 ## Syntax
 
 ```c
-int flags = 0b1010'0101;
-unsigned mask = 0b1111'0000;
-char bits = 0b1;
+int flags    = 0b1010'0101;   // 165
+unsigned mask = 0b1111'0000;  // 240
+char bits    = 0b1;           // 1
 ```
 
-## History
+## Limitations
 
-- GCC extension: `0b1010` (available in C mode)
-- C23: officially standardized
+- `0b` with no following digits is silently accepted and yields `0` (no error).
+- The bundled example in `3005-c23-binary-literals/src/example.c` does not actually use `0b`; it returns `10` from a plain `int x = 10;`.
 
-## Implementation Checklist
+## Source Code References
 
-- [ ] Lexer: parse `0b` prefix for binary literals
-- [ ] Parse binary digits (0 and 1)
-- [ ] Support digit separators: `0b1010'0101`
-- [ ] Convert to integer value
-- [ ] Test: `int x = 0b1010;` → 10
-- [ ] Test: `int y = 0b1111'0000;` → 240
-- [ ] Test: error on `0b` with no digits
-
-## Flow Diagram
-
-```mermaid
-flowchart TD
-    A[Source: 0b1010] --> B[Lexer]
-    B --> C{Starts with 0b?}
-    C -->|Yes| D[Binary Literal]
-    C -->|No| E[Other Literal]
-    D --> F[Read Binary Digits]
-    F --> G{Valid 0/1?}
-    G -->|Yes| H[Accumulate Value]
-    G -->|No| I[Error: Invalid Binary]
-    H --> F
-    F --> J[End of Literal]
-    J --> K[Convert Binary to Int]
-    K --> L[Token::INT_LITERAL]
-    L --> M[Parser]
-    M --> N[AST: IntLiteral]
-    N --> O[Codegen]
-    O --> P["x86-64: mov $decimal, %rax"]
-```
+| Component | File:Line | Description |
+|-----------|-----------|---|
+| Lexer | `src/lexer.cpp:280-288` | Recognises `0b`/`0B` and accepts `'` |
+| Parser | `src/parser.cpp:1948` | `std::stoll(s.substr(2), nullptr, 2)` |

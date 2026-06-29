@@ -1,30 +1,49 @@
 # Lesson 1005: _Atomic (C11)
 
-## Status: ✅ Complete | Standard: C11 | Effort: Hard
+## Status: ⚠️ Partial | Standard: C11 | Effort: Hard
 
 ## Objective
 
-Atomic operations for thread-safe data access.
+Recognize `_Atomic` as a type qualifier. Real atomic operations are **not** implemented.
 
 ## Syntax
 
 ```c
 _Atomic int counter = 0;
-atomic_fetch_add(&counter, 1);
 ```
 
-## Atomics Overview
+## How It Works
 
-```mermaid
-graph TD
-    A["_Atomic int x"] --> B[Thread-safe access]
-    B --> C["atomic_load(&x)"]
-    B --> D["atomic_store(&x, val)"]
-    B --> E["atomic_fetch_add(&x, 1)"]
-    B --> F["atomic_compare_exchange(&x, &expected, desired)"]
+`_Atomic` is a recognised keyword (`src/lexer.cpp:139`) and is consumed by `parse_type_specifier` like any other qualifier:
+
+```cpp
+// src/parser.cpp:120-121
+} else if (match(TokenType::KW_ATOMIC)) {
+    result += "_Atomic ";
+}
 ```
 
-## Memory Ordering
+The qualifier string is concatenated onto the variable's type name. There is no `lock`-prefixed instruction emission, no `<stdatomic.h>` shim, and no thread-safe codegen. The example in `1005-c11-atomic/src/example.c` reduces to a normal `int` increment.
+
+```cpp
+// src/parser.cpp:81-82 — _Atomic also counts as a type specifier
+check(TokenType::KW_THREAD_LOCAL) ||
+check(TokenType::KW_ATOMIC)) {
+    return true;
+}
+```
+
+## What Works
+
+| Feature | Status |
+|---------|--------|
+| `_Atomic int x;` accepted | ✅ |
+| `_Atomic` as type qualifier | ✅ |
+| `atomic_*` functions | ❌ No `<stdatomic.h>` shim |
+| Lock-prefixed instructions | ❌ |
+| Memory ordering | ❌ |
+
+## Memory Ordering (intended)
 
 | Order | Description |
 |-------|-------------|
@@ -34,23 +53,10 @@ graph TD
 | `memory_order_release` | Writes not reordered after |
 | `memory_order_seq_cst` | Sequential consistency (default) |
 
-## Implementation Checklist
+## Source Code References
 
-- [ ] Parse `_Atomic` type qualifier
-- [ ] Parse `atomic_*` macros/functions
-- [ ] Generate lock prefix (`lock`) for x86 atomic ops
-- [ ] Implement `atomic_load`, `atomic_store`
-- [ ] Implement `atomic_fetch_add`, `atomic_fetch_sub`
-- [ ] Implement `atomic_compare_exchange_strong`
-- [ ] Memory barrier instructions
-- [ ] Test: atomic increment from multiple threads
-
-## x86-64 Atomic Instructions
-
-| Instruction | Operation |
-|-------------|-----------|
-| `lock xadd` | Atomic fetch-and-add |
-| `lock cmpxchg` | Atomic compare-and-swap |
-| `mfence` | Full memory fence |
-| `lfence` | Load fence |
-| `sfence` | Store fence |
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| Lexer | `src/lexer.cpp:139` | `_Atomic` → `KW_ATOMIC` |
+| Type-specifier recognition | `src/parser.cpp:81-82` | Includes `KW_ATOMIC` |
+| Qualifier string | `src/parser.cpp:120-121` | Appends `_Atomic ` to type |

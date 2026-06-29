@@ -4,64 +4,60 @@
 
 ## Objective
 
-Access environment variables.
+Enable programs to access and modify environment variables using the
+standard C functions (`getenv`, `setenv`, `unsetenv`) by declaring the
+functions as `extern` and letting the linker resolve the calls against
+the system C library.
 
-## Environment Variables Overview
+## Implementation
 
-```mermaid
-flowchart TD
-    A[Environment Variables] --> B[Access]
-    A --> C[Modification]
-    A --> D[Removal]
+`simplecc` does not ship a bundled `getenv`/`setenv` declaration in
+`lib/stdlib.h` — the user declares the prototypes they need:
 
-    B --> E[getenv]
-    C --> F[setenv]
-    D --> G[unsetenv]
-
-    E -->|"getenv(name)"| H[Return value or NULL]
-    F -->|"setenv(name, value, overwrite)"| I[Add/modify entry]
-    G -->|"unsetenv(name)"| J[Remove entry]
+```c
+// User-declared prototypes
+char *getenv(const char *name);
+int   setenv(const char *name, const char *value, int overwrite);
+int   unsetenv(const char *name);
+extern char **environ;
 ```
 
-## Environment Variable Flow
+The codegen produces a `call getenv` (etc.) with the name argument
+loaded into `%rdi` via `lea .Lstr_N(%rip), %rax` for string literals
+(`src/codegen.cpp:1534-1541`).
 
-```mermaid
-flowchart LR
-    A[Process] --> B[environ array]
-    B --> C["KEY=VALUE pairs"]
-    C --> D[HOME=/home/user]
-    C --> E[PATH=/usr/bin]
-    C --> F[...]
-    
-    G["getenv(\"HOME\")"] --> H{Found?}
-    H -->|Yes| I[Return value]
-    H -->|No| J[Return NULL]
+## What Works
+
+- `getenv` / `setenv` / `unsetenv` when declared as `extern`.
+- Returning a `char *` from `getenv` — the pointer is left in `%rax`
+  and can be assigned to a `char *` local.
+- Reading the `environ` global if the user declares it.
+
+## Limitations
+
+- No bundled declaration. The user must declare the prototype.
+- `setenv` / `unsetenv` are POSIX, not standard C. They are not
+  always available on every libc; on Windows, for example, they
+  are missing.
+- The compiler does not provide a built-in `environ` symbol — the
+  user must declare `extern char **environ;` themselves.
+
+## Example
+
+```c
+char *getenv(char *name);
+int main() {
+    char *home = getenv("HOME");
+    return 0;
+}
 ```
 
-## Functions
+## Source Code References
 
-| Function | Complexity |
-|----------|------------|
-| `getenv(name)` | Easy |
-| `setenv(name, value, overwrite)` | Medium |
-| `unsetenv(name)` | Medium |
-
-## Implementation Checklist
-
-- [ ] Access `environ` global variable
-- [ ] Implement getenv: search environment array
-- [ ] Implement setenv: add/modify environment entry
-- [ ] Implement unsetenv: remove environment entry
-- [ ] Test: `getenv("HOME")` returns home directory
-
-## Implementation Details
-
-Environment variable access is supported through extern function declarations and the standard function call code generation path.
-
-| Component | Source File | Lines | Description |
-|-----------|-------------|-------|-------------|
-| Function declaration parsing | `src/parser.cpp` | 233–250 | Parses `char *getenv(char *name)` as extern declaration with no body |
-| Type specifier parsing | `src/parser.cpp` | 148–170 | Handles pointer return types (`char *`) for getenv signature |
-| Function call codegen | `src/codegen.cpp` | 838–853 | Generates `call getenv` with argument in `%rdi` |
-| String literal codegen | `src/codegen.cpp` | 929–935 | Loads string address via `lea .Lstr_N(%rip), %rax` for string args |
-| Identifier resolution | `src/codegen.cpp` | 944–965 | Resolves function names for external linkage |
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| `parse_declaration` | `src/parser.cpp:300-336` | `extern` declarations produce a no-body `FunctionDeclNode` |
+| Pointer-type parsing | `src/parser.cpp:255-262` | `char *` parameter and return types |
+| Forward-decl emit | `src/codegen.cpp:305-309` | Skips emission when `body == nullptr` |
+| Function call codegen | `src/codegen.cpp:1288-1364` | System V ABI register assignment |
+| String literal codegen | `src/codegen.cpp:1534-1541` | `lea .Lstr_N(%rip), %rax` for the `name` arg |

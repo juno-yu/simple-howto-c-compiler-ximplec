@@ -1,90 +1,91 @@
 # Lesson 0055: Memory Allocation
 
-## Status: ✅ Complete | Phase: Stdlib Tier A | Effort: Medium (6-8h)
+## Status: ✅ Complete | Phase: Stdlib Tier A | Effort: Medium
 
 ## Objective
 
-Implement malloc, free, calloc.
-
-## Bump Allocator Overview
-
-```mermaid
-flowchart TD
-    A[Program Start] --> B[brk(0) - get initial heap]
-    B --> C[heap_start = current brk]
-    C --> D[malloc called]
-    D --> E["ptr = heap_start"]
-    E --> F["heap_start += size (aligned)"]
-    F --> G[Return ptr]
-    G --> H[Next malloc]
-    H --> D
-
-    I[free called] --> J[No-op for bump allocator]
-    J --> K[Memory reused at program exit]
-```
-
-## Memory Layout
-
-```mermaid
-flowchart TB
-    A[Process Memory] --> B[.text - code]
-    A --> C[.data - globals]
-    A --> D[.bss - uninitialized globals]
-    A --> E[Heap - grows down]
-    A --> F[Stack - grows up]
-
-    E --> G["brk = heap_start (low)"]
-    E --> H["brk = heap_end (high)"]
-
-    I[malloc] --> J[Allocates from heap]
-    J --> K[Move brk up]
-    K --> L[Return pointer]
-```
-
-## malloc/free/calloc API
-
-```mermaid
-flowchart TD
-    A[malloc] -->|"malloc(size)"| B[Allocate size bytes]
-    B --> C[Return void* pointer]
-    C --> D[Pointer to uninitialized memory]
-
-    E[free] -->|"free(ptr)"| F[Release memory]
-    F --> G[No-op in bump allocator]
-
-    H[calloc] -->|"calloc(count, size)"| I[Allocate count*size bytes]
-    I --> J[Zero-initialize all bytes]
-    J --> K[Return void* pointer]
-
-    L[realloc] -->|"realloc(ptr, new_size)"| M[Allocate new_size bytes]
-    M --> N[Copy old data if ptr != NULL]
-    N --> O[Free old ptr if needed]
-    O --> P[Return new pointer]
-```
+Enable programs to call the standard C memory-allocation functions
+(`malloc`, `free`, `calloc`, `realloc`, `aligned_alloc`) by declaring
+them as `extern` and letting the linker resolve the calls against the
+system C library.
 
 ## Implementation
 
-Simple bump allocator using brk syscall.
+`simplecc` ships a minimal bundled header in `lib/stdlib.h`:
 
-## Implementation Checklist
+```c
+// lib/stdlib.h
+#pragma once
 
-- [ ] Implement brk syscall wrapper
-- [ ] Implement malloc: bump pointer allocator
-- [ ] Implement free: no-op for bump allocator
-- [ ] Implement calloc: malloc + memset
-- [ ] Implement realloc
-- [ ] Test: `int *p = malloc(sizeof(int)); *p = 42; return *p;` → 42
+#define NULL ((void*)0)
+#define EXIT_SUCCESS 0
+#define EXIT_FAILURE 1
 
-## Implementation Details
+void *malloc(int size);
+void *calloc(int nmemb, int size);
+void *realloc(void *ptr, int size);
+void  free(void *ptr);
+void  exit(int status);
+void  abort();
 
-Memory allocation functions (`malloc`, `free`, `calloc`, `realloc`) are declared as `extern` and linked to the C library. The compiler handles `void*` return types, pointer dereference for writing allocated memory, and `sizeof` expressions for allocation size calculation.
+int  atoi(const char *s);
+long atol(const char *s);
 
-| Component | File | Line | Description |
-|-----------|------|------|-------------|
-| Extern parse | `src/parser.cpp` | 218-248 | Parses `extern` declarations for malloc/free |
-| Pointer types | `src/parser.cpp` | 178-180 | Parses `*` for pointer return types (`void*`) |
-| sizeof expr | `src/parser.cpp` | 1088-1109 | Parses `sizeof(type)` for allocation size |
-| sizeof codegen | `src/codegen.cpp` | 810-830 | Emits type size as immediate value |
-| Deref assign | `src/codegen.cpp` | 652-666 | Handles `*p = value` for writing allocated memory |
-| Func call | `src/codegen.cpp` | 838-854 | Generates `call` for malloc, free, etc. |
-| Test coverage | `tests/test_memory_alloc.cpp` | 1-107 | Tests malloc/free/calloc/realloc declarations |
+int  abs(int x);
+long labs(long x);
+
+int  rand();
+void srand(unsigned int seed);
+```
+
+When a user writes `#include <stdlib.h>` the preprocessor reads
+`lib/stdlib.h` and substitutes the declarations.
+
+The compiler does not implement a bump allocator, a `brk`-based
+allocator, or any other in-compiler allocator. Programs that call
+`malloc`/`free` are linked against the system C library, which provides
+a fully functional `ptmalloc2` (or equivalent) implementation.
+
+## What Works
+
+- Declaring any of `malloc`/`free`/`calloc`/`realloc` as `extern` and
+  calling it. The codegen produces a `call malloc` that the linker
+  resolves at link time.
+- `sizeof(int)` / `sizeof(*p)` as a `malloc` argument — the codegen's
+  `visit(SizeofExprNode)` (`src/codegen.cpp:1120-1140`) emits the byte
+  size as an immediate.
+- Pointer-store through a `malloc`-returned pointer:
+  `*p = 42;` lowers to `mov $42, (%rax)` (`src/codegen.cpp:888-895`).
+
+## Limitations
+
+- No in-compiler allocator. Linking against the system libc is required.
+- The `size` parameter is declared as `int`, not `size_t`. Programs
+  that allocate more than 2 GiB will not type-check correctly.
+- The bundled `stdlib.h` does not declare `aligned_alloc`, `posix_memalign`,
+  or `memalign` — those can be added by the user.
+
+## Example
+
+```c
+void *malloc(int size);
+void  free(void *p);
+
+int main() {
+    int *p = malloc(sizeof(int));
+    *p = 42;
+    free(p);
+    return 0;
+}
+```
+
+## Source Code References
+
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| Bundled header | `lib/stdlib.h:1-24` | Declarations of `malloc`/`free`/`calloc`/etc. |
+| `parse_param` | `src/parser.cpp:937-942` | Recognises `...` in function declarations |
+| Pointer-type parsing | `src/parser.cpp:255-262` | `*` token appended to the type string |
+| `sizeof` codegen | `src/codegen.cpp:1120-1140` | Emits the byte size as an immediate |
+| Deref-store codegen | `src/codegen.cpp:888-895` | `mov $42, (%rax)` for `*p = 42;` |
+| Function call codegen | `src/codegen.cpp:1288-1364` | `call malloc` with `size` in `%rdi` |

@@ -1,22 +1,55 @@
 # Lesson 3007: Attributes (C23)
 
-## Status: ✅ Complete | Standard: C23 | Effort: Medium
+## Status: ⚠️ Partial | Standard: C23 | Effort: Medium
 
 ## Objective
 
-Standardized attribute syntax `[[attr]]`.
+Standardised attribute syntax `[[attr]]`.
 
-## Syntax
+## How It Works
 
-```c
-[[noreturn]] void abort(void);
-[[nodiscard]] int important_func(void);
-[[maybe_unused]] int x = 42;
-[[deprecated]] void old_func(void);
-[[fallthrough]] case 1:
+simplecc does **not** recognise C23 `[[...]]` syntax — the lexer has no `[[` token. The GCC `__attribute__((...))` form, however, is recognised and silently discarded:
+
+```cpp
+// src/lexer.cpp:147
+{"__attribute__", TokenType::KW_ATTRIBUTE},
 ```
 
-## Standard Attributes
+```cpp
+// src/parser.cpp:129-138
+} else if (match(TokenType::KW_ATTRIBUTE)) {
+    // __attribute__((...)) — skip entirely
+    if (match(TokenType::LPAREN)) {
+        if (match(TokenType::LPAREN)) {
+            // Skip until ))
+            int depth = 1;
+            while (!is_at_end()) {
+                if (check(TokenType::LPAREN)) depth++;
+                else if (check(TokenType::RPAREN)) {
+                    depth--;
+                    if (depth == 0) { advance(); break; }
+                }
+                advance();
+            }
+        }
+    }
+}
+```
+
+A second consumer in the declaration path also strips the attribute before the declaration continues:
+
+```cpp
+// src/parser.cpp:623-625
+// Skip __attribute__((...)) if present
+while (check(TokenType::KW_ATTRIBUTE)) {
+    advance(); // consume __attribute__
+    // ... skip ( ( ... ) ) ...
+}
+```
+
+The bundled example in `3007-c23-attribute/src/example.c` does not use either form; it is a stub that returns `0`.
+
+## Standard Attributes (aspirational)
 
 | Attribute | Purpose |
 |-----------|---------|
@@ -26,38 +59,17 @@ Standardized attribute syntax `[[attr]]`.
 | `[[deprecated]]` | Mark as deprecated |
 | `[[fallthrough]]` | Suppress fallthrough warning |
 
-## Implementation Checklist
+## What Works
 
-- [ ] Parse `[[attribute]]` syntax
-- [ ] Parse `[[namespace::attr]]` syntax
-- [ ] Implement standard attributes
-- [ ] Ignore unknown attributes
-- [ ] Test: `[[nodiscard]] int f(void);` warns on ignored return
+| Feature | Status |
+|---------|--------|
+| `__attribute__((...))` parsed and discarded | ✅ |
+| `[[noreturn]]` etc. | ❌ Lexer does not recognise `[[` |
 
-## Flow Diagram
+## Source Code References
 
-```mermaid
-flowchart TD
-    A[Source: [[nodiscard]] int f] --> B[Lexer]
-    B --> C{Double Bracket?}
-    C -->|Yes| D[Parse Attribute]
-    C -->|No| E[Normal Token]
-    D --> F[Read Attribute Name]
-    F --> G{Known Attribute?}
-    G -->|nodiscard| H[Set NODISCARD Flag]
-    G -->|maybe_unused| I[Set MAYBE_UNUSED Flag]
-    G -->|deprecated| J[Set DEPRECATED Flag]
-    G -->|fallthrough| K[Set FALLTHROUGH Flag]
-    G -->|noreturn| L[Set NORETURN Flag]
-    G -->|Unknown| M[Ignore Attribute]
-    H --> N[Attach to Declaration]
-    I --> N
-    J --> N
-    K --> N
-    L --> N
-    M --> N
-    N --> O[Parser]
-    O --> P[AST: Decl with Attributes]
-    P --> Q[Codegen]
-    Q --> R[Assembly with Metadata]
-```
+| Component | File:Line | Description |
+|-----------|-----------|---|
+| `__attribute__` keyword | `src/lexer.cpp:147` | `__attribute__` → `KW_ATTRIBUTE` |
+| Attribute skip in type-spec | `src/parser.cpp:129-138` | Discards specifier |
+| Attribute skip in decl | `src/parser.cpp:623-625` | Discards before decl |

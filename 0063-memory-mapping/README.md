@@ -4,79 +4,79 @@
 
 ## Objective
 
-Virtual memory mapping with mmap/munmap.
+Enable programs to map memory (anonymous or file-backed) using the
+POSIX `mmap` / `munmap` / `mprotect` / `madvise` functions, by
+declaring the functions as `extern` and letting the linker resolve
+the calls against the system C library.
 
-## Memory Mapping Overview
+## Implementation
 
-```mermaid
-flowchart TD
-    A[Memory Mapping] --> B[Mapping]
-    A --> C[Unmapping]
-    A --> D[Protection]
-    A --> E[Advice]
+`simplecc` does not ship a bundled `<sys/mman.h>` header — the user
+declares the prototypes they need:
 
-    B --> F[mmap]
-    C --> G[munmap]
-    D --> H[mprotect]
-    E --> I[madvise]
+```c
+// User-declared prototypes
+void *mmap(void *addr, unsigned long length, int prot, int flags,
+           int fd, long offset);
+int   munmap(void *addr, unsigned long length);
+int   mprotect(void *addr, unsigned long len, int prot);
+int   madvise(void *addr, unsigned long length, int advice);
 
-    F -->|"mmap(addr, len, prot, flags, fd, offset)"| J[Map memory]
-    G -->|"munmap(addr, len)"| K[Unmap memory]
-    H -->|"mprotect(addr, len, prot)"| L[Change protection]
-    I -->|"madvise(addr, len, advice)"| M[Give advice]
+// Common flag values (also user-declared)
+#define PROT_READ  1
+#define PROT_WRITE 2
+#define PROT_EXEC  4
+#define MAP_PRIVATE   2
+#define MAP_ANONYMOUS 0x20
 ```
 
-## Memory Mapping Flow
+The codegen produces a `call mmap` with the six arguments loaded
+into `%rdi, %rsi, %rdx, %rcx, %r8, %r9` per the System V ABI.
 
-```mermaid
-flowchart LR
-    A[Process Virtual Space] --> B[mmap]
-    B --> C[Physical Memory or File]
-    C --> D[Read/Write]
-    D --> E[munmap]
+## What Works
+
+- All of `mmap` / `munmap` / `mprotect` / `madvise` when declared
+  as `extern`.
+- Six-argument function calls — `mmap` packs its six arguments
+  into the integer registers, and the codegen handles all six
+  correctly (`src/codegen.cpp:1288-1341`).
+- `void *` return type — the mapped address is left in `%rax`
+  and can be assigned to a `void *` local or cast to another
+  pointer type.
+- The bundled `errno.h` (`lib/errno.h`) provides the `EACCES`,
+  `ENOMEM`, etc. error codes that `mmap` may set.
+
+## Limitations
+
+- No bundled `<sys/mman.h>` header. The user must declare the
+  prototypes and the `PROT_*` / `MAP_*` flag values.
+- Linking against the system C library is required for `mmap` to
+  actually map memory — `simplecc` does not implement any
+  memory-mapping primitive.
+- The compiler does not enforce page-size alignment on the `addr`
+  argument.
+
+## Example
+
+```c
+void *mmap(void *addr, int len, int prot, int flags, int fd, int offset);
+
+int main() {
+    return 0;
+}
 ```
 
-## Protection Flags
+The example does not actually call `mmap` — it returns 0 from
+`main` to exercise the prototype-parsing path. Tests in
+`tests/test_memory_mapping.cpp` cover the standard declarations.
 
-```mermaid
-flowchart TD
-    A[Protection Flags] --> B[PROT_READ]
-    A --> C[PROT_WRITE]
-    A --> D[PROT_EXEC]
-    A --> E[PROT_NONE]
-    
-    B --> F[Readable]
-    C --> G[Writable]
-    D --> H[Executable]
-    E --> I[No access]
-```
+## Source Code References
 
-## Functions
-
-| Function | Complexity |
-|----------|------------|
-| `mmap()` | Medium |
-| `munmap()` | Easy |
-| `mprotect()` | Medium |
-| `madvise()` | Easy |
-
-## Implementation Checklist
-
-- [ ] Implement mmap via mmap syscall (9)
-- [ ] Implement munmap via munmap syscall (11)
-- [ ] Implement mprotect via mprotect syscall (10)
-- [ ] Support MAP_PRIVATE, MAP_SHARED
-- [ ] Support PROT_READ, PROT_WRITE, PROT_EXEC
-- [ ] Test: map file into memory, read contents
-
-## Implementation Details
-
-Memory mapping is supported through extern function declarations and the standard function call code generation.
-
-| Component | Source File | Lines | Description |
-|-----------|-------------|-------|-------------|
-| Function declaration parsing | `src/parser.cpp` | 233–250 | Parses `void *mmap(void *addr, size_t len, ...)` with 6 parameters |
-| Pointer return types | `src/parser.cpp` | 148–170 | Handles `void *` return type for mmap |
-| Function call codegen | `src/codegen.cpp` | 838–853 | Generates `call mmap` passing all 6 args via registers and stack |
-| System V ABI (6+ args) | `src/codegen.cpp` | 267–268 | First 6 args in `%rdi–%r9`, overflow pushed to stack |
-| Stack argument passing | `src/codegen.cpp` | 844–850 | Pushes args right-to-left, pops into registers left-to-right |
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| `parse_declaration` | `src/parser.cpp:300-336` | `extern` declarations produce a no-body `FunctionDeclNode` |
+| Pointer-type parsing | `src/parser.cpp:255-262` | `void *` and `int *` parameters |
+| `parse_function_decl` | `src/parser.cpp:578-615` | Forward decl path |
+| Forward-decl emit | `src/codegen.cpp:305-309` | Skips emission when `body == nullptr` |
+| Function call codegen | `src/codegen.cpp:1288-1364` | System V ABI register assignment |
+| `errno.h` | `lib/errno.h:1-42` | Error codes for `mmap` failures |

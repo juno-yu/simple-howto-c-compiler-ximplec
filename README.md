@@ -78,6 +78,158 @@ This project builds a compiler for a substantial subset of C, progressing from b
 
 **This project implements stage 2 only** (C → assembly). Stages 3-4 are handled by the system `gcc`/`as`/`ld`.
 
+## Implementation Highlights
+
+A few key code paths that show how the compiler works end-to-end. All line numbers refer to `src/` in this repo.
+
+### Pipeline (`src/compiler.cpp:21-81`)
+
+The driver that ties preprocessor, lexer, parser, semantic analysis, and code generator together:
+
+```cpp
+CompileResult Compiler::compile(const std::string& source) {
+    CompileResult result;
+    preprocessor_.reset();  // + built-in macro re-registration (lines 27-34)
+
+    std::string preprocessed = preprocessor_.process(source);
+    if (preprocessor_.has_error()) { /* return preprocessor error */ }
+
+    Lexer lexer(preprocessed);
+    auto tokens = lexer.tokenize();
+    if (lexer.has_error()) { /* return lexer error */ }
+
+    Parser parser(tokens);
+    auto ast = parser.parse();
+    if (parser.has_error()) { /* return parser error */ }
+
+    semantic_.analyze(static_cast<ProgramNode&>(*ast));  // warnings, not fatal
+
+    CodeGenerator codegen;
+    result.assembly = codegen.generate(static_cast<ProgramNode&>(*ast));
+    if (codegen.has_error()) { /* return codegen error */ }
+
+    result.success = true;
+    return result;
+}
+```
+
+### Float/double arithmetic via SSE (`src/codegen.cpp:1625-1674`)
+
+The binary-operator dispatcher emits real SSE instructions for float/double operands — `addss`/`addsd` for `+`, `mulss`/`mulsd` for `*`, `ucomiss`/`ucomisd` for comparisons — and `cvtsi2ss`/`cvtsi2sd` to convert integer operands into `%xmm0`:
+
+```cpp
+void CodeGenerator::generate_binary(BinaryExprNode& node) {
+    std::string ltype = infer_expr_type(node.left.get());
+    std::string rtype = infer_expr_type(node.right.get());
+    bool result_is_double = is_double_type(ltype) || is_double_type(rtype);
+    bool result_is_float  = is_float_type(ltype)  || is_float_type(rtype);
+
+    if (result_is_float) {
+        const char* movop  = result_is_double ? "movsd" : "movss";
+        const char* cvtop  = result_is_double ? "cvtsi2sd" : "cvtsi2ss";
+        const char* suffix = result_is_double ? "sd" : "ss";
+
+        dispatch(node.right.get());
+        if (!is_float_type(pop_expr_type()))
+            emit(std::string(cvtop) + " %rax, %xmm0");
+        emit("sub $16, %rsp");
+        emit(std::string(movop) + " %xmm0, (%rsp)");  // spill right operand
+
+        dispatch(node.left.get());
+        if (!is_float_type(pop_expr_type()))
+            emit(std::string(cvtop) + " %rax, %xmm0");
+        emit(std::string(movop) + " (%rsp), %xmm1");  // load right into %xmm1
+        emit("add $16, %rsp");
+
+        switch (node.op) {
+            case OpKind::ADD: emit(std::string("add") + suffix + " %xmm1, %xmm0"); break;
+            case OpKind::MUL: emit(std::string("mul") + suffix + " %xmm1, %xmm0"); break;
+            // ... SUB, DIV, comparisons via ucomi{sd,ss} + setcc
+        }
+    }
+    // ... integer path (uses %rax + stack)
+}
+```
+
+### Nested-function context pointer (`src/codegen.cpp:311-374`)
+
+Nested functions (GCC extension) cannot use stack trampolines (no `mprotect` to make the stack executable), so we use a hidden context-pointer ABI: the first integer argument (`%rdi`) points to a struct containing the current values of the enclosing function's captured locals.
+
+```cpp
+if (node.is_nested) {
+    // Snapshot enclosing function's state
+    auto saved_locals   = local_variables_;
+    auto saved_types    = variable_types_;
+    auto saved_captures = current_captures_;
+
+    // Build the capture set: every local in scope at this point.
+    std::vector<FunctionDeclNode::CapturedVar> captures;
+    int ctx_off = 0;
+    for (const auto& kv : saved_locals) {
+        FunctionDeclNode::CapturedVar c;
+        c.name = kv.first; c.parent_offset = kv.second;
+        c.type = saved_types.count(kv.first) ? saved_types[kv.first] : "int";
+        c.ctx_offset = ctx_off;
+        captures.push_back(c);
+        ctx_off += 8;
+    }
+    node.captured_vars = captures;
+
+    NestedFuncInfo info;
+    info.captures = captures;
+    info.ctx_size = ((captures.size() * 8) + 15) & ~15;  // align to 16
+    nested_func_info_[node.name] = info;
+
+    // Defer body emission to after the enclosing function's epilogue
+    pending_nested_functions_.push_back({&node, captures, info.ctx_size});
+    // ...restore enclosing state
+    return;
+}
+```
+
+When a call site invokes the nested function, the caller first fills a stack-allocated struct with the current values of the captured variables and passes its address in `%rdi` (see `src/codegen.cpp:1241-1260`).
+
+### Type inference (`src/codegen.cpp:2292-2319`)
+
+The static type-walker used by `generate_binary` (and any other operator that needs to choose between the integer and SSE code paths):
+
+```cpp
+std::string CodeGenerator::infer_expr_type(ASTNode* node) {
+    if (!node) return "int";
+    switch (node->type) {
+        case NodeType::INTEGER_LITERAL: return "int";
+        case NodeType::CHAR_LITERAL:    return "char";
+        case NodeType::FLOAT_LITERAL:
+            return static_cast<FloatLiteralNode*>(node)->is_single_precision
+                 ? "float" : "double";
+        case NodeType::STRING_LITERAL:  return "char*";
+        case NodeType::IDENTIFIER_EXPR: {
+            auto it = variable_types_.find(
+                static_cast<IdentifierExprNode*>(node)->name);
+            return (it != variable_types_.end()) ? it->second : "int";
+        }
+        case NodeType::BINARY_EXPR: {
+            auto* b = static_cast<BinaryExprNode*>(node);
+            std::string lt = infer_expr_type(b->left.get());
+            std::string rt = infer_expr_type(b->right.get());
+            if (is_double_type(lt) || is_double_type(rt)) return "double";
+            if (is_float_type(lt)  || is_float_type(rt))  return "float";
+            return lt.empty() ? "int" : lt;
+        }
+        // ... UNARY_EXPR (deref, &), CAST_EXPR, CALL_EXPR, etc.
+    }
+}
+```
+
+## Recent Work
+
+The two most recent additions to the compiler:
+
+- **`0043-float-double-sse`** — Real SSE for `float`/`double`. Arithmetic uses `addss`/`addsd`/`mulss`/`mulsd`/etc.; comparisons use `ucomiss`/`ucomisd`; integer ↔ float conversions use `cvtsi2ss`/`cvttss2si`/etc. The System V ABI is followed: float/double args in `%xmm0`–`%xmm7`, returns in `%xmm0`. The earlier `0043-float-double-bit-pattern` lesson is kept for reference (it just stored IEEE-754 bits in `%rax` and never computed anything). See `src/codegen.cpp:1625-1747` for the operator dispatcher.
+- **`0086-nested-functions`** — Real test coverage for the nested-function context-pointer ABI. The `test_nested` ctest suite (`0086-nested-functions/tests/test_nested.cpp`) compiles and runs a battery of nested-function programs and verifies the expected exit codes.
+
+Both are part of the `710f564 Add real SSE float/double (0043-sse) and nested function tests (0086)` commit.
+
 ## Supported C Subset
 
 ### Literals
@@ -182,7 +334,7 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | Parameters (6 reg ABI) | ✅ | ✅ | ✅ | 0001 |
 | Recursive calls | ✅ | ✅ | ✅ | 0001 |
 | Variadic (`...`) | ✅ | ✅ | ⚠️ Parsed, no `va_arg` support | 0046 |
-| Nested functions (GCC) | ❌ | — | — | — |
+| Nested functions (GCC) | ✅ | ✅ | ⚠️ Context-pointer ABI, no trampolines | 0086 |
 
 ### Declarations & Initializers
 
@@ -201,7 +353,7 @@ This project builds a compiler for a substantial subset of C, progressing from b
 
 | Feature | Status | Lesson |
 |---------|--------|--------|
-| `#include` | ✅ Implemented (`"file.h"` only; `<*.h>` not bundled) | 0035 |
+| `#include` | ✅ Implemented (quote and angle-bracket, with bundled `lib/*.h` headers) | 0035 |
 | `#define` (object-like) | ✅ Implemented | 0033 |
 | `#define` (function-like) | ✅ Implemented | 0033 |
 | `#ifdef` / `#ifndef` | ✅ Implemented | 0034 |
@@ -239,7 +391,7 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | `__builtin_expect` | ✅ | ✅ | ✅ Returns first arg | 0085 |
 | `__builtin_offsetof` | ✅ | ✅ | ✅ Computes struct offset | 0085 |
 | `__builtin_popcount` | ✅ | ✅ | ⚠️ Emitted as external call | 0085 |
-| Nested functions | ✅ | ✅ | ❌ Trampoline not supported | 0086 |
+| Nested functions | ✅ | ✅ | ⚠️ Context-pointer ABI, no trampolines | 0086 |
 | Binary literals `0b1010` | ✅ | ✅ | ✅ | 0001, 3005 |
 | Variadic macros (`__VA_ARGS__`) | ✅ | ✅ | ✅ | 0078 |
 | Token pasting (`##`) | ✅ | ✅ | ✅ | 0079 |
@@ -251,7 +403,7 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | Feature | Status | Lesson |
 |---------|--------|--------|
 | `_Static_assert` | ✅ Parsed (skipped) | 1000 |
-| `static_assert` (alias) | ⚠️ Needs `<assert.h>` | 1012 |
+| `static_assert` (alias) | ✅ Bundled `<assert.h>` | 1012 |
 | `_Generic` | ✅ Parsed (simplified) | 1001 |
 | `_Alignas` / `_Alignof` | ✅ Parsed | 1014 |
 | `_Atomic` | ✅ Parsed (type qualifier) | 1005 |
@@ -270,10 +422,10 @@ This project builds a compiler for a substantial subset of C, progressing from b
 
 | Feature | Status | Lesson |
 |---------|--------|--------|
-| `<stdbool.h>` (bool/true/false) | ⚠️ Needs `<stdbool.h>` (not bundled) | 2000 |
-| `<stdalign.h>` (alignas/alignof) | ⚠️ Needs `<stdalign.h>` (not bundled) | 2001 |
+| `<stdbool.h>` (bool/true/false) | ✅ Bundled | 2000 |
+| `<stdalign.h>` (alignas/alignof) | ✅ Bundled | 2001 |
 | `<stdnoreturn.h>` (noreturn) | ✅ Parsed | 2002 |
-| `<stdint.h>` (int32_t/uint64_t) | ⚠️ Declared (extern) | 2003 |
+| `<stdint.h>` (int32_t/uint64_t) | ✅ Bundled | 2003 |
 | `typeof` | ✅ Mapped to sizeof | 2004 |
 | `__STDC_VERSION__` | ✅ Defined (202311L) | 2005 |
 
@@ -320,7 +472,7 @@ This compiler is a substantial subset of C but not a complete C23 implementation
 - **Macro recursion is not detected** — recursive macros can hang the compiler.
 
 ### Standard Library
-- **`lib/` directory provides basic stubs** for `<stdio.h>`, `<stdlib.h>`, `<string.h>`, `<math.h>`, `<ctype.h>`, `<stdint.h>`, `<stdbool.h>`, `<assert.h>`, `<errno.h>`, `<stddef.h>`. These declare common functions/types but don't provide implementations.
+- **`lib/` directory provides basic stubs** for `<stdio.h>`, `<stdlib.h>`, `<string.h>`, `<math.h>`, `<ctype.h>`, `<stdint.h>`, `<stdbool.h>`, `<stdalign.h>`, `<assert.h>`, `<errno.h>`, `<stddef.h>`. These declare common functions/types but don't provide implementations.
 - Standard library functions are linked via system `gcc`/`ld` from libc/libm.
 
 ### Inline Assembly
@@ -447,11 +599,11 @@ int main() {
 
 ## Lesson Progress
 
-**Lesson status:** 120 lessons ✅ Complete, 1 lesson ⚠️ Legacy (bit-pattern float storage, superseded by the SSE lesson). See each lesson's README for details of what is and is not implemented.
+**Lesson count:** 131 lesson directories (`0001`-`0093`, `1000`-`1015`, `2000`-`2005`, `3000`-`3014`). 113 of them are marked ✅ in the table below, 18 are ⚠️ (partial implementation), and 1 of the ✅ is the legacy `0043-float-double-bit-pattern` lesson that is kept for reference. See each lesson's README for details of what is and is not implemented.
 
-**Compilation status:** 127/127 lessons with example programs compile and run correctly.
+**Compilation status:** 127/127 lessons with `src/example.c` compile and run correctly (the 4 lessons without `example.c` are the infrastructure lessons 0001-0005 — tokenizer, AST, parser, codegen — which are covered by the unit-test suite).
 
-**Test status:** 9/9 test suites pass (tokenizer, AST, parser, codegen, integration, lessons 0076-1014, nested functions, float/double, float/double SSE).
+**Test status:** 9/9 ctest test suites pass — `tokenizer_tests`, `ast_tests`, `parser_tests`, `codegen_tests`, `integration_tests`, `test_lessons_0076_1014`, `test_nested`, `test_float_double`, `test_sse`.
 
 ### Core Lessons (0001-0005) — ✅ Complete
 
@@ -544,6 +696,17 @@ int main() {
 | Lesson | Topic | Compile |
 |--------|-------|---------|
 | 0087 | N-Dim Arrays | ✅ |
+
+### Late Additions (0088-0093)
+
+| Lesson | Topic | Compile |
+|--------|-------|---------|
+| 0088 | String Concatenation | ✅ |
+| 0089 | For-Loop Comma | ✅ |
+| 0090 | Anonymous Enum | ⚠️ Partial |
+| 0091 | Typedef Func Ptr | ⚠️ Partial |
+| 0092 | Nested Struct Init | ⚠️ Partial |
+| 0093 | ND Array Init | ⚠️ Partial |
 
 ### System & Functions (0046-0065)
 
@@ -656,12 +819,16 @@ int main() {
 ## Test Results
 
 ```
-1/6 Test #1: tokenizer_tests ..................   Passed
-2/6 Test #2: ast_tests ........................   Passed
-3/6 Test #3: parser_tests .....................   Passed
-4/6 Test #4: codegen_tests ....................   Passed
-5/6 Test #5: integration_tests ................   Passed
-6/6 Test #6: test_lessons_0076_1014 ...........   Passed
+1/9 Test #1: tokenizer_tests ..................   Passed
+2/9 Test #2: ast_tests ........................   Passed
+3/9 Test #3: parser_tests .....................   Passed
+4/9 Test #4: codegen_tests ....................   Passed
+5/9 Test #5: integration_tests ................   Passed
+6/9 Test #6: test_lessons_0076_1014 ...........   Passed
+7/9 Test #7: test_nested ......................   Passed
+8/9 Test #8: test_float_double ................   Passed
+9/9 Test #9: test_sse .........................   Passed
+
 100% tests passed, 0 tests failed out of 9
 ```
 
@@ -671,14 +838,3 @@ int main() {
 - [chibicc - Small C Compiler](https://github.com/rui314/chibicc)
 - [Writing a C Compiler](https://norasandler.com/2017/11/29/Write-a-Compiler.html)
 - [x86-64 SysV ABI](https://refspecs.linuxbase.org/elf/x86_64-abi-0.99.pdf)
-
-### Additional Lessons (0088-0093)
-
-| Lesson | Topic | Status |
-|--------|-------|--------|
-| 0088 | String Concatenation | ✅ |
-| 0089 | For-Loop Comma | ✅ |
-| 0090 | Anonymous Enum | ⚠️ Partial |
-| 0091 | Typedef Func Ptr | ⚠️ Partial |
-| 0092 | Nested Struct Init | ⚠️ Partial |
-| 0093 | ND Array Init | ⚠️ Partial |

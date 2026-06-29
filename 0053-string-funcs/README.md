@@ -1,77 +1,83 @@
 # Lesson 0053: String Functions
 
-## Status: ✅ Complete | Phase: Stdlib Tier A | Effort: Easy (4-6h)
+## Status: ✅ Complete | Phase: Stdlib Tier A | Effort: Easy
 
 ## Objective
 
-Implement basic string manipulation functions.
+Enable programs to call the standard C string and memory functions
+(`strlen`, `strcmp`, `strcpy`, `strcat`, `memcpy`, `memset`, `memmove`,
+`strchr`, `strstr`, etc.) by declaring them as `extern` and letting the
+linker resolve the calls against the system C library.
 
-## String Functions Overview
+## Implementation
 
-```mermaid
-flowchart TD
-    A[String Functions] --> B[strlen]
-    A --> C[strcmp]
-    A --> D[strcpy]
-    A --> E[	strcat]
-    A --> F[memcpy]
-    A --> G[memset]
-    A --> H[memmove]
+`simplecc` ships a minimal bundled header in `lib/string.h` that
+declares the common string functions:
 
-    B -->|"strlen(s)"| I[Count bytes until \0]
-    C -->|"strcmp(a,b)"| J[Byte-by-byte comparison]
-    D -->|"strcpy(dst,src)"| K[Copy bytes until \0]
-    E -->|"strcat(dst,src)"| L[Append src to dst]
-    F -->|"memcpy(dst,src,n)"| M[Copy n bytes]
-    G -->|"memset(dst,c,n)"| N[Fill n bytes with c]
-    H -->|"memmove(dst,src,n)"| O[Copy n bytes, handles overlap]
+```c
+// lib/string.h
+#pragma once
+
+int   strlen(const char *s);
+char *strcpy(char *dest, const char *src);
+char *strncpy(char *dest, const char *src, int n);
+int   strcmp(const char *s1, const char *s2);
+int   strncmp(const char *s1, const char *s2, int n);
+char *strcat(char *dest, const char *src);
+char *strncat(char *dest, const char *src, int n);
+
+void *memcpy(void *dest, const void *src, int n);
+void *memmove(void *dest, const void *src, int n);
+void *memset(void *s, int c, int n);
+int   memcmp(const void *s1, const void *s2, int n);
+
+char *strstr(const char *haystack, const char *needle);
+char *strchr(const char *s, int c);
+char *strrchr(const char *s, int c);
 ```
 
-## String Memory Layout
+When a user writes `#include <string.h>` the preprocessor reads
+`lib/string.h` and substitutes the declarations directly
+(`src/preprocessor.cpp:95-130`).
 
-```mermaid
-flowchart LR
-    A["char *s = \"hello\""] --> B[.rodata section]
-    B --> C["h\0 | e\0 | l\0 | l\0 | o\0"]
-    D["char buf[6]"] --> E[Stack allocation]
-    E --> F["h | e | l | l | o | \0"]
+## What Works
 
-    G[Pointer s] --> C
-    H[Array buf] --> E
+- Declaring any of the standard string functions as `extern` and calling
+  them.
+- Passing `char *` and `void *` arguments — the compiler treats pointer
+  types uniformly and emits `lea <label>(%rip), %rax` for string
+  literals and `mov <offset>(%rbp), %rax` for local arrays.
+- `const`-qualified pointer parameters (ignored at the codegen level —
+  pointers are passed the same way regardless of `const`).
+- String-literal codegen: string literals are placed in `.rodata`
+  (`src/codegen.cpp:78-85`) and loaded with `lea .Lstr_N(%rip), %rax`
+  (`src/codegen.cpp:1534-1541`).
+
+## What Does Not Work
+
+- The compiler does not implement any of the string functions in
+  user-space. There is no built-in `strlen` and no built-in `memcpy`.
+  All such functions must be linked in from the system C library at
+  link time.
+- Wide-char functions (`wcs*`) are not declared in `lib/string.h`.
+
+## Example
+
+```c
+int strlen(char *s) { int i = 0; while (s[i]) i++; return i; }
+int main() { return strlen("hello"); }   // returns 5
 ```
 
-## Functions
+The example in `src/example.c` ships a tiny hand-rolled `strlen` so
+that the test is self-contained, but a real program would use
+`#include <string.h>` and rely on the system `strlen`.
 
-| Function | Complexity |
-|----------|------------|
-| `strlen(s)` | Easy |
-| `strcmp(a,b)` | Easy |
-| `strcpy(dst,src)` | Easy |
-| `strcat(dst,src)` | Easy |
-| `memcpy(dst,src,n)` | Easy |
-| `memset(dst,c,n)` | Easy |
-| `memmove(dst,src,n)` | Medium |
+## Source Code References
 
-## Implementation Checklist
-
-- [ ] Implement strlen: count until \0
-- [ ] Implement strcmp: byte comparison
-- [ ] Implement strcpy: copy bytes
-- [ ] Implement memcpy: copy n bytes
-- [ ] Implement memset: fill n bytes
-- [ ] Test: `strlen("hello")` → 5
-- [ ] Test: `strcmp("abc", "abd")` → negative
-
-## Implementation Details
-
-String functions are declared as `extern` and linked to the C library at link time. The compiler handles string literal codegen by emitting `.asciz` directives in the `.rodata` section and generates `call` instructions for string function invocations.
-
-| Component | File | Line | Description |
-|-----------|------|------|-------------|
-| Extern parse | `src/parser.cpp` | 218-248 | Parses `extern` function declarations |
-| String literal | `src/codegen.cpp` | 929-936 | Emits string to `.rodata` with `lea` for address |
-| `.rodata` emit | `src/codegen.cpp` | 46-53 | Collects and emits string literals section |
-| `.asciz` output | `src/codegen.cpp` | 51 | Outputs `.asciz` for null-terminated strings |
-| Func call | `src/codegen.cpp` | 838-854 | Generates `call` for strlen, strcmp, etc. |
-| Index access | `src/codegen.cpp` | 856-897 | Array/string indexing with element size scaling |
-| Test coverage | `tests/test_string_funcs.cpp` | 1-99 | Tests strlen call, string literal assignment |
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| Bundled header | `lib/string.h:1-18` | Declarations of the common string/memory functions |
+| `#include` resolution | `src/preprocessor.cpp:95-130` | Reads `lib/<name>.h` and inlines it |
+| String literal codegen | `src/codegen.cpp:1534-1541` | `lea .Lstr_N(%rip), %rax` for string addresses |
+| `.rodata` section | `src/codegen.cpp:78-85` | Emits `.asciz` for each string literal |
+| Function call codegen | `src/codegen.cpp:1288-1364` | System V ABI register assignment |

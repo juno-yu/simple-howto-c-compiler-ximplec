@@ -1,10 +1,42 @@
 # Lesson 3000: bool, true, false (C23)
 
-## Status: ✅ Complete | Standard: C23 | Effort: Easy
+## Status: ✅ Complete (with caveat) | Standard: C23 | Effort: Easy
 
 ## Objective
 
-Native `bool`, `true`, `false` keywords.
+Native `bool`, `true`, `false` keywords (C23).
+
+## How It Works
+
+`bool` is a real keyword:
+
+```cpp
+// src/lexer.cpp:114
+{"bool", TokenType::KW_BOOL},
+```
+
+`true` and `false`, however, are **preprocessor macros** (not keywords):
+
+```cpp
+// src/preprocessor.cpp:30-31
+macros_["true"]  = Macro("true",  "1");
+macros_["false"] = Macro("false", "0");
+```
+
+So at the token level only `bool` is a keyword; `true`/`false` arrive in the token stream as the integer literal `1` / `0` after preprocessing. This is enough for the C23 use case but means `true` is not a `BoolLiteralNode` in the AST.
+
+The codegen does treat `bool` as a 1-byte type:
+
+```cpp
+// src/codegen.cpp:1127-1128
+} else if (node.type_name == "bool") {
+    emit("mov $1, %rax");
+```
+
+```cpp
+// src/codegen.cpp:2069
+if (type == "bool" || type == "const bool") return 1;
+```
 
 ## Changes from C11
 
@@ -12,32 +44,25 @@ Native `bool`, `true`, `false` keywords.
 // C11: requires <stdbool.h>
 #include <stdbool.h>
 
-// C23: native keywords
+// C23: native keyword
 bool flag = true;
 ```
 
-## Implementation Checklist
+## Example
 
-- [ ] Add `bool`, `true`, `false` as keywords
-- [ ] `_Bool` still available for compatibility
-- [ ] Test: `bool x = true; return x;` → 1
-
-## Flow Diagram
-
-```mermaid
-flowchart TD
-    A[Source: true/false/nullptr] --> B[Lexer]
-    B --> C{Token Type?}
-    C -->|true| D[Token::TRUE]
-    C -->|false| E[Token::FALSE]
-    C -->|nullptr| F[Token::NULLPTR]
-    D --> G[Parser]
-    E --> G
-    F --> G
-    G --> H[AST: BoolLiteral / NullptrLiteral]
-    H --> I[Codegen]
-    I --> J{x86-64 Assembly}
-    D --> K["mov $1, %rax"]
-    E --> L["mov $0, %rax"]
-    F --> M["mov $0, %rax"]
+```c
+int main() {
+    bool t = true;     // preprocessor rewrites to: bool t = 1;
+    bool f = false;    // preprocessor rewrites to: bool f = 0;
+    return t ? 1 : 0;  // returns 1
+}
 ```
+
+## Source Code References
+
+| Component | File:Line | Description |
+|-----------|-----------|---|
+| `bool` keyword | `src/lexer.cpp:114` | `bool` → `KW_BOOL` |
+| `true`/`false` macros | `src/preprocessor.cpp:30-31` | Defined at startup |
+| `bool` size | `src/codegen.cpp:2069` | 1 byte |
+| Sizeof of `bool` | `src/codegen.cpp:1127-1128` | Emits `mov $1, %rax` |

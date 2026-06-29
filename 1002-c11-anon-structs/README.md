@@ -21,48 +21,66 @@ struct Outer o;
 o.x = 10;  // access directly, not o.inner.x
 ```
 
-## C11 Spec
+## How It Works
 
-- Anonymous struct members are "inherited" by containing struct
-- Same rules as named members (no name conflicts)
-- Can be at any nesting level
+The parser treats the inner `struct { ... }` as a normal struct decl with a synthetic name. The struct codegen then lays out the fields at successive offsets inside the outer struct, so the inner members are accessible directly via the outer struct's offset table.
 
-## Implementation Checklist
+```cpp
+// src/parser.cpp:179-189 — anonymous struct in parse_type_specifier
+} else if (match(TokenType::KW_STRUCT)) {
+    if (check(TokenType::IDENTIFIER)) {
+        result += "struct " + peek().value;
+        advance();
+    } else if (check(TokenType::LBRACE)) {
+        // Anonymous struct — generate a synthetic name
+        result += "struct _anon_" + std::to_string(pos_);
+    } else {
+        error("Expected struct name");
+        return result;
+    }
+}
+```
 
-- [ ] Parse unnamed struct/union members
-- [ ] Flatten anonymous members into parent struct
-- [ ] Calculate offsets correctly
-- [ ] Handle name conflicts (error)
-- [ ] Support nested anonymous structs
-- [ ] Test: `struct { struct { int x; }; int y; } s; s.x = 1;`
+```cpp
+// src/codegen.cpp:600-616 — visit(StructDeclNode)
+void CodeGenerator::visit(StructDeclNode& node) {
+    std::vector<FieldInfo> fields;
+    int offset = 0;
+    for (auto& field_ast : node.fields) {
+        auto* field = static_cast<StructFieldNode*>(field_ast.get());
+        int field_size = get_type_size(field->type_name);
+        FieldInfo fi;
+        fi.name = field->name;
+        fi.type = field->type_name;
+        fi.offset = offset;
+        fi.size = field_size;
+        fields.push_back(fi);
+        offset += field_size;
+    }
+    struct_layouts_[node.name] = fields;
+}
+```
 
-## Comparison with Named Structs
+The outer struct then gets a flat layout where the anonymous struct's members sit at known offsets and are reachable via `MemberExprNode`.
+
+## Example
 
 ```c
-// Named
-struct Point { int x; int y; };
-struct Line { struct Point start; struct Point end; };
-l.start.x = 1;
-
-// Anonymous
-struct Line2 { struct { int x; int y; } start; struct { int x; int y; } end; };
-l2.start.x = 1;
-
-// Anonymous (flattened)
-struct Line3 { struct { int x; int y; }; struct { int x; int y; } end; };
-l3.x = 1;  // ambiguous! error
+struct Rect {
+    struct { int left; int top; };
+    struct { int right; int bottom; };
+};
+int main() {
+    struct Rect r;
+    r.left = 0; r.right = 100;
+    return r.right;  // returns 100
+}
 ```
 
-## Processing Flow
+## Source Code References
 
-```mermaid
-flowchart TD
-    A["struct { struct { int x; }; int y; }"] --> B[Parse member declarations]
-    B --> C{Anonymous struct member?}
-    C -->|Yes| D[Flatten members into parent]
-    C -->|No| E[Add as named member]
-    D --> F[Calculate offsets for all members]
-    E --> F
-    F --> G[Generate layout with padding]
-    G --> H[Allow direct access: s.x, s.y]
-```
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| Anonymous struct token | `src/parser.cpp:179-189` | Synthetic `_anon_<pos>` name |
+| Struct layout | `src/codegen.cpp:600-616` | Sequential offset assignment |
+| Field lookup | `src/codegen.cpp:2101-2107` | `get_field_offset` walks the flat table |

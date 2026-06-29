@@ -4,52 +4,55 @@
 
 ## Objective
 
-Allow single quotes in numeric literals for readability.
+Allow `'` between digits in numeric literals.
+
+## How It Works
+
+The lexer unconditionally drops `'` while scanning a number — for hex, binary, octal, decimal, and float forms. There is no validation that the quote is between two digits.
+
+```cpp
+// src/lexer.cpp:251-253 — hex literal
+while (!is_at_end() && (std::isxdigit(peek()) || peek() == '\'')) {
+    if (peek() != '\'') num += advance(); else advance();
+}
+```
+
+```cpp
+// src/lexer.cpp:284-286 — binary literal (0b prefix)
+while (!is_at_end() && (peek() == '0' || peek() == '1' || peek() == '\'')) {
+    if (peek() != '\'') num += advance(); else advance(); // skip separators
+}
+```
+
+```cpp
+// src/lexer.cpp:300-302 — decimal literal
+while (!is_at_end() && (std::isdigit(peek()) || peek() == '\'')) {
+    if (peek() != '\'') num += advance(); else advance();
+}
+```
+
+The accumulated `num` string is later fed to `std::stoll` with the appropriate base (`src/parser.cpp:1946-1950`).
 
 ## Syntax
 
 ```c
 int million = 1'000'000;
-long long large = 123'456'789'ABC;
-float pi = 3.141'592'653;
 unsigned hex = 0xFF'FF'FF'FF;
 unsigned bin = 0b1010'0101;
+float pi = 3.141'592'653;
 ```
 
-## Rules
+## Limitations
 
-- Single quote can appear between digits
-- Cannot start or end with quote
-- Cannot have two consecutive quotes
-- Works in all numeric literals (decimal, hex, binary, float)
+- Trailing/leading/consecutive quotes are accepted silently — no diagnostic for `1'`, `'1`, or `1''2`.
+- The bundled example in `3004-c23-digit-separators/src/example.c` does not actually use digit separators; it returns `1000000 / 1000 = 1000` from a plain literal.
 
-## Implementation Checklist
+## Source Code References
 
-- [ ] Lexer: skip `'` in numeric literals
-- [ ] Strip quotes before converting to value
-- [ ] Support in integer literals (decimal, hex, binary)
-- [ ] Support in float literals
-- [ ] Test: `int x = 1'000;` → 1000
-- [ ] Test: `int h = 0xFF'FF;` → 65535
-- [ ] Test: error on `1'` (trailing quote)
-
-## Flow Diagram
-
-```mermaid
-flowchart TD
-    A[Source: 1'000'000] --> B[Lexer]
-    B --> C{Numeric Literal?}
-    C -->|Yes| D[Read Characters]
-    D --> E{Is Quote?}
-    E -->|Yes| F[Skip Quote]
-    E -->|No| G[Accumulate Digit]
-    F --> D
-    G --> D
-    D --> H[End of Literal]
-    H --> I[Convert to Value]
-    I --> J[Token::INT_LITERAL]
-    J --> K[Parser]
-    K --> L[AST: IntLiteral]
-    L --> M[Codegen]
-    M --> N[x86-64: mov $value, %rax]
-```
+| Component | File:Line | Description |
+|-----------|-----------|---|
+| Hex scan | `src/lexer.cpp:251-253` | Skips `'` |
+| Binary scan | `src/lexer.cpp:284-286` | Skips `'` |
+| Decimal scan | `src/lexer.cpp:300-302` | Skips `'` |
+| Float scan | `src/lexer.cpp:307-309` | Skips `'` |
+| Numeric conversion | `src/parser.cpp:1946-1950` | `std::stoll` per base |

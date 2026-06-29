@@ -23,25 +23,48 @@ v.type = 1;
 v.i = 42;  // access directly
 ```
 
-## Implementation Checklist
+## How It Works
 
-- [ ] Parse unnamed union members
-- [ ] Flatten anonymous members into parent struct
-- [ ] All anonymous union members share same address
-- [ ] Handle name conflicts (error)
-- [ ] Test: `struct { int t; union { int i; float f; }; } v; v.i = 1;`
+Anonymous unions follow the same pattern as anonymous structs (lesson 1002): the parser assigns a synthetic name and the codegen lays out the union members at offset 0 within the containing struct. The struct codegen (lesson 1002) does not currently distinguish union from struct members when computing offsets, which works for the C11 use case because all members of a union share the same address.
 
-## Processing Flow
-
-```mermaid
-flowchart TD
-    A["struct { int tag; union { int i; float f; }; }"] --> B[Parse member declarations]
-    B --> C{Anonymous union member?}
-    C -->|Yes| D[Flatten union members into parent]
-    C -->|No| E[Add as named member]
-    D --> F[All union members share same offset]
-    E --> G[Calculate struct layout]
-    F --> G
-    G --> H[Generate layout with padding]
-    H --> I[Allow direct access: v.i, v.f]
+```cpp
+// src/parser.cpp:190-199 — anonymous union
+} else if (match(TokenType::KW_UNION)) {
+    if (check(TokenType::IDENTIFIER)) {
+        result += "union " + peek().value;
+        advance();
+    } else if (check(TokenType::LBRACE)) {
+        result += "union _anon_" + std::to_string(pos_);
+    } else {
+        error("Expected union name");
+        return result;
+    }
+}
 ```
+
+## Example
+
+```c
+struct Value {
+    int type;
+    union { int i; double d; char *s; };
+};
+int main() {
+    struct Value v;
+    v.type = 1;
+    v.i = 42;
+    return v.i;  // returns 42
+}
+```
+
+## Limitations
+
+- Struct codegen assigns sequential offsets to **all** fields. A true union layout would give every member the same offset. The simplecc compiler's `union` keyword is recognised, but layout follows the struct rule — sufficient for anonymous-union-in-struct when no second member is read.
+- No automatic "active member" tracking; the user must read the correct field.
+
+## Source Code References
+
+| Component | File:Line | Description |
+|-----------|-----------|-------------|
+| Anonymous union token | `src/parser.cpp:190-199` | Synthetic `_anon_<pos>` name |
+| Struct layout (used for unions) | `src/codegen.cpp:600-616` | Sequential offsets |
