@@ -92,6 +92,10 @@ private:
 
     // Multi-dim array dimension tracking (full vector for any depth)
     std::map<std::string, std::vector<int>> multidim_dims_;
+
+    // Function nesting stack: tracks which function bodies we are currently
+    // inside, so that nested function definitions can be marked is_nested.
+    std::vector<std::string> function_stack_;
 };
 
 } // namespace simplecc

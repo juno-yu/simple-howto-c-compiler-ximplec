@@ -15,8 +15,10 @@ std::string CodeGenerator::generate(ProgramNode& program) {
     output_.clear();
     string_literals_.clear();
     global_variables_.clear();
-    
-    // First pass: collect global variables only
+    function_return_type_.clear();
+    function_param_types_.clear();
+
+    // First pass: collect global variables and function signatures (for ABI)
     for (auto& decl : program.declarations) {
         if (decl->type == NodeType::VAR_DECL) {
             auto* var = static_cast<VarDeclNode*>(decl.get());
@@ -29,6 +31,16 @@ std::string CodeGenerator::generate(ProgramNode& program) {
                 gvar.init_value = std::to_string(static_cast<IntegerLiteralNode*>(var->initializer.get())->value);
             }
             global_variables_.push_back(gvar);
+        } else if (decl->type == NodeType::FUNCTION_DECL) {
+            auto* fn = static_cast<FunctionDeclNode*>(decl.get());
+            function_return_type_[fn->name] = fn->return_type;
+            std::vector<std::string> param_types;
+            for (auto& p : fn->params) {
+                if (auto* pn = dynamic_cast<ParamNode*>(p.get())) {
+                    param_types.push_back(pn->type_name);
+                }
+            }
+            function_param_types_[fn->name] = std::move(param_types);
         }
     }
     
@@ -258,7 +270,7 @@ void CodeGenerator::dispatch(ASTNode* node) {
 // Visitor implementations
 
 void CodeGenerator::visit(ProgramNode& node) {
-    // First pass: collect global variables
+    // First pass: collect global variables and function signatures (for ABI)
     for (auto& decl : node.declarations) {
         if (decl->type == NodeType::VAR_DECL) {
             auto* var = static_cast<VarDeclNode*>(decl.get());
@@ -271,9 +283,19 @@ void CodeGenerator::visit(ProgramNode& node) {
                 gvar.init_value = std::to_string(static_cast<IntegerLiteralNode*>(var->initializer.get())->value);
             }
             global_variables_.push_back(gvar);
+        } else if (decl->type == NodeType::FUNCTION_DECL) {
+            auto* fn = static_cast<FunctionDeclNode*>(decl.get());
+            function_return_type_[fn->name] = fn->return_type;
+            std::vector<std::string> param_types;
+            for (auto& p : fn->params) {
+                if (auto* pn = dynamic_cast<ParamNode*>(p.get())) {
+                    param_types.push_back(pn->type_name);
+                }
+            }
+            function_param_types_[fn->name] = std::move(param_types);
         }
     }
-    
+
     // Second pass: generate code
     for (auto& decl : node.declarations) {
         dispatch(decl.get());
@@ -285,15 +307,86 @@ void CodeGenerator::visit(FunctionDeclNode& node) {
     if (!node.body) {
         return;
     }
-    
+
+    if (node.is_nested) {
+        // Nested function (GCC extension).  We use a hidden context pointer
+        // ABI: the first argument (in %rdi) is a pointer to a struct
+        // containing the values of the enclosing function's local variables
+        // that are captured by this nested function.
+        //
+        // The function body cannot be emitted inline in the enclosing
+        // function's code stream, because that would cause the enclosing
+        // function to execute the nested function as part of its own body
+        // (and also corrupt the stack frame).  Instead, we record the
+        // nested function for emission after the enclosing top-level
+        // function finishes its own body and epilogue.  The `call`
+        // instruction uses a PC-relative offset, so the forward reference
+        // is resolved by the assembler.
+
+        // Snapshot the enclosing function's state.  The enclosing
+        // function's local_variables_ is the candidate set for capture.
+        auto saved_locals = local_variables_;
+        auto saved_types = variable_types_;
+        auto saved_arrays = array_info_;
+        auto saved_captures = current_captures_;
+        int saved_ctx_stack_offset = current_ctx_stack_offset_;
+
+        // Compute the capture set: every local variable of the enclosing
+        // function that exists at this point.
+        std::vector<FunctionDeclNode::CapturedVar> captures;
+        int ctx_off = 0;
+        for (const auto& kv : saved_locals) {
+            FunctionDeclNode::CapturedVar c;
+            c.name = kv.first;
+            c.parent_offset = kv.second;
+            auto tit = saved_types.find(kv.first);
+            c.type = (tit != saved_types.end()) ? tit->second : "int";
+            c.size = get_type_size(c.type);
+            c.ctx_offset = ctx_off;
+            captures.push_back(c);
+            ctx_off += 8;  // 8 bytes per slot
+        }
+        node.captured_vars = captures;
+
+        int ctx_size = captures.size() * 8;
+        if (ctx_size < 16) ctx_size = 16;
+        ctx_size = ((ctx_size + 15) / 16) * 16;
+
+        NestedFuncInfo info;
+        info.captures = captures;
+        info.ctx_size = ctx_size;
+        nested_func_info_[node.name] = info;
+
+        // Defer the body emission.
+        PendingNestedFunc pnf;
+        pnf.node = &node;
+        pnf.captures = captures;
+        pnf.ctx_size = ctx_size;
+        pending_nested_functions_.push_back(pnf);
+
+        // Restore enclosing function's state (no codegen output here)
+        local_variables_ = saved_locals;
+        variable_types_ = saved_types;
+        array_info_ = saved_arrays;
+        current_captures_ = saved_captures;
+        current_ctx_stack_offset_ = saved_ctx_stack_offset;
+        return;
+    }
+
+    // Top-level (non-nested) function: original logic.
     returned_ = false;
     current_function_ = node.name;
+    current_function_return_type_ = node.return_type;
+    current_captures_.clear();
+    current_ctx_stack_offset_ = 0;
     emit_function_prologue(node.name);
-    
-    // Map parameters to stack slots (System V ABI: rdi, rsi, rdx, rcx, r8, r9)
+
+    // Map parameters to stack slots.  System V x86-64 ABI: integer/pointer
+    // args go in %rdi..%r9 (in order); float/double args go in %xmm0..%xmm7
+    // (in order).  Mixing is allowed.
     static const char* param_regs[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
-    int num_params = std::min((int)node.params.size(), 6);
-    
+    int num_params = (int)node.params.size();
+
     // Count local variables to pre-allocate stack space
     int local_count = 0;
     if (node.body) {
@@ -309,21 +402,57 @@ void CodeGenerator::visit(FunctionDeclNode& node) {
         int space = total_slots * 8;
         emit("sub $" + std::to_string(space) + ", %rsp");
     }
-    
+
+    int int_idx = 0;
+    int xmm_idx = 0;
     for (int i = 0; i < num_params; i++) {
-        stack_offset_ += 8;
+        auto* pn = static_cast<ParamNode*>(node.params[i].get());
+        std::string ptype = pn->type_name;
+        bool is_fp = is_float_type(ptype);
+        bool is_dbl = is_double_type(ptype);
+        int psize = get_type_size(ptype);
+        stack_offset_ += psize > 4 ? 8 : 8;  // always 8 bytes for the slot
         int offset = -stack_offset_;
-        local_variables_[static_cast<ParamNode*>(node.params[i].get())->name] = offset;
-        emit("mov " + std::string(param_regs[i]) + ", " + std::to_string(offset) + "(%rbp)");
+        local_variables_[pn->name] = offset;
+        variable_types_[pn->name] = ptype;
+        if (is_fp) {
+            std::string xreg = "%xmm" + std::to_string(xmm_idx++);
+            std::string mop = is_dbl ? "movsd" : "movss";
+            emit(mop + " " + xreg + ", " + std::to_string(offset) + "(%rbp)");
+        } else {
+            if (int_idx < 6) {
+                emit("mov " + std::string(param_regs[int_idx++]) + ", " + std::to_string(offset) + "(%rbp)");
+            } else {
+                int_idx++;
+            }
+        }
     }
-    
+
     if (node.body) {
         dispatch(node.body.get());
     }
-    
+
     if (!returned_) {
-        emit("mov $0, %rax");
+        if (is_float_type(current_function_return_type_)) {
+            if (is_double_type(current_function_return_type_)) {
+                emit("xorpd %xmm0, %xmm0");
+            } else {
+                emit("xorps %xmm0, %xmm0");
+            }
+        } else {
+            emit("mov $0, %rax");
+        }
         emit_function_epilogue();
+    }
+
+    // Emit any nested functions that were defined inside this function's
+    // body.  We do this after the enclosing function's epilogue so that
+    // the nested function's code is not executed inline as part of the
+    // enclosing function's instruction stream.
+    auto saved_pending = pending_nested_functions_;
+    pending_nested_functions_.clear();
+    for (auto& pnf : saved_pending) {
+        emit_pending_nested_function(pnf);
     }
 }
 
@@ -369,7 +498,7 @@ void CodeGenerator::visit(VarDeclNode& node) {
                 }
             };
             collect(*init_list);
-            
+
             // Emit each flat element to its slot
             int elem_index = 0;
             for (ASTNode* elem : flat_elements) {
@@ -399,14 +528,25 @@ void CodeGenerator::visit(VarDeclNode& node) {
             }
         } else {
             // Simple expression initializer
+            std::string init_type = infer_expr_type(node.initializer.get());
+            bool init_is_float = is_float_type(init_type);
             dispatch(node.initializer.get());
-            if (elem_size == 1) {
+            if (init_is_float) {
+                // Float/double initializer: result in %xmm0
+                if (is_double_type(node.type_name)) {
+                    emit("movsd %xmm0, " + std::to_string(base_offset) + "(%rbp)");
+                } else {
+                    emit("movss %xmm0, " + std::to_string(base_offset) + "(%rbp)");
+                }
+                if (!expr_type_stack_.empty()) expr_type_stack_.pop_back();
+            } else if (elem_size == 1) {
                 emit("mov %al, " + std::to_string(base_offset) + "(%rbp)");
             } else if (elem_size == 4) {
                 emit("movl %eax, " + std::to_string(base_offset) + "(%rbp)");
             } else {
                 emit("mov %rax, " + std::to_string(base_offset) + "(%rbp)");
             }
+            push_expr_type(node.type_name);
         }
     }
 }
@@ -570,10 +710,33 @@ void CodeGenerator::visit(BlockNode& node) {
 }
 
 void CodeGenerator::visit(ReturnStmtNode& node) {
+    bool ret_is_float = is_float_type(current_function_return_type_);
     if (node.value) {
         dispatch(node.value.get());
+        if (ret_is_float) {
+            // The dispatched value should be in %xmm0.  Make sure it is.
+            std::string vt = infer_expr_type(node.value.get());
+            if (!is_float_type(vt)) {
+                // The expression is integer but the function returns float.
+                // Convert.
+                if (is_double_type(current_function_return_type_)) {
+                    emit("cvtsi2sd %rax, %xmm0");
+                } else {
+                    emit("cvtsi2ss %rax, %xmm0");
+                }
+            }
+        }
     } else {
-        emit("mov $0, %rax");
+        if (ret_is_float) {
+            // Returning float with no value: zero %xmm0
+            if (is_double_type(current_function_return_type_)) {
+                emit("xorpd %xmm0, %xmm0");
+            } else {
+                emit("xorps %xmm0, %xmm0");
+            }
+        } else {
+            emit("mov $0, %rax");
+        }
     }
     emit("mov %rbp, %rsp");
     emit("pop %rbp");
@@ -772,13 +935,45 @@ void CodeGenerator::visit(AssignExprNode& node) {
         return;
     }
     
+    std::string val_type = infer_expr_type(node.value.get());
+    bool val_is_float = is_float_type(val_type);
     dispatch(node.value.get());
-    
+
     if (auto* id = dynamic_cast<IdentifierExprNode*>(node.target.get())) {
         if (local_variables_.count(id->name)) {
             int offset = local_variables_[id->name];
-            emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
+            int sz = 4;
+            std::string tgt_type = "int";
+            if (variable_types_.count(id->name)) {
+                tgt_type = variable_types_[id->name];
+                sz = get_type_size(tgt_type);
+            }
+            if (val_is_float && is_float_type(tgt_type)) {
+                if (is_double_type(tgt_type)) {
+                    emit("movsd %xmm0, " + std::to_string(offset) + "(%rbp)");
+                } else {
+                    emit("movss %xmm0, " + std::to_string(offset) + "(%rbp)");
+                }
+                if (!expr_type_stack_.empty()) expr_type_stack_.pop_back();
+            } else if (sz == 1) emit("mov %al, " + std::to_string(offset) + "(%rbp)");
+            else if (sz == 2) emit("mov %ax, " + std::to_string(offset) + "(%rbp)");
+            else if (sz == 4) emit("movl %eax, " + std::to_string(offset) + "(%rbp)");
+            else emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
         } else {
+            int cap = find_capture_offset(id->name);
+            if (cap >= 0) {
+                int sz = 4;
+                for (const auto& c : current_captures_) {
+                    if (c.name == id->name) { sz = c.size; break; }
+                }
+                emit("mov %rax, %rcx");
+                emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rdx");
+                if (sz == 1) emit("mov %cl, " + std::to_string(cap) + "(%rdx)");
+                else if (sz == 2) emit("mov %cx, " + std::to_string(cap) + "(%rdx)");
+                else if (sz == 4) emit("movl %ecx, " + std::to_string(cap) + "(%rdx)");
+                else emit("mov %rcx, " + std::to_string(cap) + "(%rdx)");
+                return;
+            }
             // Check if it's a global variable
             for (const auto& gvar : global_variables_) {
                 if (gvar.name == id->name) {
@@ -831,21 +1026,34 @@ void CodeGenerator::visit(CompoundAssignExprNode& node) {
         if (local_variables_.count(id->name)) {
             int offset = local_variables_[id->name];
             emit("mov " + std::to_string(offset) + "(%rbp), %rax");
+        } else {
+            int cap = find_capture_offset(id->name);
+            if (cap >= 0) {
+                int sz = 4;
+                for (const auto& c : current_captures_) {
+                    if (c.name == id->name) { sz = c.size; break; }
+                }
+                emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rdx");
+                if (sz == 1) emit("movzbl " + std::to_string(cap) + "(%rdx), %eax");
+                else if (sz == 2) emit("movzwl " + std::to_string(cap) + "(%rdx), %eax");
+                else if (sz == 4) emit("movl " + std::to_string(cap) + "(%rdx), %eax");
+                else emit("mov " + std::to_string(cap) + "(%rdx), %rax");
+            }
         }
     }
-    
+
     // Save current value
     emit("push %rax");
-    
+
     // Evaluate right operand
     dispatch(node.value.get());
-    
+
     // Move right to rcx
     emit("mov %rax, %rcx");
-    
+
     // Pop left (current value) to rax
     emit("pop %rax");
-    
+
     // Apply operator
     switch (node.op) {
         case OpKind::ADD: emit("add %rcx, %rax"); break;
@@ -860,12 +1068,26 @@ void CodeGenerator::visit(CompoundAssignExprNode& node) {
         case OpKind::RSHIFT: emit("shr %cl, %rax"); break;
         default: break;
     }
-    
+
     // Store result back
     if (auto* id = dynamic_cast<IdentifierExprNode*>(node.target.get())) {
         if (local_variables_.count(id->name)) {
             int offset = local_variables_[id->name];
             emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
+        } else {
+            int cap = find_capture_offset(id->name);
+            if (cap >= 0) {
+                int sz = 4;
+                for (const auto& c : current_captures_) {
+                    if (c.name == id->name) { sz = c.size; break; }
+                }
+                emit("mov %rax, %rcx");
+                emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rdx");
+                if (sz == 1) emit("mov %cl, " + std::to_string(cap) + "(%rdx)");
+                else if (sz == 2) emit("mov %cx, " + std::to_string(cap) + "(%rdx)");
+                else if (sz == 4) emit("movl %ecx, " + std::to_string(cap) + "(%rdx)");
+                else emit("mov %rcx, " + std::to_string(cap) + "(%rdx)");
+            }
         }
     }
 }
@@ -924,9 +1146,56 @@ void CodeGenerator::visit(SizeofExprNode& node) {
 }
 
 void CodeGenerator::visit(CastExprNode& node) {
-    // Type cast - currently just evaluate the expression
-    // Full implementation would check type compatibility
+    // Type cast. We only need to emit conversion instructions when the
+    // source and target are different categories (int ↔ float). For
+    // same-category casts (e.g. int→long), the existing code is fine.
+    std::string src = infer_expr_type(node.expr.get());
+    std::string dst = node.target_type;
+    bool src_float = is_float_type(src);
+    bool dst_float = is_float_type(dst);
+
+    if (src_float && !dst_float) {
+        // Float/double → integer: cvttss2si / cvttsd2si (truncation)
+        dispatch(node.expr.get());
+        std::string actual_src = pop_expr_type();
+        if (is_double_type(actual_src)) {
+            emit("cvttsd2si %xmm0, %rax");
+        } else {
+            emit("cvttss2si %xmm0, %rax");
+        }
+        push_expr_type(dst);
+        return;
+    }
+    if (!src_float && dst_float) {
+        // Integer → float/double: cvtsi2ss / cvtsi2sd
+        dispatch(node.expr.get());
+        std::string actual_src = pop_expr_type();
+        if (is_double_type(dst)) {
+            emit("cvtsi2sd %rax, %xmm0");
+        } else {
+            emit("cvtsi2ss %rax, %xmm0");
+        }
+        push_expr_type(dst);
+        return;
+    }
+    if (src_float && dst_float) {
+        // Float ↔ double: cvtss2sd / cvtsd2ss
+        dispatch(node.expr.get());
+        std::string actual_src = pop_expr_type();
+        if (is_double_type(actual_src) && !is_double_type(dst)) {
+            emit("cvtsd2ss %xmm0, %xmm0");
+        } else if (!is_double_type(actual_src) && is_double_type(dst)) {
+            emit("cvtss2sd %xmm0, %xmm0");
+        }
+        push_expr_type(dst);
+        return;
+    }
+    // Integer to integer (or pointer): no-op
     dispatch(node.expr.get());
+    if (!expr_type_stack_.empty()) {
+        expr_type_stack_.pop_back();
+    }
+    push_expr_type(dst);
 }
 
 void CodeGenerator::visit(CallExprNode& node) {
@@ -967,19 +1236,110 @@ void CodeGenerator::visit(CallExprNode& node) {
         }
         return;
     }
-    
-    // Evaluate arguments and push onto stack (right to left)
-    int num_args = std::min((int)node.arguments.size(), 6);
+
+    // Nested function call: pass a context struct as the first argument.
+    auto nit = nested_func_info_.find(node.function_name);
+    if (nit != nested_func_info_.end()) {
+        const NestedFuncInfo& info = nit->second;
+        int ctx_size = info.ctx_size;
+
+        // Allocate space for the context struct on the stack.
+        emit("sub $" + std::to_string(ctx_size) + ", %rsp");
+
+        // Populate the context struct with current values of the captures.
+        for (const auto& cap : info.captures) {
+            auto lit = local_variables_.find(cap.name);
+            int parent_off = (lit != local_variables_.end()) ? lit->second : cap.parent_offset;
+            int sz = cap.size;
+            if (sz == 1) emit("movzbl " + std::to_string(parent_off) + "(%rbp), %eax");
+            else if (sz == 2) emit("movzwl " + std::to_string(parent_off) + "(%rbp), %eax");
+            else if (sz == 4) emit("movl " + std::to_string(parent_off) + "(%rbp), %eax");
+            else emit("mov " + std::to_string(parent_off) + "(%rbp), %rax");
+            if (sz == 1) emit("mov %al, " + std::to_string(cap.ctx_offset) + "(%rsp)");
+            else if (sz == 2) emit("mov %ax, " + std::to_string(cap.ctx_offset) + "(%rsp)");
+            else if (sz == 4) emit("movl %eax, " + std::to_string(cap.ctx_offset) + "(%rsp)");
+            else emit("mov %rax, " + std::to_string(cap.ctx_offset) + "(%rsp)");
+        }
+
+        // Evaluate user arguments and push them onto the stack
+        // (right to left) so they sit above the context struct.
+        int num_user_args = std::min((int)node.arguments.size(), 5);
+        for (int i = num_user_args - 1; i >= 0; i--) {
+            dispatch(node.arguments[i].get());
+            emit("push %rax");
+        }
+
+        // Pop user arguments into %rsi, %rdx, %rcx, %r8, %r9
+        static const char* user_param_regs[] = {"%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+        for (int i = 0; i < num_user_args; i++) {
+            emit("pop " + std::string(user_param_regs[i]));
+        }
+
+        // Set %rdi to point at the context struct
+        emit("mov %rsp, %rdi");
+
+        emit("call " + node.function_name);
+
+        // Deallocate the context struct
+        emit("add $" + std::to_string(ctx_size) + ", %rsp");
+        return;
+    }
+
+    // Evaluate arguments.  System V x86-64 ABI: integer/pointer args go in
+    // %rdi, %rsi, %rdx, %rcx, %r8, %r9 (in order); float/double args go in
+    // %xmm0..%xmm7 (in order).  Mixing is allowed: e.g. for `foo(int, double,
+    // int)`, a goes in %rdi, b in %xmm0, c in %rsi.
+    //
+    // Float args are processed right-to-left so that earlier (lower-index)
+    // args are placed in lower-numbered XMM registers after later args have
+    // been moved out of %xmm0.  Integer args are pushed onto the stack in
+    // left-to-right order and popped into the appropriate integer register
+    // in reverse, so the net effect is that arg N (in %rN) sits at offset
+    // int_idx-1 in the popped sequence.
+    int num_args = (int)node.arguments.size();
+    int int_total = 0;
+    int float_total = 0;
+    for (int i = 0; i < num_args; i++) {
+        std::string at = infer_expr_type(node.arguments[i].get());
+        if (is_float_type(at)) float_total++;
+        else int_total++;
+    }
+    int int_count = int_total;
+    int float_count = float_total;
+
     for (int i = num_args - 1; i >= 0; i--) {
         dispatch(node.arguments[i].get());
-        emit("push %rax");
+        std::string actual = pop_expr_type();
+        if (is_float_type(actual)) {
+            int idx = --float_count;
+            if (idx < 8) {
+                std::string xreg = "%xmm" + std::to_string(idx);
+                std::string mop = is_double_type(actual) ? "movsd" : "movss";
+                if (xreg != "%xmm0") {
+                    emit(mop + " %xmm0, " + xreg);
+                }
+            } else {
+                emit("sub $16, %rsp");
+                emit("movsd %xmm0, (%rsp)");
+            }
+        } else {
+            int idx = --int_count;
+            if (idx < 6) {
+                emit("push %rax");
+            } else {
+                emit("push %rax");
+            }
+        }
     }
-    
-    // Pop arguments into registers (left to right)
-    for (int i = 0; i < num_args; i++) {
+
+    // Pop integer args in stack order to %rdi..%r9 (left-to-right).  We
+    // processed and pushed args right-to-left, so the stack's top is the
+    // first (lowest-index) int arg, and pops in order yield args 0, 1, 2...
+    int int_pushes = std::min(int_total, 6);
+    for (int i = 0; i < int_pushes; i++) {
         emit("pop " + std::string(param_regs[i]));
     }
-    
+
     // Check if this is an indirect call (function pointer variable)
     bool is_indirect = false;
     if (variable_types_.count(node.function_name)) {
@@ -988,7 +1348,7 @@ void CodeGenerator::visit(CallExprNode& node) {
             is_indirect = true;
         }
     }
-    
+
     if (is_indirect) {
         // Load function pointer from variable and call indirectly
         if (local_variables_.count(node.function_name)) {
@@ -1108,6 +1468,14 @@ void CodeGenerator::visit(AddressOfExprNode& node) {
         if (local_variables_.count(id->name)) {
             int offset = local_variables_[id->name];
             emit("lea " + std::to_string(offset) + "(%rbp), %rax");
+        } else {
+            int cap = find_capture_offset(id->name);
+            if (cap >= 0) {
+                emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rax");
+                if (cap != 0) {
+                    emit("add $" + std::to_string(cap) + ", %rax");
+                }
+            }
         }
     }
 }
@@ -1128,28 +1496,38 @@ void CodeGenerator::visit(AsmStmtNode& node) {
 }
 
 void CodeGenerator::visit(IntegerLiteralNode& node) {
-    emit("mov $" + std::to_string(node.value) + ", %rax");
+    // Use `movabsq` for values that don't fit in a signed 32-bit immediate
+    // (the assembler sign-extends 32-bit `mov` immediates to 64 bits).
+    long long v = node.value;
+    if (v >= -2147483648LL && v <= 2147483647LL) {
+        emit("mov $" + std::to_string(v) + ", %rax");
+    } else {
+        emit("movabsq $" + std::to_string(v) + ", %rax");
+    }
 }
 
 void CodeGenerator::visit(FloatLiteralNode& node) {
-    // Convert the double value to its IEEE 754 bit pattern and emit as integer
-    // This is a workaround since we don't emit SSE arithmetic. The value lives
-    // in %rax as the bit pattern of the float.
+    // Load the IEEE 754 bit pattern into an XMM register via a bit-pattern
+    // transfer.  For float: zero-extend the 32-bit pattern from %eax to %xmm0
+    // (the upper 32 bits of %xmm0 are zeroed).  For double: move a 64-bit
+    // immediate from %rax into %xmm0.
     double d = node.value;
     bool is_single = node.is_single_precision;
     if (is_single) {
-        // 4-byte float
         float f = static_cast<float>(d);
         uint32_t float_bits = 0;
         std::memcpy(&float_bits, &f, sizeof(float_bits));
         int32_t signed_bits;
         std::memcpy(&signed_bits, &float_bits, sizeof(signed_bits));
         emit("mov $" + std::to_string(signed_bits) + ", %eax");
+        emit("movd %eax, %xmm0");
+        push_expr_type("float");
     } else {
-        // 8-byte double
         uint64_t double_bits = 0;
         std::memcpy(&double_bits, &d, sizeof(double_bits));
         emit("movabsq $" + std::to_string(double_bits) + ", %rax");
+        emit("movq %rax, %xmm0");
+        push_expr_type("double");
     }
 }
 
@@ -1167,37 +1545,73 @@ void CodeGenerator::visit(CharLiteralNode& node) {
 }
 
 void CodeGenerator::visit(IdentifierExprNode& node) {
+    std::string var_type = "int";
+    if (variable_types_.count(node.name)) {
+        var_type = variable_types_[node.name];
+    }
+
     if (local_variables_.count(node.name)) {
         int offset = local_variables_[node.name];
         // For arrays, return the address (base of the array)
         if (array_info_.count(node.name)) {
             emit("lea " + std::to_string(offset) + "(%rbp), %rax");
+            push_expr_type(var_type);
+            return;
+        }
+        // Use the variable's size for the load
+        int sz = 8;
+        if (variable_types_.count(node.name)) {
+            sz = get_type_size(variable_types_[node.name]);
+        }
+        if (is_float_type(var_type)) {
+            if (is_double_type(var_type)) {
+                emit("movsd " + std::to_string(offset) + "(%rbp), %xmm0");
+            } else {
+                emit("movss " + std::to_string(offset) + "(%rbp), %xmm0");
+            }
+        } else if (sz == 1) {
+            emit("movzbl " + std::to_string(offset) + "(%rbp), %eax");
+        } else if (sz == 2) {
+            emit("movzwl " + std::to_string(offset) + "(%rbp), %eax");
+        } else if (sz == 4) {
+            emit("movl " + std::to_string(offset) + "(%rbp), %eax");
         } else {
-            // Use the variable's size for the load
-            int sz = 8;
-            if (variable_types_.count(node.name)) {
-                sz = get_type_size(variable_types_[node.name]);
-            }
-            if (sz == 1) emit("movzbl " + std::to_string(offset) + "(%rbp), %eax");
-            else if (sz == 2) emit("movzwl " + std::to_string(offset) + "(%rbp), %eax");
-            else if (sz == 4) emit("movl " + std::to_string(offset) + "(%rbp), %eax");
-            else emit("mov " + std::to_string(offset) + "(%rbp), %rax");
+            emit("mov " + std::to_string(offset) + "(%rbp), %rax");
         }
-    } else {
-        // Check if it's a global variable
-        for (const auto& gvar : global_variables_) {
-            if (gvar.name == node.name) {
-                if (array_info_.count(node.name)) {
-                    emit("lea " + node.name + "(%rip), %rax");
-                } else {
-                    emit("mov " + node.name + "(%rip), %rax");
-                }
-                return;
-            }
-        }
-        // Check if it's a function
-        emit("lea " + node.name + "(%rip), %rax");
+        push_expr_type(var_type);
+        return;
     }
+    // Check if it's a captured variable from the enclosing function
+    int cap = find_capture_offset(node.name);
+    if (cap >= 0) {
+        int sz = 4;
+        for (const auto& c : current_captures_) {
+            if (c.name == node.name) { sz = c.size; break; }
+        }
+        // Load __ctx into a scratch register, then load the captured value
+        emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rdx");
+        if (sz == 1) emit("movzbl " + std::to_string(cap) + "(%rdx), %eax");
+        else if (sz == 2) emit("movzwl " + std::to_string(cap) + "(%rdx), %eax");
+        else if (sz == 4) emit("movl " + std::to_string(cap) + "(%rdx), %eax");
+        else emit("mov " + std::to_string(cap) + "(%rdx), %rax");
+        push_expr_type(var_type);
+        return;
+    }
+    // Check if it's a global variable
+    for (const auto& gvar : global_variables_) {
+        if (gvar.name == node.name) {
+            if (array_info_.count(node.name)) {
+                emit("lea " + node.name + "(%rip), %rax");
+            } else {
+                emit("mov " + node.name + "(%rip), %rax");
+            }
+            push_expr_type(var_type);
+            return;
+        }
+    }
+    // Check if it's a function
+    emit("lea " + node.name + "(%rip), %rax");
+    push_expr_type(var_type);
 }
 
 // Helper methods
@@ -1209,19 +1623,152 @@ void CodeGenerator::generate_expression(ASTNode* node) {
 }
 
 void CodeGenerator::generate_binary(BinaryExprNode& node) {
-    // Evaluate right operand, save on stack
+    // Determine static result type.  Float/double operands use SSE; everything
+    // else uses the integer ABI (result in %rax, second operand pushed onto
+    // the stack during evaluation).
+    std::string ltype = infer_expr_type(node.left.get());
+    std::string rtype = infer_expr_type(node.right.get());
+    bool result_is_double = is_double_type(ltype) || is_double_type(rtype);
+    bool result_is_float = is_float_type(ltype) || is_float_type(rtype);
+
+    if (result_is_float) {
+        const char* movop = result_is_double ? "movsd" : "movss";
+        const char* cvtop = result_is_double ? "cvtsi2sd" : "cvtsi2ss";
+        const char* suffix = result_is_double ? "sd" : "ss";
+        int slot_size = result_is_double ? 8 : 4;
+
+        // Evaluate right operand: result in %xmm0 (float) or %rax (int).
+        dispatch(node.right.get());
+        std::string actual_rtype = pop_expr_type();
+        if (!is_float_type(actual_rtype)) {
+            emit(std::string(cvtop) + " %rax, %xmm0");
+        }
+        // Spill right operand to a stack slot so the left operand's
+        // evaluation (which may itself be a nested float expression that
+        // clobbers %xmm0/%xmm1) does not destroy it.
+        emit("sub $16, %rsp");
+        emit(std::string(movop) + " %xmm0, (%rsp)");
+
+        // Evaluate left operand.
+        dispatch(node.left.get());
+        std::string actual_ltype = pop_expr_type();
+        if (!is_float_type(actual_ltype)) {
+            emit(std::string(cvtop) + " %rax, %xmm0");
+        }
+        // Move spilled right into %xmm1.
+        emit(std::string(movop) + " (%rsp), %xmm1");
+        emit("add $16, %rsp");
+
+        switch (node.op) {
+            case OpKind::ADD:
+                emit(std::string("add") + suffix + " %xmm1, %xmm0");
+                break;
+            case OpKind::SUB:
+                emit(std::string("sub") + suffix + " %xmm1, %xmm0");
+                break;
+            case OpKind::MUL:
+                emit(std::string("mul") + suffix + " %xmm1, %xmm0");
+                break;
+            case OpKind::DIV:
+                emit(std::string("div") + suffix + " %xmm1, %xmm0");
+                break;
+            case OpKind::MOD:
+                error_message_ = "MOD not supported for floating point";
+                emit("xorpd %xmm0, %xmm0");
+                break;
+            case OpKind::EQ:
+            case OpKind::NE:
+            case OpKind::LT:
+            case OpKind::GT:
+            case OpKind::LE:
+            case OpKind::GE: {
+                emit(std::string("ucomi") + suffix + " %xmm1, %xmm0");
+                switch (node.op) {
+                    case OpKind::EQ: emit("sete %al"); break;
+                    case OpKind::NE: emit("setne %al"); break;
+                    case OpKind::LT: emit("setb %al"); break;
+                    case OpKind::LE: emit("setbe %al"); break;
+                    case OpKind::GT: emit("seta %al"); break;
+                    case OpKind::GE: emit("setae %al"); break;
+                    default: break;
+                }
+                emit("movzbq %al, %rax");
+                break;
+            }
+            case OpKind::AND: {
+                // Logical AND on floats: result is 1 if both operands are non-zero.
+                std::string fl = new_label("and_false");
+                std::string el = new_label("and_end");
+                if (result_is_double) {
+                    emit("xorpd %xmm2, %xmm2");
+                    emit("ucomisd %xmm2, %xmm1");
+                } else {
+                    emit("xorps %xmm2, %xmm2");
+                    emit("ucomiss %xmm2, %xmm1");
+                }
+                emit("je " + fl);
+                if (result_is_double) {
+                    emit("ucomisd %xmm2, %xmm0");
+                } else {
+                    emit("ucomiss %xmm2, %xmm0");
+                }
+                emit("je " + fl);
+                emit("mov $1, %rax");
+                emit("jmp " + el);
+                emit_label(fl);
+                emit("mov $0, %rax");
+                emit_label(el);
+                break;
+            }
+            case OpKind::OR: {
+                // Logical OR on floats: result is 1 if either operand is non-zero.
+                std::string tl = new_label("or_true");
+                std::string el = new_label("or_end");
+                if (result_is_double) {
+                    emit("xorpd %xmm2, %xmm2");
+                    emit("ucomisd %xmm2, %xmm0");
+                } else {
+                    emit("xorps %xmm2, %xmm2");
+                    emit("ucomiss %xmm2, %xmm0");
+                }
+                emit("jne " + tl);
+                if (result_is_double) {
+                    emit("ucomisd %xmm2, %xmm1");
+                } else {
+                    emit("ucomiss %xmm2, %xmm1");
+                }
+                emit("jne " + tl);
+                emit("mov $0, %rax");
+                emit("jmp " + el);
+                emit_label(tl);
+                emit("mov $1, %rax");
+                emit_label(el);
+                break;
+            }
+            case OpKind::BIT_AND:
+            case OpKind::BIT_OR:
+            case OpKind::BIT_XOR:
+            case OpKind::LSHIFT:
+            case OpKind::RSHIFT:
+                error_message_ = "Bitwise operators not supported for floating point";
+                emit("xorpd %xmm0, %xmm0");
+                break;
+            default:
+                error_message_ = "Unsupported binary operator for float";
+                break;
+        }
+        push_expr_type(result_is_double ? "double" : "float");
+        return;
+    }
+
+    // Integer path
     dispatch(node.right.get());
     emit("push %rax");
-    
-    // Evaluate left operand into rax
+
     dispatch(node.left.get());
-    
-    // Restore right operand into rcx
+
     emit("pop %rcx");
-    
-    // Apply operator: rax = left op right
-    // rcx has right, rax has left
-    
+
     switch (node.op) {
         case OpKind::ADD:
             emit("add %rcx, %rax");
@@ -1318,14 +1865,33 @@ void CodeGenerator::generate_binary(BinaryExprNode& node) {
             error_message_ = "Unsupported binary operator";
             break;
     }
+    push_expr_type(ltype.empty() ? "int" : ltype);
 }
 
 void CodeGenerator::generate_unary(UnaryExprNode& node) {
+    std::string operand_type = infer_expr_type(node.operand.get());
+    bool operand_is_float = is_float_type(operand_type);
     dispatch(node.operand.get());
-    
+
     switch (node.op) {
         case OpKind::UMINUS:
-            emit("neg %rax");
+            if (operand_is_float) {
+                std::string actual = pop_expr_type();
+                if (is_double_type(actual)) {
+                    // -0.0 - x  (subtraction from a -0.0 pattern)
+                    // Or use a sign-bit flip via an int constant in %xmm.
+                    emit("movabsq $0x8000000000000000, %rax");
+                    emit("movq %rax, %xmm1");
+                    emit("xorpd %xmm1, %xmm0");
+                } else {
+                    emit("mov $0x80000000, %eax");
+                    emit("movd %eax, %xmm1");
+                    emit("xorps %xmm1, %xmm0");
+                }
+                push_expr_type(actual);
+            } else {
+                emit("neg %rax");
+            }
             break;
         case OpKind::UPLUS:
             break;
@@ -1400,6 +1966,14 @@ void CodeGenerator::generate_unary(UnaryExprNode& node) {
                     emit("mov " + std::to_string(offset) + "(%rbp), %rax");
                     emit("add $1, %rax");
                     emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
+                } else {
+                    int cap = find_capture_offset(id->name);
+                    if (cap >= 0) {
+                        emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rdx");
+                        emit("mov " + std::to_string(cap) + "(%rdx), %rax");
+                        emit("add $1, %rax");
+                        emit("mov %rax, " + std::to_string(cap) + "(%rdx)");
+                    }
                 }
             } else if (auto* member = dynamic_cast<MemberExprNode*>(node.operand.get())) {
                 compute_member_address(*member);
@@ -1417,6 +1991,14 @@ void CodeGenerator::generate_unary(UnaryExprNode& node) {
                     emit("mov " + std::to_string(offset) + "(%rbp), %rax");
                     emit("sub $1, %rax");
                     emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
+                } else {
+                    int cap = find_capture_offset(id->name);
+                    if (cap >= 0) {
+                        emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rdx");
+                        emit("mov " + std::to_string(cap) + "(%rdx), %rax");
+                        emit("sub $1, %rax");
+                        emit("mov %rax, " + std::to_string(cap) + "(%rdx)");
+                    }
                 }
             } else if (auto* member = dynamic_cast<MemberExprNode*>(node.operand.get())) {
                 compute_member_address(*member);
@@ -1437,6 +2019,16 @@ void CodeGenerator::generate_unary(UnaryExprNode& node) {
                     emit("add $1, %rax");
                     emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
                     emit("pop %rax");
+                } else {
+                    int cap = find_capture_offset(id->name);
+                    if (cap >= 0) {
+                        emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rdx");
+                        emit("mov " + std::to_string(cap) + "(%rdx), %rax");
+                        emit("push %rax");
+                        emit("add $1, %rax");
+                        emit("mov %rax, " + std::to_string(cap) + "(%rdx)");
+                        emit("pop %rax");
+                    }
                 }
             }
             break;
@@ -1450,6 +2042,16 @@ void CodeGenerator::generate_unary(UnaryExprNode& node) {
                     emit("sub $1, %rax");
                     emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
                     emit("pop %rax");
+                } else {
+                    int cap = find_capture_offset(id->name);
+                    if (cap >= 0) {
+                        emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rdx");
+                        emit("mov " + std::to_string(cap) + "(%rdx), %rax");
+                        emit("push %rax");
+                        emit("sub $1, %rax");
+                        emit("mov %rax, " + std::to_string(cap) + "(%rdx)");
+                        emit("pop %rax");
+                    }
                 }
             }
             break;
@@ -1595,6 +2197,206 @@ void CodeGenerator::visit(CompoundLiteralNode& node) {
 
     // Return address of the storage in %rax
     emit("lea " + std::to_string(base_offset) + "(%rbp), %rax");
+}
+
+// Nested function helpers
+int CodeGenerator::find_capture_offset(const std::string& name) const {
+    for (const auto& c : current_captures_) {
+        if (c.name == name) {
+            return c.ctx_offset;
+        }
+    }
+    return -1;
+}
+
+void CodeGenerator::emit_pending_nested_function(PendingNestedFunc& pnf) {
+    // Save enclosing function's state and set up the nested function's
+    // own state.  The nested function has its own local_variables_
+    // (initially empty), its own captures, and its own __ctx stack slot.
+    auto saved_locals = local_variables_;
+    auto saved_types = variable_types_;
+    auto saved_arrays = array_info_;
+    auto saved_captures = current_captures_;
+    int saved_ctx_stack_offset = current_ctx_stack_offset_;
+    auto saved_function = current_function_;
+    auto saved_return_type = current_function_return_type_;
+
+    local_variables_.clear();
+    variable_types_.clear();
+    array_info_.clear();
+    current_captures_ = pnf.captures;
+    current_ctx_stack_offset_ = 0;
+    stack_offset_ = 0;
+    returned_ = false;
+    current_function_ = pnf.node->name;
+    current_function_return_type_ = pnf.node->return_type;
+
+    // Emit the function prologue manually because we need the hidden
+    // __ctx parameter handling.
+    emit(".globl " + pnf.node->name);
+    emit_label(pnf.node->name);
+    emit("push %rbp");
+    emit("mov %rsp, %rbp");
+
+    // Pre-allocate stack: 1 slot for __ctx + user params + locals + temps
+    int local_count = 0;
+    if (pnf.node->body) {
+        auto& block = static_cast<BlockNode&>(*pnf.node->body);
+        for (auto& stmt : block.statements) {
+            if (stmt->type == NodeType::VAR_DECL) {
+                local_count++;
+            }
+        }
+    }
+    int num_user_params = std::min((int)pnf.node->params.size(), 5);
+    int total_slots = 1 + num_user_params + local_count + 16;  // +1 for __ctx
+    int space = total_slots * 8;
+    emit("sub $" + std::to_string(space) + ", %rsp");
+
+    // Save __ctx (first arg, in %rdi) into a stack slot
+    stack_offset_ += 8;
+    current_ctx_stack_offset_ = -stack_offset_;
+    emit("mov %rdi, " + std::to_string(current_ctx_stack_offset_) + "(%rbp)");
+
+    // Map user parameters starting from %rsi (since %rdi is taken by __ctx)
+    static const char* user_param_regs[] = {"%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+    for (int i = 0; i < num_user_params; i++) {
+        stack_offset_ += 8;
+        int offset = -stack_offset_;
+        std::string pname = static_cast<ParamNode*>(pnf.node->params[i].get())->name;
+        local_variables_[pname] = offset;
+        variable_types_[pname] = static_cast<ParamNode*>(pnf.node->params[i].get())->type_name;
+        emit("mov " + std::string(user_param_regs[i]) + ", " +
+             std::to_string(offset) + "(%rbp)");
+    }
+
+    if (pnf.node->body) {
+        dispatch(pnf.node->body.get());
+    }
+
+    if (!returned_) {
+        emit("mov $0, %rax");
+        emit_function_epilogue();
+    }
+
+    // Restore enclosing function's state
+    local_variables_ = saved_locals;
+    variable_types_ = saved_types;
+    array_info_ = saved_arrays;
+    current_captures_ = saved_captures;
+    current_ctx_stack_offset_ = saved_ctx_stack_offset;
+    current_function_ = saved_function;
+    current_function_return_type_ = saved_return_type;
+}
+
+// Walk the AST statically to infer the type of an expression without
+// generating code. The result is a string like "int", "float", "double",
+// "char", or "<pointer-to-T>". Returns "int" as a safe default when the
+// type cannot be determined.
+std::string CodeGenerator::infer_expr_type(ASTNode* node) {
+    if (!node) return "int";
+    switch (node->type) {
+        case NodeType::INTEGER_LITERAL: return "int";
+        case NodeType::CHAR_LITERAL:    return "char";
+        case NodeType::FLOAT_LITERAL: {
+            auto* f = static_cast<FloatLiteralNode*>(node);
+            return f->is_single_precision ? "float" : "double";
+        }
+        case NodeType::STRING_LITERAL:  return "char*";
+        case NodeType::IDENTIFIER_EXPR: {
+            auto* id = static_cast<IdentifierExprNode*>(node);
+            auto it = variable_types_.find(id->name);
+            if (it != variable_types_.end()) return it->second;
+            return "int";
+        }
+        case NodeType::BINARY_EXPR: {
+            auto* b = static_cast<BinaryExprNode*>(node);
+            std::string lt = infer_expr_type(b->left.get());
+            std::string rt = infer_expr_type(b->right.get());
+            if (is_double_type(lt) || is_double_type(rt)) return "double";
+            if (is_float_type(lt) || is_float_type(rt)) return "float";
+            return lt.empty() ? "int" : lt;
+        }
+        case NodeType::UNARY_EXPR: {
+            auto* u = static_cast<UnaryExprNode*>(node);
+            if (u->op == OpKind::DEREF) {
+                std::string inner = infer_expr_type(u->operand.get());
+                if (inner.find('*') != std::string::npos) {
+                    std::string pointee = inner;
+                    size_t p = pointee.find('*');
+                    while (p != std::string::npos) { pointee.erase(p, 1); p = pointee.find('*'); }
+                    size_t s = pointee.find_first_not_of(" \t");
+                    size_t e = pointee.find_last_not_of(" \t");
+                    if (s != std::string::npos) pointee = pointee.substr(s, e - s + 1);
+                    return pointee;
+                }
+            }
+            if (u->op == OpKind::ADDRESS_OF) {
+                std::string inner = infer_expr_type(u->operand.get());
+                if (inner.empty()) inner = "int";
+                return inner + "*";
+            }
+            return infer_expr_type(u->operand.get());
+        }
+        case NodeType::CAST_EXPR: {
+            auto* c = static_cast<CastExprNode*>(node);
+            return c->target_type;
+        }
+        case NodeType::CALL_EXPR: {
+            auto* c = static_cast<CallExprNode*>(node);
+            auto it = function_return_type_.find(c->function_name);
+            if (it != function_return_type_.end()) return it->second;
+            return "int";
+        }
+        case NodeType::ASSIGN_EXPR: {
+            auto* a = static_cast<AssignExprNode*>(node);
+            return infer_expr_type(a->target.get());
+        }
+        case NodeType::COMPOUND_ASSIGN_EXPR: {
+            auto* a = static_cast<CompoundAssignExprNode*>(node);
+            return infer_expr_type(a->target.get());
+        }
+        case NodeType::TERNARY_EXPR: {
+            auto* t = static_cast<TernaryExprNode*>(node);
+            std::string tt = infer_expr_type(t->then_expr.get());
+            std::string et = infer_expr_type(t->else_expr.get());
+            if (is_double_type(tt) || is_double_type(et)) return "double";
+            if (is_float_type(tt) || is_float_type(et)) return "float";
+            return tt.empty() ? "int" : tt;
+        }
+        case NodeType::COMMA_EXPR: {
+            auto* c = static_cast<CommaExprNode*>(node);
+            return infer_expr_type(c->right.get());
+        }
+        case NodeType::MEMBER_EXPR: {
+            auto* m = static_cast<MemberExprNode*>(node);
+            std::string obj_type = infer_expr_type(m->object.get());
+            std::string sn = obj_type;
+            if (sn.substr(0, 7) == "struct ") sn = sn.substr(7);
+            if (struct_layouts_.count(sn)) {
+                for (const auto& f : struct_layouts_[sn]) {
+                    if (f.name == m->member) return f.type;
+                }
+            }
+            return "int";
+        }
+        case NodeType::INDEX_EXPR: {
+            auto* idx = static_cast<IndexExprNode*>(node);
+            std::string inner = infer_expr_type(idx->array.get());
+            if (inner.find('*') != std::string::npos) {
+                std::string pointee = inner;
+                size_t p = pointee.find('*');
+                while (p != std::string::npos) { pointee.erase(p, 1); p = pointee.find('*'); }
+                size_t s = pointee.find_first_not_of(" \t");
+                size_t e = pointee.find_last_not_of(" \t");
+                if (s != std::string::npos) pointee = pointee.substr(s, e - s + 1);
+                return pointee;
+            }
+            return "int";
+        }
+        default:
+            return "int";
+    }
 }
 
 } // namespace simplecc

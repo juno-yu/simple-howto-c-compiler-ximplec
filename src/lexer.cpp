@@ -269,6 +269,11 @@ Token Lexer::read_number() {
         if (is_float) {
             return Token(TokenType::FLOAT, num, start_line, start_column);
         }
+        // Consume optional integer suffix (l, L, u, U) on hex literals
+        if (!is_at_end() && (peek() == 'l' || peek() == 'L' ||
+                             peek() == 'u' || peek() == 'U')) {
+            advance();
+        }
         return Token(TokenType::INTEGER, num, start_line, start_column);
     }
     

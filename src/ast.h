@@ -222,7 +222,19 @@ struct FunctionDeclNode : ASTNode {
     std::string name;
     std::vector<ASTPtr> params;
     ASTPtr body;
-    
+
+    // Nested function support (GCC extension)
+    bool is_nested = false;
+    std::string parent_function;  // empty for top-level functions
+    struct CapturedVar {
+        std::string name;
+        std::string type;
+        int parent_offset;  // offset in parent function's stack frame
+        int ctx_offset;     // offset in context struct passed to nested function
+        int size;           // size in bytes
+    };
+    std::vector<CapturedVar> captured_vars;
+
     FunctionDeclNode(const std::string& ret, const std::string& n, int l, int c)
         : ASTNode(NodeType::FUNCTION_DECL, l, c), return_type(ret), name(n) {}
     void accept(ASTVisitor& visitor);

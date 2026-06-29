@@ -1,12 +1,26 @@
-# Lesson 0043: Float and Double
+# Lesson 0043: Float and Double (Bit-Pattern Storage, Legacy)
 
-## Status: ⚠️ Partial | Phase: Float & Advanced | Effort: Hard (12-16h)
+## Status: ⚠️ Legacy | Superseded by `0043-float-double-sse` | Phase: Float & Advanced
+
+> **Note:** This lesson documents the original bit-pattern storage approach. It is
+> **superseded by [`0043-float-double-sse`](../0043-float-double-sse/README.md)**
+> which implements real SSE arithmetic. The compiler source code now uses the SSE
+> approach; this directory is kept for historical reference and the test fixtures
+> that exercise bit-level float operations (e.g. `int *p = (int*)&f;`).
 
 ## Objective
 
-Implement `float` and `double` types in the type system and codegen. Floats are stored as integer bit patterns — real SSE arithmetic is not emitted.
+Store `float` and `double` as 32/64-bit integer bit patterns in stack slots and
+integer registers. This allows `sizeof(float)`, `sizeof(double)`, float literal
+parsing, and pointer aliasing (`int *p = (int*)&f`) to work, but **does not
+implement real float arithmetic**. The SSE lesson adds real `addss`/`ucomiss`/etc.
 
 ## Implementation Status
+
+> **All of the following only works for storage and pointer aliasing — not for
+> real float arithmetic.** Float/double variables and literals are stored as
+> 4/8-byte integers. To get real IEEE 754 results from `+`, `-`, `*`, `/`, etc.,
+> see the SSE lesson.
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -33,18 +47,33 @@ Implement `float` and `double` types in the type system and codegen. Floats are 
 
 ## What Works
 
+Float/double storage, address-of, and pointer-casts are fully working. The following
+example compiles, runs, and returns 1 (asserting `sz1==4`, `sz2==8`, and
+`bits==1078523331` for `f = 3.14f`):
+
 ```c
 int main() {
-    float f = 3.14f;
-    double d = 2.718;
+    int sz1 = sizeof(float);
+    int sz2 = sizeof(double);
+    float f;
     int *p = (int*)&f;
     *p = 0;
     f = 3.14f;
-    return sizeof(float) + sizeof(double); // → 12
+    int bits = *p;
+    if (sz1 != 4) return 0;
+    if (sz2 != 8) return 0;
+    if (bits != 1078523331) return 0;
+    return 1;
 }
 ```
 
-This compiles, runs, and returns 12. The float `3.14f` has its IEEE 754 bit pattern stored at the variable's stack slot. The `(int*)&f` cast produces a pointer, and `*p` reads the 4-byte float bits as an integer.
+The float `3.14f` has its IEEE 754 bit pattern stored at the variable's stack slot.
+The `(int*)&f` cast produces an `int*` pointing at that slot, and `*p` reads the
+4-byte float bits as an integer.
+
+**Limitation:** arithmetic, comparison, and ABI-compliant parameter/return passing
+still fall back to bit-pattern storage without SSE. The example above stays in the
+"storage / address-of / cast" subset, which is fully working.
 
 ## What Doesn't Work and Why
 

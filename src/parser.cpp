@@ -579,9 +579,16 @@ ASTPtr Parser::parse_function_decl(const std::string& type_name) {
     const Token& name_token = tokens_[pos_ - 1];
     auto func = std::make_unique<FunctionDeclNode>(
         type_name, name_token.value, name_token.line, name_token.column);
-    
+
+    // A function is nested if we are currently inside another function's body.
+    bool is_nested = !function_stack_.empty();
+    func->is_nested = is_nested;
+    if (is_nested) {
+        func->parent_function = function_stack_.back();
+    }
+
     expect(TokenType::LPAREN);
-    
+
     // Parse parameters
     if (!check(TokenType::RPAREN)) {
         do {
@@ -591,17 +598,19 @@ ASTPtr Parser::parse_function_decl(const std::string& type_name) {
             }
         } while (match(TokenType::COMMA));
     }
-    
+
     expect(TokenType::RPAREN);
-    
+
     // Forward declaration: no body
     if (check(TokenType::SEMICOLON)) {
         advance(); // consume semicolon
         func->body = nullptr;
     } else {
+        function_stack_.push_back(func->name);
         func->body = parse_block();
+        function_stack_.pop_back();
     }
-    
+
     return std::move(func);
 }
 
@@ -1931,7 +1940,17 @@ ASTPtr Parser::parse_postfix() {
 ASTPtr Parser::parse_primary() {
     if (match(TokenType::INTEGER)) {
         const Token& tok = tokens_[pos_ - 1];
-        long long value = std::stoll(tok.value);
+        long long value = 0;
+        const std::string& s = tok.value;
+        if (s.size() > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+            value = std::stoll(s.substr(2), nullptr, 16);
+        } else if (s.size() > 2 && s[0] == '0' && (s[1] == 'b' || s[1] == 'B')) {
+            value = std::stoll(s.substr(2), nullptr, 2);
+        } else if (s.size() > 1 && s[0] == '0') {
+            value = std::stoll(s, nullptr, 8);
+        } else {
+            value = std::stoll(s);
+        }
         return std::make_unique<IntegerLiteralNode>(value, tok.line, tok.column);
     }
     

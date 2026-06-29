@@ -46,7 +46,7 @@ echo "  Testing all example.c files..."
 echo ""
 
 # Known failures: skip gracefully
-KNOWN_FAIL="0086-nested-functions"
+KNOWN_FAIL=""
 
 for dir in "$ROOT"/[0-9]*/; do
     [ -f "$dir/src/example.c" ] || continue

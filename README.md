@@ -92,9 +92,9 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | Char (`'a'`, `'\n'`) | ✅ | ✅ | ✅ | 0001 |
 | String (`"hello"`) | ✅ | ✅ | ✅ | 0019 |
 | Bool (`true`/`false`) | ✅ | ✅ | ✅ | 3000 |
-| Float (`3.14f`) | ✅ | ✅ | ✅ Bit pattern stored as int; no FPU arithmetic | 0043 |
-| Double (`3.14`) | ✅ | ✅ | ✅ Bit pattern stored as int; no FPU arithmetic | 0043 |
-| Hex float (`0x1.0p10`) | ✅ | ✅ | ⚠️ Tokenized, stored as int | 0043 |
+| Float (`3.14f`) | ✅ | ✅ | ✅ Real SSE (addss/mulss/ucomiss); legacy bit-pattern lesson also exists | 0043 |
+| Double (`3.14`) | ✅ | ✅ | ✅ Real SSE (addsd/mulsd/ucomisd); legacy bit-pattern lesson also exists | 0043 |
+| Hex float (`0x1.0p10`) | ✅ | ✅ | ✅ Tokenized, stored as float | 0043 |
 
 ### Types
 
@@ -104,8 +104,8 @@ This project builds a compiler for a substantial subset of C, progressing from b
 | `char` | ✅ | ✅ | ✅ | 0013 |
 | `void` | ✅ | ✅ | ✅ | 0013 |
 | `bool` / `_Bool` | ✅ | ✅ | ✅ | 0010 |
-| `float` | ✅ | ✅ | ✅ sizeof=4, bit pattern stored as int | 0043 |
-| `double` | ✅ | ✅ | ✅ sizeof=8, bit pattern stored as int | 0043 |
+| `float` | ✅ | ✅ | ✅ sizeof=4, real SSE loads/stores | 0043 |
+| `double` | ✅ | ✅ | ✅ sizeof=8, real SSE loads/stores | 0043 |
 | `long double` | ❌ | — | — | — |
 | `long` / `long long` | ✅ | ✅ | ✅ | 0015 |
 | `short` | ✅ | ✅ | ✅ | 0015 |
@@ -301,7 +301,8 @@ This project builds a compiler for a substantial subset of C, progressing from b
 This compiler is a substantial subset of C but not a complete C23 implementation. Documented limits:
 
 ### Floating Point
-- **No FPU support** — `float` and `double` are lexed, parsed, and type-checked but stored as 8-byte integers in memory. Arithmetic and conversion between float and int is not performed.
+- **`float` and `double` use real SSE** — `addss`/`addsd`/`mulss`/`mulsd`/etc. for arithmetic, `ucomiss`/`ucomisd` for comparisons, `cvtsi2ss`/`cvttss2si`/etc. for conversions, `movss`/`movsd` for loads/stores. System V ABI followed: float args in `%xmm0`–`%xmm7`, float returns in `%xmm0`.
+- A legacy bit-pattern implementation is kept at `0043-float-double-bit-pattern/` for compatibility/testing of low-level bit access patterns.
 - No `long double` support.
 - Math library functions (`sin`, `cos`, `sqrt`, etc.) are declared `extern` but not implemented — calls link against system libm.
 
@@ -327,7 +328,7 @@ This compiler is a substantial subset of C but not a complete C23 implementation
 - **Extended form `asm("..." : "=r"(x) : "r"(y) : "eax")`** parses but operand strings and clobbers are dropped. No register allocation for inputs/outputs.
 
 ### Nested Functions (GCC extension)
-- **Cannot capture enclosing variables.** Nested function declarations parse but references to outer locals fail. Trampoline support (using `mprotect` to make stack executable) is not implemented.
+- **Trampolines not implemented** (no `mprotect` to make stack executable). The compiler instead uses a hidden context-pointer ABI: the nested function receives a pointer (in `%rdi`) to a stack-allocated struct of the captured variables' current values. This works for one level of nesting with simple captures, but not for taking the address of a nested function as a first-class function pointer.
 
 ### Constants
 - **`_Static_assert` is parsed and silently skipped.** The expression is not evaluated at compile time. Always passes.
@@ -446,11 +447,11 @@ int main() {
 
 ## Lesson Progress
 
-**Lesson status:** 105 lessons ✅ Complete, 15 lessons ⚠️ Partial. See each lesson's README for details of what is and is not implemented.
+**Lesson status:** 120 lessons ✅ Complete, 1 lesson ⚠️ Legacy (bit-pattern float storage, superseded by the SSE lesson). See each lesson's README for details of what is and is not implemented.
 
-**Compilation status:** 125/126 lessons with example programs compile and run correctly. 1 lesson is skipped (known limitation: nested functions require trampolines/closures which is not implemented).
+**Compilation status:** 127/127 lessons with example programs compile and run correctly.
 
-**Test status:** 6/6 test suites pass (tokenizer, AST, parser, codegen, integration, lessons 0076-1014).
+**Test status:** 9/9 test suites pass (tokenizer, AST, parser, codegen, integration, lessons 0076-1014, nested functions, float/double, float/double SSE).
 
 ### Core Lessons (0001-0005) — ✅ Complete
 
@@ -533,7 +534,8 @@ int main() {
 | 0040 | Bitfields | ✅ |
 | 0041 | 2D Arrays | ✅ |
 | 0042 | Array-Pointer Decay | ✅ |
-| 0043 | Float/Double | ⚠️ Partial |
+| 0043 | Float/Double (SSE) | ✅ |
+| 0043-bp | Float/Double (bit-pattern, legacy) | ✅ |
 | 0044 | Static Assert | ✅ |
 | 0045 | Generic | ✅ |
 
@@ -660,7 +662,7 @@ int main() {
 4/6 Test #4: codegen_tests ....................   Passed
 5/6 Test #5: integration_tests ................   Passed
 6/6 Test #6: test_lessons_0076_1014 ...........   Passed
-100% tests passed, 0 tests failed out of 6
+100% tests passed, 0 tests failed out of 9
 ```
 
 ## References

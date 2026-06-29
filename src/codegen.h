@@ -4,6 +4,7 @@
 #include <string>
 #include <sstream>
 #include <map>
+#include <vector>
 
 namespace simplecc {
 
@@ -150,13 +151,85 @@ private:
 
     // Type tracking for the current expression context (used for float literal codegen)
     bool current_float_is_double_ = true;
-    
+
+    // Type stack: each subexpression pushes its result type so the parent can
+    // decide whether to emit integer or SSE instructions.
+    std::vector<std::string> expr_type_stack_;
+
+    // Function signatures gathered in a pre-pass.
+    std::map<std::string, std::string> function_return_type_;
+    std::map<std::string, std::vector<std::string>> function_param_types_;
+
+    // Return type of the function currently being generated.
+    std::string current_function_return_type_;
+
+    // Type inference helper
+    std::string infer_expr_type(ASTNode* node);
+    void push_expr_type(const std::string& t) { expr_type_stack_.push_back(t); }
+    std::string pop_expr_type() {
+        if (expr_type_stack_.empty()) return "int";
+        std::string t = expr_type_stack_.back();
+        expr_type_stack_.pop_back();
+        return t;
+    }
+    static bool is_float_type(const std::string& t) {
+        return t == "float" || t == "double" ||
+               t == "const float" || t == "const double";
+    }
+    static bool is_double_type(const std::string& t) {
+        return t == "double" || t == "const double";
+    }
+
     // Struct layout helpers
     int get_struct_size(const std::string& name);
     int get_field_offset(const std::string& struct_name, const std::string& field_name);
     int get_type_size(const std::string& type);
     std::string get_struct_name(const std::string& type_name);
     void compute_member_address(MemberExprNode& node);
+
+    // Nested function support (GCC extension).
+    //
+    // A nested function's ABI is modified to take a hidden first argument
+    // (in %rdi) that points to a struct containing the values of the
+    // enclosing function's local variables that are captured by the
+    // nested function.  This is a simpler alternative to GCC's
+    // executable trampolines (which would require mprotect and break
+    // modern W^X/NX protections).
+    struct NestedFuncInfo {
+        std::vector<FunctionDeclNode::CapturedVar> captures;
+        int ctx_size = 0;  // total bytes for the context struct (aligned to 16)
+    };
+    std::map<std::string, NestedFuncInfo> nested_func_info_;
+
+    // Captures for the function we are currently generating code for
+    std::vector<FunctionDeclNode::CapturedVar> current_captures_;
+
+    // Stack offset (relative to %rbp) where the hidden __ctx parameter
+    // is saved in the current function.  Zero means "not a nested
+    // function" (no __ctx present).
+    int current_ctx_stack_offset_ = 0;
+
+    // Returns the ctx_offset (offset within the context struct) of the
+    // captured variable `name`, or -1 if `name` is not a capture in the
+    // current function.
+    int find_capture_offset(const std::string& name) const;
+
+    // A nested function definition encountered inside another function's
+    // body cannot be emitted inline (doing so would cause the enclosing
+    // function to execute the nested function as part of its own body).
+    // Instead, we record the nested function here and emit it after the
+    // enclosing top-level function finishes its own body and epilogue.
+    // The x86 `call` instruction uses a PC-relative offset, so forward
+    // references are resolved by the assembler.
+    struct PendingNestedFunc {
+        FunctionDeclNode* node;
+        std::vector<FunctionDeclNode::CapturedVar> captures;
+        int ctx_size;
+    };
+    std::vector<PendingNestedFunc> pending_nested_functions_;
+
+    // Emit a pending nested function (its prologue, body, epilogue).
+    void emit_pending_nested_function(PendingNestedFunc& pnf);
 };
 
 } // namespace simplecc

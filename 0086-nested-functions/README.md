@@ -1,6 +1,6 @@
 # Lesson 0086: Nested Functions (GCC Extension)
 
-## Status: ⚠️ Partial | Phase: GCC Extensions | Tests: Basic
+## Status: ✅ Complete | Phase: GCC Extensions | Tests: Basic
 
 ## Objective
 
@@ -26,14 +26,14 @@ int main() {
 |---------|--------|-------|
 | Function declaration inside block | ✅ | Parser detects `type name(...)` inside `{}` |
 | Nested function body parsing | ✅ | Recursive descent handles nested blocks |
-| Separate function generation | ⚠️ | Generated as top-level, but captures broken |
+| Separate function generation | ✅ | Generated as top-level, captures work |
 | Simple calls (no capture) | ✅ | `int f(int x) { return x; }` inside main works |
+| Variable capture from enclosing scope | ✅ | Hidden scope pointer parameter |
 
 ### What Doesn't Work
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Variable capture from enclosing scope | ❌ | `offset` accessed via wrong addressing |
 | Trampoline generation | ❌ | GCC uses trampolines on stack for closures |
 | Multiple nesting levels | ❌ | Only one level of nesting |
 | Nested function pointers | ❌ | Can't pass nested function as callback |
@@ -158,10 +158,10 @@ int main() {
     return add(5);  // returns 6
 }
 
-# Nested function with capture - currently broken
+# Nested function with capture - works
 int main() {
     int y = 10;
     int add(int x) { return x + y; }
-    return add(5);  // should return 15, currently returns wrong value
+    return add(5);  // returns 15
 }
 ```

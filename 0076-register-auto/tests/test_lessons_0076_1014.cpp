@@ -83,6 +83,16 @@ TEST_CASE("0085 builtin functions", "[lessons][0085]") {
     )"));
 }
 
+TEST_CASE("0086 nested functions", "[lessons][0086]") {
+    REQUIRE(compile_code(R"(
+        int main() {
+            int offset = 10;
+            int add_offset(int x) { return x + offset; }
+            return add_offset(5);
+        }
+    )"));
+}
+
 TEST_CASE("1000 static assert", "[lessons][1000]") {
     REQUIRE(compile_code(R"(
         _Static_assert(sizeof(int) == 4, "int must be 4 bytes");
@@ -163,4 +173,38 @@ TEST_CASE("0092 nested struct access", "[lessons][0092]") {
 
 TEST_CASE("0093 nested brace array init", "[lessons][0093]") {
     REQUIRE(compile_code("int main() { int a[2][3] = {{1,2,3},{4,5,6}}; return a[1][2]; }"));
+}
+
+TEST_CASE("0043 float/double types and cast", "[lessons][0043]") {
+    Compiler compiler;
+    auto result = compiler.compile(R"(
+        int main() {
+            int sz1 = sizeof(float);
+            int sz2 = sizeof(double);
+            float f;
+            int *p = (int*)&f;
+            *p = 0;
+            f = 3.14f;
+            int bits = *p;
+            if (sz1 != 4) return 0;
+            if (sz2 != 8) return 0;
+            if (bits != 1078523331) return 0;
+            return 1;
+        }
+    )");
+    REQUIRE(result.success);
+    REQUIRE(result.assembly.find(".globl main") != std::string::npos);
+}
+
+TEST_CASE("0043-sse float arithmetic", "[lessons][0043-sse]") {
+    Compiler compiler;
+    auto result = compiler.compile(R"(
+        int main() {
+            float a = 1.0f, b = 2.0f;
+            float c = a + b;
+            int *p = (int*)&c;
+            return *p;
+        }
+    )");
+    REQUIRE(result.success);
 }
