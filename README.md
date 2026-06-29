@@ -448,7 +448,7 @@ int main() {
 
 **Lesson status:** 105 lessons ✅ Complete, 15 lessons ⚠️ Partial. See each lesson's README for details of what is and is not implemented.
 
-**Compilation status:** 118/126 lessons with example programs compile and run correctly. 8 lessons are skipped (known limitations: nested functions, float/double, for-init assignment, multi-dim arrays, token pasting, standard lib stubs, GCC extensions).
+**Compilation status:** 125/126 lessons with example programs compile and run correctly. 1 lesson is skipped (known limitation: nested functions require trampolines/closures which is not implemented).
 
 **Test status:** 6/6 test suites pass (tokenizer, AST, parser, codegen, integration, lessons 0076-1014).
 

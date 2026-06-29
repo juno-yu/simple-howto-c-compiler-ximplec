@@ -1532,7 +1532,9 @@ ASTPtr Parser::parse_equality() {
     auto left = parse_comparison();
     
     while (check(TokenType::EQ) || check(TokenType::NE)) {
-        OpKind op = match(TokenType::EQ) ? OpKind::EQ : OpKind::NE;
+        OpKind op;
+        if (match(TokenType::EQ)) op = OpKind::EQ;
+        else { match(TokenType::NE); op = OpKind::NE; }
         auto bin = std::make_unique<BinaryExprNode>(op, left->line, left->column);
         bin->left = std::move(left);
         bin->right = parse_comparison();
