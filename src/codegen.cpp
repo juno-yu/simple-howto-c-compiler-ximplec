@@ -24,6 +24,7 @@ std::string CodeGenerator::generate(ProgramNode& program) {
             gvar.name = var->name;
             gvar.type = var->type_name;
             gvar.initialized = (var->initializer != nullptr);
+            gvar.is_extern = var->is_extern;
             if (gvar.initialized && var->initializer->type == NodeType::INTEGER_LITERAL) {
                 gvar.init_value = std::to_string(static_cast<IntegerLiteralNode*>(var->initializer.get())->value);
             }
@@ -31,10 +32,19 @@ std::string CodeGenerator::generate(ProgramNode& program) {
         }
     }
     
-    // Emit global variables
-    if (!global_variables_.empty()) {
+    // Emit global variables (skip extern - they're defined elsewhere)
+    bool has_non_extern_globals = false;
+    for (const auto& gvar : global_variables_) {
+        if (!gvar.is_extern) {
+            has_non_extern_globals = true;
+            break;
+        }
+    }
+    
+    if (has_non_extern_globals) {
         emit(".data");
         for (const auto& gvar : global_variables_) {
+            if (gvar.is_extern) continue; // Skip extern variables
             emit(".globl " + gvar.name);
             emit_label(gvar.name);
             if (gvar.initialized) {
@@ -256,6 +266,7 @@ void CodeGenerator::visit(ProgramNode& node) {
             gvar.name = var->name;
             gvar.type = var->type_name;
             gvar.initialized = (var->initializer != nullptr);
+            gvar.is_extern = var->is_extern;
             if (gvar.initialized && var->initializer->type == NodeType::INTEGER_LITERAL) {
                 gvar.init_value = std::to_string(static_cast<IntegerLiteralNode*>(var->initializer.get())->value);
             }

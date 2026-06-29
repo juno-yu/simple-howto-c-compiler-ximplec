@@ -119,6 +119,7 @@ private:
         std::string type;
         bool initialized;
         std::string init_value;
+        bool is_extern;
     };
     std::vector<GlobalVar> global_variables_;
     

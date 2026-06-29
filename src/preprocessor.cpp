@@ -85,6 +85,7 @@ std::string Preprocessor::process(const std::string& source, const std::string& 
                 if (has_error()) return "";
                 // Read included file content and insert it
                 std::string filename;
+                bool is_angle_bracket = false;
                 size_t start = dir_args.find_first_not_of(" \t");
                 if (start != std::string::npos) {
                     if (dir_args[start] == '"') {
@@ -93,10 +94,22 @@ std::string Preprocessor::process(const std::string& source, const std::string& 
                     } else if (dir_args[start] == '<') {
                         size_t end = dir_args.find('>', start + 1);
                         if (end != std::string::npos) filename = dir_args.substr(start + 1, end - start - 1);
+                        is_angle_bracket = true;
                     }
                 }
                 if (!filename.empty()) {
-                    std::string content = read_file(filename);
+                    std::string content;
+                    // Try direct path first
+                    content = read_file(filename);
+                    // For angle-bracket includes, try lib/ directory
+                    if (is_angle_bracket && has_error()) {
+                        error_message_.clear();
+                        content = read_file("lib/" + filename);
+                    }
+                    // For quote includes, also try lib/ as fallback
+                    if (!has_error() && content.empty() && !is_angle_bracket) {
+                        content = read_file("lib/" + filename);
+                    }
                     if (!has_error()) {
                         // Process included content recursively
                         Preprocessor inner;

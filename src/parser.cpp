@@ -302,7 +302,7 @@ ASTPtr Parser::parse_program() {
 ASTPtr Parser::parse_declaration() {
     // Handle extern keyword
     if (match(TokenType::KW_EXTERN)) {
-        // extern declarations - just parse as forward declarations
+        // extern declarations - parse as forward declarations
         std::string type_name = parse_type_specifier();
         if (!check(TokenType::IDENTIFIER)) {
             error("Expected identifier after extern");
@@ -312,10 +312,12 @@ ASTPtr Parser::parse_declaration() {
         std::string name = name_token.value;
         advance();
         
-        auto func = std::make_unique<FunctionDeclNode>(
-            type_name, name, name_token.line, name_token.column);
-        
-        if (match(TokenType::LPAREN)) {
+        // Check if this is a function or variable extern declaration
+        if (check(TokenType::LPAREN)) {
+            // extern function declaration
+            auto func = std::make_unique<FunctionDeclNode>(
+                type_name, name, name_token.line, name_token.column);
+            
             // Function parameters
             if (!check(TokenType::RPAREN)) {
                 do {
@@ -326,11 +328,18 @@ ASTPtr Parser::parse_declaration() {
                 } while (match(TokenType::COMMA));
             }
             expect(TokenType::RPAREN);
+            
+            expect(TokenType::SEMICOLON);
+            func->body = nullptr; // extern = no body
+            return std::move(func);
+        } else {
+            // extern variable declaration
+            auto var = std::make_unique<VarDeclNode>(
+                type_name, name, name_token.line, name_token.column);
+            var->is_extern = true;
+            expect(TokenType::SEMICOLON);
+            return std::move(var);
         }
-        
-        expect(TokenType::SEMICOLON);
-        func->body = nullptr; // extern = no body
-        return std::move(func);
     }
     
     // Handle struct keyword
@@ -662,7 +671,7 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
         if (check(TokenType::LBRACE)) {
             var->initializer = parse_brace_initializer();
         } else {
-            var->initializer = parse_expression();
+            var->initializer = parse_assignment();
         }
     }
 
@@ -711,7 +720,7 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
                 if (check(TokenType::LBRACE)) {
                     next_var->initializer = parse_brace_initializer();
                 } else {
-                    next_var->initializer = parse_expression();
+                    next_var->initializer = parse_assignment();
                 }
             }
             block->statements.push_back(std::move(next_var));

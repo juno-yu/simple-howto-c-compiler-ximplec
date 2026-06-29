@@ -233,9 +233,10 @@ struct VarDeclNode : ASTNode {
     std::string name;
     ASTPtr initializer;
     int array_size; // 0 = not an array, >0 = array size
+    bool is_extern;
     
     VarDeclNode(const std::string& type, const std::string& n, int l, int c)
-        : ASTNode(NodeType::VAR_DECL, l, c), type_name(type), name(n), array_size(0) {}
+        : ASTNode(NodeType::VAR_DECL, l, c), type_name(type), name(n), array_size(0), is_extern(false) {}
     void accept(ASTVisitor& visitor);
 };
 

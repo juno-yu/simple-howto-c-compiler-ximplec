@@ -5,7 +5,7 @@
 #include <vector>
 
 void print_usage() {
-    std::cerr << "Usage: simplecc [options] <file.c>" << std::endl;
+    std::cerr << "Usage: simplecc [options] <file.c> [file2.c ...]" << std::endl;
     std::cerr << "Options:" << std::endl;
     std::cerr << "  -o <file>    Output file (default: a.out)" << std::endl;
     std::cerr << "  -S           Output assembly only" << std::endl;
@@ -15,7 +15,7 @@ void print_usage() {
 }
 
 int main(int argc, char* argv[]) {
-    std::string input_file;
+    std::vector<std::string> input_files;
     std::string output_file = "a.out";
     bool assembly_only = false;
     bool print_tokens = false;
@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
         } else if (args[i] == "-a") {
             print_ast = true;
         } else if (args[i][0] != '-') {
-            input_file = args[i];
+            input_files.push_back(args[i]);
         } else {
             std::cerr << "Unknown option: " << args[i] << std::endl;
             print_usage();
@@ -52,33 +52,77 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    if (input_file.empty()) {
+    if (input_files.empty()) {
         std::cerr << "Error: No input file specified" << std::endl;
         print_usage();
         return 1;
     }
     
     simplecc::Compiler compiler;
-    auto result = compiler.compile_file(input_file);
-    
-    if (!result.success) {
-        std::cerr << result.error_message << std::endl;
-        return 1;
-    }
     
     if (assembly_only) {
-        std::cout << result.assembly;
-    } else {
-        // Write assembly to temp file and assemble
-        std::string asm_file = input_file + ".s";
-        std::ofstream out(asm_file);
-        out << result.assembly;
-        out.close();
+        std::vector<std::pair<std::string, std::string>> compiled_files; // (filename, assembly)
         
-        std::cout << "Assembly written to " << asm_file << std::endl;
+        for (const auto& input_file : input_files) {
+            auto result = compiler.compile_file(input_file);
+            
+            if (!result.success) {
+                std::cerr << input_file << ": " << result.error_message << std::endl;
+                return 1;
+            }
+            
+            compiled_files.push_back({input_file, result.assembly});
+        }
+        
+        if (input_files.size() == 1 && output_file == "a.out") {
+            // Single file, no -o: print to stdout
+            std::cout << compiled_files[0].second;
+        } else if (input_files.size() > 1 && output_file == "a.out") {
+            // Multiple files, no -o: write individual .s files
+            for (const auto& [filename, assembly] : compiled_files) {
+                std::string asm_file = filename + ".s";
+                std::ofstream out(asm_file);
+                out << assembly;
+                out.close();
+                
+                std::cout << "Assembly written to " << asm_file << std::endl;
+            }
+        } else {
+            // -o specified: write combined assembly to output file
+            std::string combined_assembly;
+            for (const auto& [filename, assembly] : compiled_files) {
+                combined_assembly += assembly;
+                combined_assembly += "\n";
+            }
+            
+            std::ofstream out(output_file);
+            out << combined_assembly;
+            out.close();
+            std::cout << "Assembly written to " << output_file << std::endl;
+        }
+    } else {
+        for (const auto& input_file : input_files) {
+            auto result = compiler.compile_file(input_file);
+            
+            if (!result.success) {
+                std::cerr << input_file << ": " << result.error_message << std::endl;
+                return 1;
+            }
+            
+            std::string asm_file = input_file + ".s";
+            std::ofstream out(asm_file);
+            out << result.assembly;
+            out.close();
+            
+            std::cout << "Assembly written to " << asm_file << std::endl;
+        }
+        
         std::cout << "To assemble and link:" << std::endl;
-        std::cout << "  as " << asm_file << " -o " << input_file << ".o" << std::endl;
-        std::cout << "  ld " << input_file << ".o -o " << output_file << std::endl;
+        std::cout << "  as ";
+        for (const auto& input_file : input_files) {
+            std::cout << input_file << ".s ";
+        }
+        std::cout << "-o " << output_file << std::endl;
     }
     
     return 0;
