@@ -538,11 +538,11 @@ int main() {
 | 0044 | Static Assert | ✅ |
 | 0045 | Generic | ✅ |
 
-### N-Dimensional Arrays (0100)
+### N-Dimensional Arrays (0087)
 
 | Lesson | Topic | Compile |
 |--------|-------|---------|
-| 0100 | N-Dim Arrays | ✅ |
+| 0087 | N-Dim Arrays | ✅ |
 
 ### System & Functions (0046-0065)
 
