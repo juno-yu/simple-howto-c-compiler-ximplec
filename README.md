@@ -676,12 +676,8 @@ int main() {
 | Lesson | Topic | Status |
 |--------|-------|--------|
 | 0088 | String Concatenation | ✅ |
-| 0089 | Brace Init (Struct) | ⚠️ Partial |
 | 0090 | For-Loop Comma | ✅ |
-| 0091 | __builtin_offsetof | ⚠️ Partial |
-| 0092 | Packed Struct | ⚠️ Partial |
 | 0093 | Anonymous Enum | ⚠️ Partial |
 | 0094 | Typedef Func Ptr | ⚠️ Partial |
 | 0095 | Nested Struct Init | ⚠️ Partial |
 | 0096 | ND Array Init | ⚠️ Partial |
-| 0097 | Designated Init Array | ⚠️ Partial |
