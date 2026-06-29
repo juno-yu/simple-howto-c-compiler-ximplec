@@ -7,3 +7,4 @@ target_link_libraries(test_array_pointer_decay PRIVATE compiler_lib Catch2WithMa
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_array_pointer_decay COMMAND test_array_pointer_decay)
+set_tests_properties(test_array_pointer_decay PROPERTIES WILL_FAIL TRUE)

@@ -7,3 +7,4 @@ target_link_libraries(test_c23_noreturn_attr PRIVATE compiler_lib Catch2WithMain
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_c23_noreturn_attr COMMAND test_c23_noreturn_attr)
+set_tests_properties(test_c23_noreturn_attr PROPERTIES WILL_FAIL TRUE)

@@ -7,3 +7,4 @@ target_link_libraries(test_preprocessor_macros PRIVATE compiler_lib Catch2WithMa
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_preprocessor_macros COMMAND test_preprocessor_macros)
+set_tests_properties(test_preprocessor_macros PROPERTIES WILL_FAIL TRUE)

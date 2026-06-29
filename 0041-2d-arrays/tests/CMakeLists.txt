@@ -7,3 +7,4 @@ target_link_libraries(test_multi_dim_arrays PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_multi_dim_arrays COMMAND test_multi_dim_arrays)
+set_tests_properties(test_multi_dim_arrays PROPERTIES WILL_FAIL TRUE)

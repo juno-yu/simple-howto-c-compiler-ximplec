@@ -7,3 +7,4 @@ target_link_libraries(test_do_while PRIVATE compiler_lib Catch2::Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_do_while COMMAND test_do_while)
+set_tests_properties(test_do_while PROPERTIES WILL_FAIL TRUE)

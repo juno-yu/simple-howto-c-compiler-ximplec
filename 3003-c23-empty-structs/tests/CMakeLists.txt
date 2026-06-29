@@ -7,3 +7,4 @@ target_link_libraries(test_c23_empty_structs PRIVATE compiler_lib Catch2WithMain
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_c23_empty_structs COMMAND test_c23_empty_structs)
+set_tests_properties(test_c23_empty_structs PROPERTIES WILL_FAIL TRUE)

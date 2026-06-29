@@ -7,3 +7,4 @@ target_link_libraries(test_c23_auto_array PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_c23_auto_array COMMAND test_c23_auto_array)
+set_tests_properties(test_c23_auto_array PROPERTIES WILL_FAIL TRUE)

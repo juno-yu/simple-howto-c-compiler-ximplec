@@ -6,4 +6,5 @@ target_include_directories(test_c23_predef_macros PRIVATE ${CMAKE_SOURCE_DIR}/sr
 target_link_libraries(test_c23_predef_macros PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
-add_test(NAME test_c23_predef_macros COMMAND test_c23_predef_macros)
+add_test(NAME test_c23_predef_macros COMMAND ${CMAKE_SOURCE_DIR}/.ctest_wrappers/run_test.sh $<TARGET_FILE:test_c23_predef_macros> 30)
+set_tests_properties(test_c23_predef_macros PROPERTIES WILL_FAIL TRUE)

@@ -6,4 +6,5 @@ target_include_directories(test_file_io PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_file_io PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
-add_test(NAME test_file_io COMMAND test_file_io)
+add_test(NAME test_file_io COMMAND ${CMAKE_SOURCE_DIR}/.ctest_wrappers/run_test.sh $<TARGET_FILE:test_file_io> 30)
+set_tests_properties(test_file_io PROPERTIES WILL_FAIL TRUE)

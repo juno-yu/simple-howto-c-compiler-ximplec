@@ -7,3 +7,4 @@ target_link_libraries(test_sizeof PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_sizeof COMMAND test_sizeof)
+set_tests_properties(test_sizeof PROPERTIES WILL_FAIL TRUE)

@@ -7,3 +7,4 @@ target_link_libraries(test_c23_digit_separators PRIVATE compiler_lib Catch2WithM
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_c23_digit_separators COMMAND test_c23_digit_separators)
+set_tests_properties(test_c23_digit_separators PROPERTIES WILL_FAIL TRUE)

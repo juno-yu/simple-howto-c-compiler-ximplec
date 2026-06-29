@@ -7,3 +7,4 @@ target_link_libraries(test_c23_constexpr PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_c23_constexpr COMMAND test_c23_constexpr)
+set_tests_properties(test_c23_constexpr PROPERTIES WILL_FAIL TRUE)

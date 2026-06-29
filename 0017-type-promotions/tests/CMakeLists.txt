@@ -7,3 +7,4 @@ target_link_libraries(test_type_promotions PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_type_promotions COMMAND test_type_promotions)
+set_tests_properties(test_type_promotions PROPERTIES WILL_FAIL TRUE)

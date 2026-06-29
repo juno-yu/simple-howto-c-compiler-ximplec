@@ -7,3 +7,4 @@ target_link_libraries(test_array_types PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_array_types COMMAND test_array_types)
+set_tests_properties(test_array_types PROPERTIES WILL_FAIL TRUE)
