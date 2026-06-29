@@ -46,7 +46,7 @@ echo "  Testing all example.c files..."
 echo ""
 
 # Known failures: skip gracefully
-KNOWN_FAIL="0009-comma-operator 0010-bool-type 0035-include-directive 0043-float-double 0049-multi-file 0068-register-alloc 0079-token-pasting 0081-standard-lib-stubs 0085-builtin-functions 0086-nested-functions 0089-for-comma 1012-c11-static-assert-alias 2000-c17-stdbool 2001-c17-stdalign 3000-c23-bool-literal 3002-c23-for-init-decl"
+KNOWN_FAIL="0035-include-directive 0043-float-double 0081-standard-lib-stubs 0086-nested-functions 0089-for-comma 1012-c11-static-assert-alias 2000-c17-stdbool 2001-c17-stdalign"
 
 for dir in "$ROOT"/[0-9]*/; do
     [ -f "$dir/src/example.c" ] || continue
