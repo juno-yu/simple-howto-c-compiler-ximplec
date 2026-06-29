@@ -140,3 +140,27 @@ TEST_CASE("1014 alignas alignof", "[lessons][1014]") {
         }
     )"));
 }
+
+TEST_CASE("0088 string concatenation", "[lessons][0088]") {
+    REQUIRE(compile_code("int main() { char *s = \"hel\" \"lo\"; return s[0]; }"));
+}
+
+TEST_CASE("0089 for-loop comma", "[lessons][0089]") {
+    REQUIRE(compile_code("int main() { int i = 0; for (; i < 3; i++) { } return i; }"));
+}
+
+TEST_CASE("0090 anonymous enum", "[lessons][0090]") {
+    REQUIRE(compile_code("int main() { enum {A=10, B=20, C=30}; return B; }"));
+}
+
+TEST_CASE("0091 typedef function pointer", "[lessons][0091]") {
+    REQUIRE(compile_code("int main() { typedef int (*func_t)(int); func_t f = 0; return 0; }"));
+}
+
+TEST_CASE("0092 nested struct access", "[lessons][0092]") {
+    REQUIRE(compile_code("struct A { struct { int x; } inner; }; int main() { struct A a; a.inner.x = 5; return a.inner.x; }"));
+}
+
+TEST_CASE("0093 nested brace array init", "[lessons][0093]") {
+    REQUIRE(compile_code("int main() { int a[2][3] = {{1,2,3},{4,5,6}}; return a[1][2]; }"));
+}

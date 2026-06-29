@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdint>
+#include <functional>
 
 namespace simplecc {
 
@@ -345,24 +346,35 @@ void CodeGenerator::visit(VarDeclNode& node) {
 
     if (node.initializer) {
         if (auto* init_list = dynamic_cast<InitializerListNode*>(node.initializer.get())) {
-            // Brace initializer: emit each element to its slot
+            // Flatten nested InitializerListNodes into a single list
+            std::vector<ASTNode*> flat_elements;
+            std::function<void(InitializerListNode&)> collect = [&](InitializerListNode& list) {
+                for (auto& elem : list.elements) {
+                    if (auto* sub = dynamic_cast<InitializerListNode*>(elem.get())) {
+                        collect(*sub);
+                    } else {
+                        flat_elements.push_back(elem.get());
+                    }
+                }
+            };
+            collect(*init_list);
+            
+            // Emit each flat element to its slot
             int elem_index = 0;
-            for (auto& elem : init_list->elements) {
-                if (auto* desig = dynamic_cast<DesignatedInitNode*>(elem.get())) {
+            for (ASTNode* elem : flat_elements) {
+                if (auto* desig = dynamic_cast<DesignatedInitNode*>(elem)) {
                     if (!desig->field_name.empty()) {
-                        // Struct field designator: .x = ...
                         int field_off = get_field_offset(get_struct_name(node.type_name), desig->field_name);
                         if (field_off < 0) field_off = 0;
                         dispatch(desig->value.get());
                         emit("mov %rax, " + std::to_string(base_offset + field_off) + "(%rbp)");
                         continue;
                     } else if (desig->array_index >= 0) {
-                        // Array index designator: [3] = ...
                         elem_index = desig->array_index;
                     }
                 }
                 if (elem_index < node.array_size || node.array_size == 0) {
-                    dispatch(elem.get());
+                    dispatch(elem);
                     int slot = base_offset + elem_index * elem_size;
                     if (elem_size == 1) {
                         emit("mov %al, " + std::to_string(slot) + "(%rbp)");

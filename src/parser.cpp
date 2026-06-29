@@ -200,12 +200,29 @@ std::string Parser::parse_type_specifier() {
             return result;
         }
     } else if (match(TokenType::KW_ENUM)) {
-        if (!check(TokenType::IDENTIFIER)) {
-            error("Expected enum name");
-            return result;
+        if (check(TokenType::IDENTIFIER)) {
+            result += "enum " + peek().value;
+            advance();
+        } else {
+            // Anonymous enum: enum {A, B, C};
+            expect(TokenType::LBRACE);
+            long long val = 0;
+            while (!check(TokenType::RBRACE) && !is_at_end()) {
+                std::string cname = peek().value;
+                advance();
+                if (match(TokenType::ASSIGN)) {
+                    auto expr = parse_assignment();
+                    if (expr && expr->type == NodeType::INTEGER_LITERAL) {
+                        val = static_cast<IntegerLiteralNode*>(expr.get())->value;
+                    }
+                }
+                enum_constants_[cname] = val;
+                match(TokenType::COMMA);
+                val++;
+            }
+            expect(TokenType::RBRACE);
+            result += "int";
         }
-        result += "enum " + peek().value;
-        advance();
     } else if (match(TokenType::KW_TYPEDEF)) {
         // typedef name used as type - just return the name
         if (!check(TokenType::IDENTIFIER)) {
@@ -468,6 +485,28 @@ ASTPtr Parser::parse_declaration() {
     
     // Handle enum keyword
     if (match(TokenType::KW_ENUM)) {
+        // Check for anonymous enum: enum { A, B, C };
+        if (check(TokenType::LBRACE)) {
+            expect(TokenType::LBRACE);
+            long long val = 0;
+            while (!check(TokenType::RBRACE) && !is_at_end()) {
+                std::string cname = peek().value;
+                advance();
+                if (match(TokenType::ASSIGN)) {
+                    auto expr = parse_assignment();
+                    if (expr && expr->type == NodeType::INTEGER_LITERAL) {
+                        val = static_cast<IntegerLiteralNode*>(expr.get())->value;
+                    }
+                }
+                enum_constants_[cname] = val;
+                match(TokenType::COMMA);
+                val++;
+            }
+            expect(TokenType::RBRACE);
+            match(TokenType::SEMICOLON);
+            return std::make_unique<ExprStmtNode>(
+                tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+        }
         return parse_enum_decl();
     }
     
@@ -779,12 +818,15 @@ ASTPtr Parser::parse_struct_decl() {
 }
 
 ASTPtr Parser::parse_enum_decl() {
-    const Token& name_token = peek();
-    std::string name = name_token.value;
-    advance();
+    std::string name;
+    int name_line = peek().line, name_col = peek().column;
+    if (check(TokenType::IDENTIFIER)) {
+        name = peek().value;
+        advance();
+    }
     
     auto enum_decl = std::make_unique<EnumDeclNode>(
-        name, name_token.line, name_token.column);
+        name, name_line, name_col);
     
     expect(TokenType::LBRACE);
     
@@ -822,22 +864,53 @@ ASTPtr Parser::parse_enum_decl() {
 ASTPtr Parser::parse_typedef_decl() {
     std::string source_type = parse_type_specifier();
     
-    if (!check(TokenType::IDENTIFIER)) {
+    std::string alias;
+    int alias_line, alias_col;
+    
+    if (check(TokenType::IDENTIFIER)) {
+        alias_line = peek().line;
+        alias_col = peek().column;
+        alias = peek().value;
+        advance();
+    } else if (match(TokenType::LPAREN)) {
+        // Function pointer typedef: typedef int (*func_t)(int);
+        if (match(TokenType::STAR)) {
+            if (!check(TokenType::IDENTIFIER)) {
+                error("Expected function pointer name");
+                return nullptr;
+            }
+            alias_line = peek().line;
+            alias_col = peek().column;
+            alias = peek().value;
+            advance();
+            expect(TokenType::RPAREN);
+        } else {
+            error("Expected typedef name");
+            return nullptr;
+        }
+        // Skip the parameter list
+        if (match(TokenType::LPAREN)) {
+            int depth = 1;
+            while (depth > 0 && !is_at_end()) {
+                if (check(TokenType::LPAREN)) depth++;
+                else if (check(TokenType::RPAREN)) {
+                    depth--;
+                    if (depth == 0) { advance(); break; }
+                }
+                advance();
+            }
+        }
+        source_type = source_type + "(*)";
+    } else {
         error("Expected typedef name");
         return nullptr;
     }
     
-    const Token& alias_token = peek();
-    std::string alias = alias_token.value;
-    advance();
-    
-    // Register typedef name for type specifier recognition
     typedef_names_.insert(alias);
-    
     expect(TokenType::SEMICOLON);
     
     return std::make_unique<TypedefDeclNode>(
-        source_type, alias, alias_token.line, alias_token.column);
+        source_type, alias, alias_line, alias_col);
 }
 
 ASTPtr Parser::parse_param() {
@@ -975,11 +1048,54 @@ ASTPtr Parser::parse_statement() {
     if (check(TokenType::KW_STATIC_ASSERT)) {
         return parse_static_assert();
     }
+    if (check(TokenType::KW_TYPEDEF)) {
+        advance();
+        std::string source_type = parse_type_specifier();
+        if (check(TokenType::IDENTIFIER)) {
+            std::string alias = peek().value;
+            advance();
+            typedef_names_.insert(alias);
+            expect(TokenType::SEMICOLON);
+            return std::make_unique<TypedefDeclNode>(
+                source_type, alias, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+        } else if (check(TokenType::LPAREN)) {
+            advance();
+            expect(TokenType::STAR);
+            if (!check(TokenType::IDENTIFIER)) {
+                error("Expected function pointer name");
+                return nullptr;
+            }
+            std::string alias = peek().value;
+            advance();
+            expect(TokenType::RPAREN);
+            expect(TokenType::LPAREN);
+            int depth = 1;
+            while (depth > 0 && !is_at_end()) {
+                if (check(TokenType::LPAREN)) depth++;
+                else if (check(TokenType::RPAREN)) {
+                    depth--;
+                    if (depth == 0) { advance(); break; }
+                }
+                advance();
+            }
+            typedef_names_.insert(alias);
+            expect(TokenType::SEMICOLON);
+            return std::make_unique<TypedefDeclNode>(
+                source_type + "(*)", alias, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+        }
+        error("Expected typedef name");
+        return nullptr;
+    }
     if (check(TokenType::LBRACE)) {
         return parse_block();
     }
     if (is_type_specifier()) {
         std::string type_name = parse_type_specifier();
+        if (check(TokenType::SEMICOLON)) {
+            advance();
+            return std::make_unique<ExprStmtNode>(
+                tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+        }
         // Check for function pointer: int (*fp)(int, int)
         if (check(TokenType::LPAREN)) {
             size_t saved_pos = pos_;
@@ -1847,6 +1963,11 @@ ASTPtr Parser::parse_primary() {
         auto expr = parse_expression();
         expect(TokenType::RPAREN);
         return std::move(expr);
+    }
+    
+    // Nested brace initializer: { expr, expr, ... }
+    if (check(TokenType::LBRACE)) {
+        return parse_brace_initializer();
     }
     
     error("Unexpected token in expression");
