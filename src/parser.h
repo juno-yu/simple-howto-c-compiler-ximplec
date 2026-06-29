@@ -90,8 +90,8 @@ private:
     // Typedef names for type specifier recognition
     std::set<std::string> typedef_names_;
 
-    // Multi-dim array inner dimension tracking (for [i][j] → [i*N+j] flattening)
-    std::map<std::string, int> multidim_inner_dim_;
+    // Multi-dim array dimension tracking (full vector for any depth)
+    std::map<std::string, std::vector<int>> multidim_dims_;
 };
 
 } // namespace simplecc

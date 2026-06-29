@@ -586,31 +586,36 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
         }
     }
     
-    // Check for array declaration (supports multi-dim: int arr[2][3])
+    // Check for array declaration (supports multi-dim: int arr[2][3][4])
     if (match(TokenType::LBRACKET)) {
-        int first_dim = 0, second_dim = 0;
+        std::vector<int> dims;
+        // First dimension
         if (check(TokenType::INTEGER)) {
-            first_dim = std::stoi(peek().value);
-            var->array_size = first_dim;
+            dims.push_back(std::stoi(peek().value));
+            var->array_size = dims[0];
             advance();
+        } else {
+            dims.push_back(0);
         }
         expect(TokenType::RBRACKET);
-        // Additional dimensions: collapse to total size
+        // Additional dimensions: collect all, collapse total size
         while (check(TokenType::LBRACKET)) {
             advance();
             int dim_size = 0;
             if (check(TokenType::INTEGER)) {
                 dim_size = std::stoi(peek().value);
+                dims.push_back(dim_size);
                 advance();
+            } else {
+                dims.push_back(0);
             }
             expect(TokenType::RBRACKET);
             if (dim_size > 0) {
-                if (second_dim == 0) second_dim = dim_size;
                 var->array_size = (var->array_size > 0 ? var->array_size : 1) * dim_size;
             }
         }
-        if (second_dim > 0) {
-            multidim_inner_dim_[var->name] = second_dim;
+        if (dims.size() > 1) {
+            multidim_dims_[var->name] = dims;
         }
     }
     
@@ -634,9 +639,13 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
             advance();
             // Array (multi-dim)
             if (match(TokenType::LBRACKET)) {
+                std::vector<int> ndims;
                 if (check(TokenType::INTEGER)) {
-                    next_var->array_size = std::stoi(peek().value);
+                    ndims.push_back(std::stoi(peek().value));
+                    next_var->array_size = ndims[0];
                     advance();
+                } else {
+                    ndims.push_back(0);
                 }
                 expect(TokenType::RBRACKET);
                 while (check(TokenType::LBRACKET)) {
@@ -644,12 +653,18 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name) {
                     int dim_size = 0;
                     if (check(TokenType::INTEGER)) {
                         dim_size = std::stoi(peek().value);
+                        ndims.push_back(dim_size);
                         advance();
+                    } else {
+                        ndims.push_back(0);
                     }
                     expect(TokenType::RBRACKET);
                     if (dim_size > 0) {
                         next_var->array_size = (next_var->array_size > 0 ? next_var->array_size : 1) * dim_size;
                     }
+                }
+                if (ndims.size() > 1) {
+                    multidim_dims_[next_var->name] = ndims;
                 }
             }
             // Initializer
@@ -1638,14 +1653,18 @@ ASTPtr Parser::parse_postfix() {
 
     if (!primary) return nullptr;
 
-    // Helper: detect if `primary` is a multi-dim array access (IdentifierExprNode on a multi-dim var)
-    // and compute the inner dimension for offset flattening.
-    auto get_inner_dim = [&](const std::string& name) -> int {
-        // If the variable was declared as a multi-dim array, we need its inner dimension
-        // Look up in current VarDeclNodes; we use a side-channel via decl_map_ (set in parse_declaration)
-        auto it = multidim_inner_dim_.find(name);
-        if (it != multidim_inner_dim_.end()) return it->second;
-        return 0;
+    // Helper: get full dimension vector for a multi-dim array variable
+    auto get_dims = [&](const std::string& name) -> std::vector<int>* {
+        auto it = multidim_dims_.find(name);
+        if (it != multidim_dims_.end()) return &it->second;
+        return nullptr;
+    };
+
+    // Helper: get the variable name from an expression (for multi-dim lookup)
+    auto get_array_name = [&](ASTNode* node) -> std::string {
+        if (auto* id = dynamic_cast<IdentifierExprNode*>(node))
+            return id->name;
+        return "";
     };
 
     while (true) {
@@ -1667,48 +1686,81 @@ ASTPtr Parser::parse_postfix() {
             auto first_index = parse_expression();
             expect(TokenType::RBRACKET);
 
-            // Check for second [ ] → multi-dim flatten
-            if (check(TokenType::LBRACKET)) {
+            // Collect all remaining [indices] for N-dim flattening
+            std::vector<ASTPtr> indices;
+            indices.push_back(std::move(first_index));
+            while (check(TokenType::LBRACKET)) {
                 advance();
-                auto second_index = parse_expression();
+                indices.push_back(parse_expression());
                 expect(TokenType::RBRACKET);
-                // Only flatten when the base is a multi-dim array identifier
-                if (auto* id = dynamic_cast<IdentifierExprNode*>(primary.get())) {
-                    int inner = get_inner_dim(id->name);
-                    if (inner > 0) {
-                        // Compute first_index * inner + second_index
-                        int line = primary->line, col = primary->column;
-                        auto mul = std::make_unique<BinaryExprNode>(OpKind::MUL, line, col);
-                        mul->left = std::move(first_index);
-                        auto inner_lit = std::make_unique<IntegerLiteralNode>(inner, line, col);
-                        mul->right = std::move(inner_lit);
-                        auto add = std::make_unique<BinaryExprNode>(OpKind::ADD, line, col);
-                        add->left = std::move(mul);
-                        add->right = std::move(second_index);
-                        auto flat = std::make_unique<IndexExprNode>(line, col);
-                        flat->array = std::move(primary);
-                        flat->index = std::move(add);
-                        primary = std::move(flat);
-                        continue;
-                    }
-                }
-                // Not a known multi-dim identifier: build a nested IndexExprNode
-                int line = primary->line, col = primary->column;
-                auto inner = std::make_unique<IndexExprNode>(line, col);
-                inner->array = std::move(primary);
-                inner->index = std::move(first_index);
-                auto outer = std::make_unique<IndexExprNode>(line, col);
-                outer->array = std::move(inner);
-                outer->index = std::move(second_index);
-                primary = std::move(outer);
-                continue;
             }
 
-            // Single-dim indexing
-            auto index = std::make_unique<IndexExprNode>(primary->line, primary->column);
-            index->array = std::move(primary);
-            index->index = std::move(first_index);
-            primary = std::move(index);
+            // Try to flatten N dimensions
+            std::string arr_name = get_array_name(primary.get());
+            std::vector<int>* dims = arr_name.empty() ? nullptr : get_dims(arr_name);
+
+            if (dims && indices.size() > 1) {
+                // N-dim flatten: compute flat index from dims and indices
+                // For int a[M][N][P]: strides = {N*P, P, 1}
+                int line = primary->line, col = primary->column;
+                int ndims = dims->size();
+
+                // Compute strides: strides[i] = product of dims[i+1..end]
+                std::vector<int> strides(ndims, 1);
+                for (int i = ndims - 2; i >= 0; i--) {
+                    strides[i] = strides[i + 1] * (*dims)[i + 1];
+                }
+
+                // Build flat index expression: sum of indices[i] * strides[i]
+                // Start with first index * first stride
+                ASTPtr flat;
+                {
+                    auto* first_idx = indices[0].get();
+                    int s = (0 < ndims) ? strides[0] : 1;
+                    if (s != 1) {
+                        auto mul = std::make_unique<BinaryExprNode>(OpKind::MUL, line, col);
+                        mul->left = std::move(indices[0]);
+                        mul->right = std::make_unique<IntegerLiteralNode>(s, line, col);
+                        flat = std::move(mul);
+                    } else {
+                        flat = std::move(indices[0]);
+                    }
+                }
+
+                // Add remaining: flat = flat + indices[i] * strides[i]
+                for (size_t i = 1; i < indices.size(); i++) {
+                    int s = (i < (size_t)ndims) ? strides[i] : 1;
+                    ASTPtr term;
+                    if (s != 1) {
+                        auto mul = std::make_unique<BinaryExprNode>(OpKind::MUL, line, col);
+                        mul->left = std::move(indices[i]);
+                        mul->right = std::make_unique<IntegerLiteralNode>(s, line, col);
+                        term = std::move(mul);
+                    } else {
+                        term = std::move(indices[i]);
+                    }
+                    auto add = std::make_unique<BinaryExprNode>(OpKind::ADD, line, col);
+                    add->left = std::move(flat);
+                    add->right = std::move(term);
+                    flat = std::move(add);
+                }
+
+                // Wrap in single IndexExprNode for lvalue
+                auto result = std::make_unique<IndexExprNode>(line, col);
+                result->array = std::move(primary);
+                result->index = std::move(flat);
+                primary = std::move(result);
+            } else {
+                // Single-dim or non-identifier: just nest
+                ASTPtr result = std::move(primary);
+                for (auto& idx : indices) {
+                    auto node = std::make_unique<IndexExprNode>(result->line, result->column);
+                    node->array = std::move(result);
+                    node->index = std::move(idx);
+                    result = std::move(node);
+                }
+                primary = std::move(result);
+            }
         } else if (match(TokenType::DOT)) {
             // Member access
             auto member = std::make_unique<MemberExprNode>(false, primary->line, primary->column);

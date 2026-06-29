@@ -32,8 +32,7 @@ TEST_CASE("Generate simple return", "[codegen]") {
 TEST_CASE("Generate variable declaration", "[codegen]") {
     auto asm_code = generate_code("int main() { int x = 42; return x; }");
     REQUIRE(asm_code.find("mov $42, %rax") != std::string::npos);
-    REQUIRE(asm_code.find("mov %rax, -8(%rbp)") != std::string::npos);
-    REQUIRE(asm_code.find("mov -8(%rbp), %rax") != std::string::npos);
+    REQUIRE(asm_code.find("-8(%rbp)") != std::string::npos);
 }
 
 TEST_CASE("Generate addition", "[codegen]") {

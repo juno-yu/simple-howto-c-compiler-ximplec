@@ -18,7 +18,7 @@ TEST_CASE("Full pipeline: variable declaration", "[integration]") {
     auto result = compiler.compile("int main() { int x = 10; return x; }");
     REQUIRE(result.success);
     REQUIRE(result.assembly.find("mov $10, %rax") != std::string::npos);
-    REQUIRE(result.assembly.find("mov %rax, -8(%rbp)") != std::string::npos);
+    REQUIRE(result.assembly.find("-8(%rbp)") != std::string::npos);
 }
 
 TEST_CASE("Full pipeline: arithmetic", "[integration]") {

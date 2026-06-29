@@ -532,11 +532,17 @@ int main() {
 | 0038 | Designated Init | ⚠️ Partial |
 | 0039 | Compound Literals | ⚠️ Partial |
 | 0040 | Bitfields | ✅ |
-| 0041 | Multi-Dim Arrays | ⚠️ 2D only |
+| 0041 | 2D Arrays | ✅ |
 | 0042 | Array-Pointer Decay | ✅ |
 | 0043 | Float/Double | ⚠️ Partial |
 | 0044 | Static Assert | ✅ |
 | 0045 | Generic | ✅ |
+
+### N-Dimensional Arrays (0100)
+
+| Lesson | Topic | Compile |
+|--------|-------|---------|
+| 0100 | N-Dim Arrays | ✅ |
 
 ### System & Functions (0046-0065)
 
