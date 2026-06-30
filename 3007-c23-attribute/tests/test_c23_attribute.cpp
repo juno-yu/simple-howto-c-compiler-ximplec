@@ -81,7 +81,7 @@ TEST_CASE("C23 attribute: [[likely]] on statement") {
     auto result = compiler.compile(R"(
         int main() {
             int x = 1;
-            if [[likely]] (x > 0) {
+            if (x > 0) [[likely]] {
                 return 1;
             }
             return 0;
@@ -95,7 +95,7 @@ TEST_CASE("C23 attribute: [[unlikely]] on statement") {
     auto result = compiler.compile(R"(
         int main() {
             int x = 0;
-            if [[unlikely]] (x > 0) {
+            if (x > 0) [[unlikely]] {
                 return 1;
             }
             return 0;

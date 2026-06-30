@@ -261,6 +261,9 @@ void CodeGenerator::dispatch(ASTNode* node) {
         case NodeType::INITIALIZER_LIST:
             visit(static_cast<InitializerListNode&>(*node));
             break;
+        case NodeType::DESIGNATED_INIT:
+            visit(static_cast<DesignatedInitNode&>(*node));
+            break;
         case NodeType::COMPOUND_LITERAL:
             visit(static_cast<CompoundLiteralNode&>(*node));
             break;
@@ -1186,6 +1189,8 @@ void CodeGenerator::visit(SizeofExprNode& node) {
             emit("mov $1, %rax");
         } else if (node.type_name == "bool") {
             emit("mov $1, %rax");
+        } else if (node.type_name == "void" || node.type_name == "const void") {
+            emit("mov $1, %rax"); // sizeof(void) is 1 in GCC
         } else if (node.type_name == "float" || node.type_name == "const float") {
             emit("mov $4, %rax");
         } else if (node.type_name == "double" || node.type_name == "const double") {
@@ -1199,9 +1204,21 @@ void CodeGenerator::visit(SizeofExprNode& node) {
             emit("mov $8, %rax"); // default
         }
     } else {
-        // sizeof expression
-        dispatch(node.expr.get());
-        emit("mov $8, %rax"); // simplified
+        // sizeof expression — if it's an identifier that is an array,
+        // emit the array's total size; otherwise emit pointer size (simplified).
+        bool handled = false;
+        if (auto* id = dynamic_cast<IdentifierExprNode*>(node.expr.get())) {
+            if (array_info_.count(id->name)) {
+                int elem_sz = array_info_[id->name].elem_size;
+                int len = array_info_[id->name].length;
+                emit("mov $" + std::to_string(elem_sz * len) + ", %rax");
+                handled = true;
+            }
+        }
+        if (!handled) {
+            dispatch(node.expr.get());
+            emit("mov $8, %rax"); // simplified
+        }
     }
 }
 

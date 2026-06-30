@@ -4,7 +4,7 @@
 
 using namespace simplecc;
 
-TEST_CASE("Angle bracket include without preprocessor", "[include_directive]") {
+TEST_CASE("Angle bracket include with preprocessor", "[include_directive]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         #include <stdio.h>
@@ -12,11 +12,10 @@ TEST_CASE("Angle bracket include without preprocessor", "[include_directive]") {
             return 0;
         }
     )");
-    REQUIRE_FALSE(result.success);
-    REQUIRE_FALSE(result.error_message.empty());
+    REQUIRE(result.error_message.find("stdio.h") != std::string::npos);
 }
 
-TEST_CASE("Double quote include without preprocessor", "[include_directive]") {
+TEST_CASE("Double quote include with preprocessor", "[include_directive]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         #include "utils.h"
@@ -28,7 +27,7 @@ TEST_CASE("Double quote include without preprocessor", "[include_directive]") {
     REQUIRE_FALSE(result.error_message.empty());
 }
 
-TEST_CASE("Multiple includes without preprocessor", "[include_directive]") {
+TEST_CASE("Multiple includes with preprocessor", "[include_directive]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         #include <stdio.h>
@@ -37,8 +36,7 @@ TEST_CASE("Multiple includes without preprocessor", "[include_directive]") {
             return 0;
         }
     )");
-    REQUIRE_FALSE(result.success);
-    REQUIRE_FALSE(result.error_message.empty());
+    REQUIRE(result.error_message.find("stdio.h") != std::string::npos);
 }
 
 TEST_CASE("Include with other code after", "[include_directive]") {
@@ -76,6 +74,5 @@ TEST_CASE("Nested include with ifdef", "[include_directive]") {
             return 0;
         }
     )");
-    REQUIRE_FALSE(result.success);
-    REQUIRE_FALSE(result.error_message.empty());
+    REQUIRE(result.success);
 }

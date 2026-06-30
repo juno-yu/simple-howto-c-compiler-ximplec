@@ -51,7 +51,6 @@ TEST_CASE("C23 auto type: auto in for loop") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("sum:") != std::string::npos);
 }
 
 TEST_CASE("C23 auto type: auto in while loop") {

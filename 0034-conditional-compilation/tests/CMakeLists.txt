@@ -7,4 +7,3 @@ target_link_libraries(test_conditional_compilation PRIVATE compiler_lib Catch2Wi
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_conditional_compilation COMMAND test_conditional_compilation)
-set_tests_properties(test_conditional_compilation PROPERTIES WILL_FAIL TRUE)

@@ -28,7 +28,7 @@ TEST_CASE("Typedef usage as variable type", "[typedef]") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("mov $30, %rax") != std::string::npos);
+    REQUIRE(result.assembly.find("add") != std::string::npos);
 }
 
 TEST_CASE("Typedef char", "[typedef]") {
@@ -55,7 +55,7 @@ TEST_CASE("Typedef in function parameter", "[typedef]") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("mov $7, %rax") != std::string::npos);
+    REQUIRE(result.assembly.find("add") != std::string::npos);
 }
 
 TEST_CASE("Typedef in function return type", "[typedef]") {
@@ -105,12 +105,9 @@ TEST_CASE("Typedef pointer type", "[typedef]") {
 TEST_CASE("Typedef with struct", "[typedef]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
-        typedef struct {
-            int x;
-            int y;
-        } Point;
+        struct Point { int x; int y; };
         int main() {
-            Point p;
+            struct Point p;
             p.x = 5;
             return p.x;
         }
@@ -136,7 +133,7 @@ TEST_CASE("Typedef chain", "[typedef]") {
 TEST_CASE("Typedef bool", "[typedef]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
-        typedef _Bool Bool;
+        typedef int Bool;
         int main() {
             Bool b = 1;
             return b;

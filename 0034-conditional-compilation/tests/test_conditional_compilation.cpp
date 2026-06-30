@@ -4,7 +4,7 @@
 
 using namespace simplecc;
 
-TEST_CASE("Ifdef without preprocessor support", "[conditional_compilation]") {
+TEST_CASE("Ifdef with preprocessor support", "[conditional_compilation]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         #ifdef DEBUG
@@ -13,22 +13,20 @@ TEST_CASE("Ifdef without preprocessor support", "[conditional_compilation]") {
         int main() { return 0; }
         #endif
     )");
-    REQUIRE_FALSE(result.success);
-    REQUIRE_FALSE(result.error_message.empty());
+    REQUIRE(result.success);
 }
 
-TEST_CASE("Ifndef without preprocessor support", "[conditional_compilation]") {
+TEST_CASE("Ifndef with preprocessor support", "[conditional_compilation]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         #ifndef RELEASE
         int main() { return 1; }
         #endif
     )");
-    REQUIRE_FALSE(result.success);
-    REQUIRE_FALSE(result.error_message.empty());
+    REQUIRE(result.success);
 }
 
-TEST_CASE("If defined without preprocessor support", "[conditional_compilation]") {
+TEST_CASE("If defined with preprocessor support", "[conditional_compilation]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         #if defined(PLATFORM_LINUX)
@@ -39,11 +37,10 @@ TEST_CASE("If defined without preprocessor support", "[conditional_compilation]"
         int main() { return 0; }
         #endif
     )");
-    REQUIRE_FALSE(result.success);
-    REQUIRE_FALSE(result.error_message.empty());
+    REQUIRE(result.success);
 }
 
-TEST_CASE("Nested ifdef without preprocessor support", "[conditional_compilation]") {
+TEST_CASE("Nested ifdef with preprocessor support", "[conditional_compilation]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         #ifdef A
@@ -54,8 +51,7 @@ TEST_CASE("Nested ifdef without preprocessor support", "[conditional_compilation
         #endif
         #endif
     )");
-    REQUIRE_FALSE(result.success);
-    REQUIRE_FALSE(result.error_message.empty());
+    REQUIRE(result.success);
 }
 
 TEST_CASE("If with arithmetic expression", "[conditional_compilation]") {
@@ -67,16 +63,14 @@ TEST_CASE("If with arithmetic expression", "[conditional_compilation]") {
         int main() { return 0; }
         #endif
     )");
-    REQUIRE_FALSE(result.success);
-    REQUIRE_FALSE(result.error_message.empty());
+    REQUIRE(result.success);
 }
 
-TEST_CASE("Pragma once without preprocessor support", "[conditional_compilation]") {
+TEST_CASE("Pragma once with preprocessor support", "[conditional_compilation]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         #pragma once
         int main() { return 0; }
     )");
-    REQUIRE_FALSE(result.success);
-    REQUIRE_FALSE(result.error_message.empty());
+    REQUIRE(result.success);
 }

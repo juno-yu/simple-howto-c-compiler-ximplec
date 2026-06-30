@@ -38,7 +38,7 @@ TEST_CASE("String literal has label", "[string_literal_codegen]") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find(".LC") != std::string::npos);
+    REQUIRE(result.assembly.find(".Lstr") != std::string::npos);
 }
 
 TEST_CASE("String literal with escape sequences", "[string_literal_codegen]") {

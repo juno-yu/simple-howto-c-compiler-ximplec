@@ -7,4 +7,3 @@ target_link_libraries(test_bool_type PRIVATE compiler_lib Catch2::Catch2WithMain
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_bool_type COMMAND test_bool_type)
-set_tests_properties(test_bool_type PROPERTIES WILL_FAIL TRUE)

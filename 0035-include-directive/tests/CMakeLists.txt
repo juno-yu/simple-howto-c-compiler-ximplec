@@ -7,4 +7,3 @@ target_link_libraries(test_include_directive PRIVATE compiler_lib Catch2WithMain
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_include_directive COMMAND test_include_directive)
-set_tests_properties(test_include_directive PROPERTIES WILL_FAIL TRUE)

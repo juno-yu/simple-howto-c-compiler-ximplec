@@ -7,4 +7,3 @@ target_link_libraries(test_type_aware_codegen PRIVATE compiler_lib Catch2WithMai
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_type_aware_codegen COMMAND test_type_aware_codegen)
-set_tests_properties(test_type_aware_codegen PROPERTIES WILL_FAIL TRUE)

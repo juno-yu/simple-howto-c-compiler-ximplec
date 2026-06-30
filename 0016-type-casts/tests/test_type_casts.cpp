@@ -8,7 +8,7 @@ TEST_CASE("Cast float to int", "[type_casts]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         int main() {
-            return (int)3.14;
+            return (int)3.14f;
         }
     )");
     REQUIRE(result.success);

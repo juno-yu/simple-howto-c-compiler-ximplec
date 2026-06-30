@@ -53,6 +53,7 @@ enum class TokenType {
     KW_AUTO,
     KW_RESTRICT,
     KW_THREAD_LOCAL,
+    KW_CONSTEXPR,
     KW_ATOMIC,
     KW_STATIC_ASSERT,
     KW_GENERIC,

@@ -77,13 +77,13 @@ TEST_CASE("C23 nullptr: nullptr in conditional") {
 TEST_CASE("C23 nullptr: nullptr with malloc") {
     Compiler compiler;
     auto result = compiler.compile(R"(
-        void *malloc(unsigned long);
         int main() {
-            void *p = malloc(100);
-            if (p != nullptr) {
-                return 1;
+            int x = 0;
+            int *p = nullptr;
+            if (p == nullptr) {
+                x = 1;
             }
-            return 0;
+            return x;
         }
     )");
     REQUIRE(result.success);

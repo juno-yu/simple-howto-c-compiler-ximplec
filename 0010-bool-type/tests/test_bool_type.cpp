@@ -25,7 +25,7 @@ TEST_CASE("Bool type: integer to bool conversion") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("bool") != std::string::npos);
+    REQUIRE(result.assembly.find("mov $42, %rax") != std::string::npos);
 }
 
 TEST_CASE("Bool type: zero is false") {

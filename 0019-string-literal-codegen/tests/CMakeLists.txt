@@ -7,4 +7,3 @@ target_link_libraries(test_string_literal_codegen PRIVATE compiler_lib Catch2Wit
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_string_literal_codegen COMMAND test_string_literal_codegen)
-set_tests_properties(test_string_literal_codegen PROPERTIES WILL_FAIL TRUE)

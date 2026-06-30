@@ -142,6 +142,7 @@ const std::unordered_map<std::string, TokenType>& Lexer::keywords() {
         {"auto", TokenType::KW_AUTO},
         {"restrict", TokenType::KW_RESTRICT},
         {"_Thread_local", TokenType::KW_THREAD_LOCAL},
+        {"constexpr", TokenType::KW_CONSTEXPR},
         {"_Atomic", TokenType::KW_ATOMIC},
         {"_Static_assert", TokenType::KW_STATIC_ASSERT},
         {"static_assert", TokenType::KW_STATIC_ASSERT},

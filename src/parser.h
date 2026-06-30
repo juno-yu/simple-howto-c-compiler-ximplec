@@ -29,6 +29,7 @@ private:
     bool check(TokenType type) const;
     bool match(TokenType type);
     bool expect(TokenType type);
+    void skip_c23_attributes();
     
     // Grammar rules
     ASTPtr parse_program();

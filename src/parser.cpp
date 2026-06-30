@@ -41,6 +41,49 @@ bool Parser::match(TokenType type) {
     return false;
 }
 
+// Skip C23 attribute [[...]] — supports multiple in a row, including [[name(args)]].
+void Parser::skip_c23_attributes() {
+    while (check(TokenType::LBRACKET) && pos_ + 1 < tokens_.size() &&
+           tokens_[pos_ + 1].type == TokenType::LBRACKET) {
+        advance(); // consume first [
+        advance(); // consume second [
+        int depth = 1;
+        while (depth > 0 && !is_at_end()) {
+            if (check(TokenType::LBRACKET) && pos_ + 1 < tokens_.size() &&
+                tokens_[pos_ + 1].type == TokenType::LBRACKET) {
+                advance();
+                advance();
+                depth++;
+                continue;
+            }
+            if (check(TokenType::RBRACKET) && pos_ + 1 < tokens_.size() &&
+                tokens_[pos_ + 1].type == TokenType::RBRACKET) {
+                advance();
+                advance();
+                depth--;
+                continue;
+            }
+            // Handle balanced parens inside (e.g. [[nodiscard("msg")]]).
+            if (check(TokenType::LPAREN)) {
+                int pdepth = 1;
+                advance();
+                while (pdepth > 0 && !is_at_end()) {
+                    if (check(TokenType::LPAREN)) pdepth++;
+                    if (check(TokenType::RPAREN)) pdepth--;
+                    advance();
+                }
+                continue;
+            }
+            // Handle strings inside (e.g. [[nodiscard("msg")]]).
+            if (check(TokenType::STRING_LITERAL)) {
+                advance();
+                continue;
+            }
+            advance();
+        }
+    }
+}
+
 bool Parser::expect(TokenType type) {
     if (check(type)) {
         advance();
@@ -79,7 +122,8 @@ bool Parser::is_type_specifier() const {
         check(TokenType::KW_AUTO) ||
         check(TokenType::KW_RESTRICT) ||
         check(TokenType::KW_THREAD_LOCAL) ||
-        check(TokenType::KW_ATOMIC)) {
+        check(TokenType::KW_ATOMIC) ||
+        check(TokenType::KW_CONSTEXPR)) {
         return true;
     }
     // Check if current identifier is a typedef name or size_t
@@ -115,6 +159,9 @@ std::string Parser::parse_type_specifier() {
             result += "auto ";
         } else if (match(TokenType::KW_RESTRICT)) {
             result += "restrict ";
+        } else if (match(TokenType::KW_CONSTEXPR)) {
+            // constexpr is a no-op for codegen purposes (no constant eval yet)
+            result += "constexpr ";
         } else if (match(TokenType::KW_THREAD_LOCAL)) {
             result += "_Thread_local ";
         } else if (match(TokenType::KW_ATOMIC)) {
@@ -281,8 +328,10 @@ ASTPtr Parser::parse_program() {
     auto program = std::make_unique<ProgramNode>();
 
     while (!is_at_end() && !has_error()) {
+        // Skip C23 attributes at top level
+        skip_c23_attributes();
         ASTPtr decl;
-        if (is_type_specifier()) {
+        if (is_type_specifier() || check(TokenType::LBRACKET)) {
             decl = parse_declaration();
         } else {
             decl = parse_statement();
@@ -337,6 +386,8 @@ ASTPtr Parser::parse_declaration() {
     
     // Handle struct keyword
     if (match(TokenType::KW_STRUCT)) {
+        // Skip C23 attributes between struct and name (e.g. struct [[nodiscard]] S)
+        skip_c23_attributes();
         // Check if this is a struct definition (has {) or just a type usage
         if (check(TokenType::LBRACE)) {
             // Anonymous struct - error, need a name
@@ -496,6 +547,8 @@ ASTPtr Parser::parse_declaration() {
     
     // Handle enum keyword
     if (match(TokenType::KW_ENUM)) {
+        // Skip C23 attributes between enum and name (e.g. enum [[nodiscard]] S)
+        skip_c23_attributes();
         // Check for anonymous enum: enum { A, B, C };
         if (check(TokenType::LBRACE)) {
             expect(TokenType::LBRACE);
@@ -952,7 +1005,13 @@ ASTPtr Parser::parse_param() {
     }
     
     std::string type_name = parse_type_specifier();
-    
+
+    // C2x syntax: `int f(void)` — void as the sole parameter means "no parameters".
+    if (type_name == "void" && check(TokenType::RPAREN)) {
+        // No parameters; return a dummy param (the caller will check for empty).
+        return std::make_unique<ParamNode>("void", "", tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+    }
+
     if (!check(TokenType::IDENTIFIER)) {
         // Could be array parameter like int arr[10] or just type with no name
         if (check(TokenType::LBRACKET)) {
@@ -990,6 +1049,7 @@ ASTPtr Parser::parse_block() {
     
     while (!check(TokenType::RBRACE) && !is_at_end() && !has_error()) {
         size_t prev_pos = pos_;
+        skip_c23_attributes();
         auto stmt = parse_statement();
         if (stmt) {
             block->statements.push_back(std::move(stmt));
@@ -1006,6 +1066,8 @@ ASTPtr Parser::parse_block() {
 }
 
 ASTPtr Parser::parse_statement() {
+    // Skip C23 attributes at the start of a statement (e.g. `if (x) [[likely]] {...}`).
+    skip_c23_attributes();
     if (check(TokenType::KW_RETURN)) {
         return parse_return_stmt();
     }
@@ -1329,7 +1391,10 @@ ASTPtr Parser::parse_switch_stmt() {
             case_label->value = parse_expression();
             expect(TokenType::COLON);
             while (!check(TokenType::KW_CASE) && !check(TokenType::KW_DEFAULT) && !check(TokenType::RBRACE) && !is_at_end()) {
+                size_t prev_pos = pos_;
+                skip_c23_attributes();
                 case_label->body = parse_statement();
+                if (pos_ == prev_pos) advance();
             }
             switch_stmt->cases.push_back(std::move(case_label));
         } else if (check(TokenType::KW_DEFAULT)) {
@@ -1337,7 +1402,10 @@ ASTPtr Parser::parse_switch_stmt() {
             auto default_label = std::make_unique<DefaultLabelNode>(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
             expect(TokenType::COLON);
             while (!check(TokenType::KW_CASE) && !check(TokenType::KW_DEFAULT) && !check(TokenType::RBRACE) && !is_at_end()) {
+                size_t prev_pos = pos_;
+                skip_c23_attributes();
                 default_label->body = parse_statement();
+                if (pos_ == prev_pos) advance();
             }
             switch_stmt->cases.push_back(std::move(default_label));
         } else {
@@ -1350,7 +1418,7 @@ ASTPtr Parser::parse_switch_stmt() {
         }
     }
     expect(TokenType::RBRACE);
-    
+
     return std::move(switch_stmt);
 }
 

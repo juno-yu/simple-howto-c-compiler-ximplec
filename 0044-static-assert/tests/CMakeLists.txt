@@ -7,4 +7,3 @@ target_link_libraries(test_static_assert PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_static_assert COMMAND test_static_assert)
-set_tests_properties(test_static_assert PROPERTIES WILL_FAIL TRUE)

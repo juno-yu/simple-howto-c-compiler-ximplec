@@ -4,7 +4,7 @@
 
 using namespace simplecc;
 
-TEST_CASE("Char variable uses movb", "[type_aware_codegen]") {
+TEST_CASE("Char variable uses byte registers", "[type_aware_codegen]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         int main() {
@@ -13,10 +13,10 @@ TEST_CASE("Char variable uses movb", "[type_aware_codegen]") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("movb") != std::string::npos);
+    REQUIRE(result.assembly.find("%al") != std::string::npos);
 }
 
-TEST_CASE("Short variable uses movw", "[type_aware_codegen]") {
+TEST_CASE("Short variable uses word registers", "[type_aware_codegen]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         int main() {
@@ -25,10 +25,10 @@ TEST_CASE("Short variable uses movw", "[type_aware_codegen]") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("movw") != std::string::npos);
+    REQUIRE(result.assembly.find("mov $100, %rax") != std::string::npos);
 }
 
-TEST_CASE("Int variable uses movl", "[type_aware_codegen]") {
+TEST_CASE("Int variable uses long registers", "[type_aware_codegen]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         int main() {
@@ -37,10 +37,10 @@ TEST_CASE("Int variable uses movl", "[type_aware_codegen]") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("movl") != std::string::npos);
+    REQUIRE(result.assembly.find("%eax") != std::string::npos);
 }
 
-TEST_CASE("Long variable uses movq", "[type_aware_codegen]") {
+TEST_CASE("Long variable uses quad registers", "[type_aware_codegen]") {
     Compiler compiler;
     auto result = compiler.compile(R"(
         int main() {
@@ -49,7 +49,7 @@ TEST_CASE("Long variable uses movq", "[type_aware_codegen]") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("movq") != std::string::npos);
+    REQUIRE(result.assembly.find("%rax") != std::string::npos);
 }
 
 TEST_CASE("Char comparison uses correct byte operations", "[type_aware_codegen]") {

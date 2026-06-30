@@ -7,4 +7,3 @@ target_link_libraries(test_0066_const_folding PRIVATE compiler_lib Catch2WithMai
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_0066_const_folding COMMAND test_0066_const_folding)
-set_tests_properties(test_0066_const_folding PROPERTIES WILL_FAIL TRUE)

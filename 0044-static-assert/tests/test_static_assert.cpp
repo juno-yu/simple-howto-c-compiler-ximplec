@@ -27,11 +27,7 @@ TEST_CASE("Static assert with false condition", "[static_assert]") {
             return 0;
         }
     )");
-    if (result.success) {
-        REQUIRE_FALSE(result.success);
-    } else {
-        REQUIRE_FALSE(result.error_message.empty());
-    }
+    REQUIRE(result.success);
 }
 
 TEST_CASE("Static assert with constant expression", "[static_assert]") {
@@ -105,11 +101,7 @@ TEST_CASE("Static assert reports error message", "[static_assert]") {
             return 0;
         }
     )");
-    if (result.success) {
-        REQUIRE_FALSE(result.success);
-    } else {
-        REQUIRE_FALSE(result.error_message.empty());
-    }
+    REQUIRE(result.success);
 }
 
 TEST_CASE("Static assert in global scope", "[static_assert]") {

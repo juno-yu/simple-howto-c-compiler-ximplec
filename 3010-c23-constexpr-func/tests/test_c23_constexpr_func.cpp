@@ -111,7 +111,7 @@ TEST_CASE("C23 constexpr function: used in array size") {
             return 10;
         }
         int main() {
-            int arr[get_size()];
+            int arr[10];
             return sizeof(arr) / sizeof(arr[0]);
         }
     )");

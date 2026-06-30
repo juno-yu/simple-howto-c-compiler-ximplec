@@ -7,4 +7,3 @@ target_link_libraries(test_c23_nullptr PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_c23_nullptr COMMAND test_c23_nullptr)
-set_tests_properties(test_c23_nullptr PROPERTIES WILL_FAIL TRUE)

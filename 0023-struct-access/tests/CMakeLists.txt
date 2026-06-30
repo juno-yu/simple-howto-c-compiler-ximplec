@@ -7,4 +7,3 @@ target_link_libraries(test_struct_access PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_struct_access COMMAND test_struct_access)
-set_tests_properties(test_struct_access PROPERTIES WILL_FAIL TRUE)

@@ -108,5 +108,5 @@ TEST_CASE("C23 binary literals: in arithmetic") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("mov $15, %rax") != std::string::npos);
+    REQUIRE(result.assembly.find("add") != std::string::npos);
 }

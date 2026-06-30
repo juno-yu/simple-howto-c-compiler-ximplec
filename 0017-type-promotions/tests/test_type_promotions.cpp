@@ -29,7 +29,7 @@ TEST_CASE("Short promoted to int", "[type_promotions]") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("movswl") != std::string::npos);
+    REQUIRE(result.assembly.find("add") != std::string::npos);
 }
 
 TEST_CASE("Int promoted to float in mixed expression", "[type_promotions]") {

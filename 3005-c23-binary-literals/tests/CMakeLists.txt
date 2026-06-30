@@ -7,4 +7,3 @@ target_link_libraries(test_c23_binary_literals PRIVATE compiler_lib Catch2WithMa
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_c23_binary_literals COMMAND test_c23_binary_literals)
-set_tests_properties(test_c23_binary_literals PROPERTIES WILL_FAIL TRUE)

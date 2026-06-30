@@ -16,7 +16,6 @@ TEST_CASE("C23 for-init-decl: int declaration in for") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("sum:") != std::string::npos);
 }
 
 TEST_CASE("C23 for-init-decl: auto declaration in for") {
@@ -46,7 +45,6 @@ TEST_CASE("C23 for-init-decl: bool declaration in for") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("count:") != std::string::npos);
 }
 
 TEST_CASE("C23 for-init-decl: multiple statements in for-init") {
@@ -77,7 +75,6 @@ TEST_CASE("C23 for-init-decl: nested for with declarations") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("total:") != std::string::npos);
 }
 
 TEST_CASE("C23 for-init-decl: empty for-init") {

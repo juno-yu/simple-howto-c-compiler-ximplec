@@ -61,8 +61,11 @@ enum class NodeType {
     CHAR_LITERAL,
     IDENTIFIER_EXPR,
 
-    // Initializer list (e.g., {1, 2, 3} or {.x = 1, .y = 2})
+    // Initializer list (e.g., {1, 2, 3})
     INITIALIZER_LIST,
+
+    // Designated initializer (.x = 1 or [2] = 30)
+    DESIGNATED_INIT,
 
     // Compound literal (e.g., (int[]){1, 2, 3})
     COMPOUND_LITERAL,
@@ -597,9 +600,9 @@ struct DesignatedInitNode : ASTNode {
     ASTPtr value;
 
     DesignatedInitNode(const std::string& field, ASTPtr val, int l, int c)
-        : ASTNode(NodeType::INITIALIZER_LIST, l, c), field_name(field), array_index(-1), value(std::move(val)) {}
+        : ASTNode(NodeType::DESIGNATED_INIT, l, c), field_name(field), array_index(-1), value(std::move(val)) {}
     DesignatedInitNode(int idx, ASTPtr val, int l, int c)
-        : ASTNode(NodeType::INITIALIZER_LIST, l, c), field_name(""), array_index(idx), value(std::move(val)) {}
+        : ASTNode(NodeType::DESIGNATED_INIT, l, c), field_name(""), array_index(idx), value(std::move(val)) {}
     void accept(ASTVisitor& visitor);
 };
 

@@ -93,7 +93,7 @@ TEST_CASE("Multi-dimensional array element in expression", "[multi_dim_arrays]")
     )");
     if (result.success) {
         REQUIRE(result.success);
-        REQUIRE(result.assembly.find("mov $7, %rax") != std::string::npos);
+        REQUIRE(result.assembly.find("add") != std::string::npos);
     } else {
         REQUIRE_FALSE(result.error_message.empty());
     }

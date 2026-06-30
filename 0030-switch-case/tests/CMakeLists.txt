@@ -7,4 +7,3 @@ target_link_libraries(test_switch_case PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_switch_case COMMAND test_switch_case)
-set_tests_properties(test_switch_case PROPERTIES WILL_FAIL TRUE)

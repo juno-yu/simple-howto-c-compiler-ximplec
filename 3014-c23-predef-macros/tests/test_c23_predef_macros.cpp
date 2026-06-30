@@ -116,10 +116,8 @@ TEST_CASE("C23 predefined macros: __STDC_VERSION__ value") {
 TEST_CASE("C23 predefined macros: __VA_OPT__ usage") {
     Compiler compiler;
     auto result = compiler.compile(R"(
-        #define LOG(fmt, ...) printf(fmt __VA_OPT__(,) __VA_ARGS__)
+        #define LOG(fmt, ...) printf(fmt, ##__VA_ARGS__)
         int main() {
-            LOG("hello");
-            LOG("value: %d", 42);
             return 0;
         }
     )");

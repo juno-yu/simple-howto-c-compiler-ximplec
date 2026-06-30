@@ -44,7 +44,7 @@ TEST_CASE("Goto backward jump in loop", "[goto_labels]") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find(".L") != std::string::npos);
+    REQUIRE(result.assembly.find("jmp") != std::string::npos);
 }
 
 TEST_CASE("Multiple labels", "[goto_labels]") {

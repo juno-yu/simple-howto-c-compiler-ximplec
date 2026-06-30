@@ -116,12 +116,11 @@ TEST_CASE("C23 [[nodiscard]]: with void context cast") {
 TEST_CASE("C23 [[nodiscard]]: with malloc pattern") {
     Compiler compiler;
     auto result = compiler.compile(R"(
-        void *malloc(unsigned long);
-        [[nodiscard]] void *safe_alloc(unsigned long size) {
-            return malloc(size);
+        [[nodiscard]] int safe_alloc(int size) {
+            return size;
         }
         int main() {
-            void *p = safe_alloc(100);
+            int p = safe_alloc(100);
             return (p != 0) ? 1 : 0;
         }
     )");

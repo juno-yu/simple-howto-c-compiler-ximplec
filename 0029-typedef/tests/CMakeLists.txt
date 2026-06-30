@@ -7,4 +7,3 @@ target_link_libraries(test_typedef PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_typedef COMMAND test_typedef)
-set_tests_properties(test_typedef PROPERTIES WILL_FAIL TRUE)

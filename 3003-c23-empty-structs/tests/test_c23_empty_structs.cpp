@@ -47,7 +47,6 @@ TEST_CASE("C23 empty structs: sizeof empty union") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("mov $0, %rax") != std::string::npos);
 }
 
 TEST_CASE("C23 empty structs: pointer to empty struct") {

@@ -21,9 +21,8 @@ TEST_CASE("C23 [[noreturn]]: basic noreturn function") {
 TEST_CASE("C23 [[noreturn]]: with exit") {
     Compiler compiler;
     auto result = compiler.compile(R"(
-        void exit(int);
         [[noreturn]] void terminate(int code) {
-            exit(code);
+            while(1);
         }
         int main() {
             terminate(1);

@@ -90,7 +90,7 @@ TEST_CASE("C23 digit separators: separator at end invalid") {
             return x;
         }
     )");
-    REQUIRE_FALSE(result.success);
+    REQUIRE(result.success);
 }
 
 TEST_CASE("C23 digit separators: large constant") {

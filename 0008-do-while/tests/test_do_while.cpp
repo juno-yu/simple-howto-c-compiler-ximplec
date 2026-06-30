@@ -16,8 +16,8 @@ TEST_CASE("Do-while loop: basic structure") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("do_while_start:") != std::string::npos);
-    REQUIRE(result.assembly.find("do_while_end:") != std::string::npos);
+    REQUIRE(result.assembly.find(".do_while_start_") != std::string::npos);
+    REQUIRE(result.assembly.find(".do_while_end_") != std::string::npos);
 }
 
 TEST_CASE("Do-while loop: executes at least once") {
@@ -119,7 +119,7 @@ TEST_CASE("Do-while loop: nested loops") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("do_while_start:") != std::string::npos);
+    REQUIRE(result.assembly.find(".do_while_start_") != std::string::npos);
 }
 
 TEST_CASE("Do-while loop: empty body") {
@@ -133,5 +133,5 @@ TEST_CASE("Do-while loop: empty body") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("do_while_start:") != std::string::npos);
+    REQUIRE(result.assembly.find(".do_while_start_") != std::string::npos);
 }

@@ -7,4 +7,3 @@ target_link_libraries(test_designated_init PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_designated_init COMMAND ${CMAKE_SOURCE_DIR}/.ctest_wrappers/run_test.sh $<TARGET_FILE:test_designated_init> 30)
-set_tests_properties(test_designated_init PROPERTIES WILL_FAIL TRUE)

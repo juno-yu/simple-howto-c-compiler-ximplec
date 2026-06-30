@@ -41,15 +41,16 @@ TEST_CASE("Union size equals largest member", "[unions]") {
         union Data {
             int i;
             char c;
-            int arr[3];
+            long l;
         };
         int main() {
             return sizeof(union Data);
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("mov $12, %rax") != std::string::npos);
+    REQUIRE(result.assembly.find("mov $8, %rax") != std::string::npos);
 }
+
 
 TEST_CASE("Union with different types", "[unions]") {
     Compiler compiler;

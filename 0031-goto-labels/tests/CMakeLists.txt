@@ -7,4 +7,3 @@ target_link_libraries(test_goto_labels PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_goto_labels COMMAND test_goto_labels)
-set_tests_properties(test_goto_labels PROPERTIES WILL_FAIL TRUE)

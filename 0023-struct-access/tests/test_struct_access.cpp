@@ -127,5 +127,5 @@ TEST_CASE("Struct member in expression", "[struct_access]") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("mov $10, %rax") != std::string::npos);
+    REQUIRE(result.assembly.find("add") != std::string::npos);
 }

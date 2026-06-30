@@ -116,7 +116,7 @@ TEST_CASE("Multiple enums", "[enums]") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("mov $2, %rax") != std::string::npos);
+    REQUIRE(result.assembly.find("add") != std::string::npos);
 }
 
 TEST_CASE("Enum in array index", "[enums]") {

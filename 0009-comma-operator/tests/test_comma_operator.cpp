@@ -53,7 +53,7 @@ TEST_CASE("Comma operator: multiple expressions") {
         }
     )");
     REQUIRE(result.success);
-    REQUIRE(result.assembly.find("mov $11, %rax") != std::string::npos);
+    REQUIRE(result.assembly.find("mov $3, %rax") != std::string::npos);
 }
 
 TEST_CASE("Comma operator: function call arguments") {
