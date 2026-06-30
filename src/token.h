@@ -72,6 +72,12 @@ enum class TokenType {
     MINUS_ASSIGN,   // -=
     STAR_ASSIGN,    // *=
     SLASH_ASSIGN,   // /=
+    PERCENT_ASSIGN, // %=
+    AMP_ASSIGN,     // &=
+    PIPE_ASSIGN,    // |=
+    CARET_ASSIGN,   // ^=
+    LSHIFT_ASSIGN,  // <<=
+    RSHIFT_ASSIGN,  // >>=
     EQ,             // ==
     NE,             // !=
     LT,             // <

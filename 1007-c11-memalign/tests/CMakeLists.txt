@@ -7,4 +7,3 @@ target_link_libraries(test_c11_memalign PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
 add_test(NAME test_c11_memalign COMMAND ${CMAKE_SOURCE_DIR}/.ctest_wrappers/run_test.sh $<TARGET_FILE:test_c11_memalign> 30)
-set_tests_properties(test_c11_memalign PROPERTIES WILL_FAIL TRUE)

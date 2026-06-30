@@ -423,11 +423,16 @@ ASTPtr Parser::parse_declaration() {
         } else {
             // This is a variable/param declaration using struct type: struct Name varname;
             std::string full_type = "struct " + struct_name;
+            // Allow pointer types: struct Name *p, struct Name **pp
+            while (check(TokenType::STAR)) {
+                full_type += " *";
+                advance();
+            }
             if (check(TokenType::IDENTIFIER)) {
                 const Token& name_token = peek();
                 std::string var_name = name_token.value;
                 advance();
-                
+
                 if (check(TokenType::LPAREN)) {
                     return parse_function_decl(full_type);
                 } else {
@@ -474,6 +479,10 @@ ASTPtr Parser::parse_declaration() {
             return std::move(union_decl);
         } else {
             std::string full_type = "union " + union_name;
+            while (check(TokenType::STAR)) {
+                full_type += " *";
+                advance();
+            }
             if (check(TokenType::IDENTIFIER)) {
                 const Token& name_token = peek();
                 std::string var_name = name_token.value;
@@ -979,13 +988,19 @@ ASTPtr Parser::parse_block() {
     
     auto block = std::make_unique<BlockNode>(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
     
-    while (!check(TokenType::RBRACE) && !is_at_end()) {
+    while (!check(TokenType::RBRACE) && !is_at_end() && !has_error()) {
+        size_t prev_pos = pos_;
         auto stmt = parse_statement();
         if (stmt) {
             block->statements.push_back(std::move(stmt));
         }
+        // Recover from errors: if we didn't advance, skip a token to avoid
+        // an infinite loop when parse_statement returns without consuming input.
+        if (pos_ == prev_pos) {
+            advance();
+        }
     }
-    
+
     expect(TokenType::RBRACE);
     return std::move(block);
 }
@@ -1417,7 +1432,8 @@ std::string Parser::parse_asm_clobbers() {
 
 ASTPtr Parser::parse_expression() {
     auto left = parse_assignment();
-    
+    if (!left) return nullptr;
+
     // Comma operator
     while (match(TokenType::COMMA)) {
         auto comma = std::make_unique<CommaExprNode>(
@@ -1426,7 +1442,7 @@ ASTPtr Parser::parse_expression() {
         comma->right = parse_assignment();
         left = std::move(comma);
     }
-    
+
     return std::move(left);
 }
 
@@ -1454,14 +1470,23 @@ ASTPtr Parser::parse_assignment() {
     
     // Compound assignment operators
     if (check(TokenType::PLUS_ASSIGN) || check(TokenType::MINUS_ASSIGN) ||
-        check(TokenType::STAR_ASSIGN) || check(TokenType::SLASH_ASSIGN)) {
-        
+        check(TokenType::STAR_ASSIGN) || check(TokenType::SLASH_ASSIGN) ||
+        check(TokenType::PERCENT_ASSIGN) || check(TokenType::AMP_ASSIGN) ||
+        check(TokenType::PIPE_ASSIGN) || check(TokenType::CARET_ASSIGN) ||
+        check(TokenType::LSHIFT_ASSIGN) || check(TokenType::RSHIFT_ASSIGN)) {
+
         OpKind op;
         if (match(TokenType::PLUS_ASSIGN)) op = OpKind::ADD;
         else if (match(TokenType::MINUS_ASSIGN)) op = OpKind::SUB;
         else if (match(TokenType::STAR_ASSIGN)) op = OpKind::MUL;
-        else { match(TokenType::SLASH_ASSIGN); op = OpKind::DIV; }
-        
+        else if (match(TokenType::SLASH_ASSIGN)) op = OpKind::DIV;
+        else if (match(TokenType::PERCENT_ASSIGN)) op = OpKind::MOD;
+        else if (match(TokenType::AMP_ASSIGN)) op = OpKind::BIT_AND;
+        else if (match(TokenType::PIPE_ASSIGN)) op = OpKind::BIT_OR;
+        else if (match(TokenType::CARET_ASSIGN)) op = OpKind::BIT_XOR;
+        else if (match(TokenType::LSHIFT_ASSIGN)) op = OpKind::LSHIFT;
+        else { match(TokenType::RSHIFT_ASSIGN); op = OpKind::RSHIFT; }
+
         auto compound = std::make_unique<CompoundAssignExprNode>(
             op, left->line, left->column);
         compound->target = std::move(left);
@@ -1555,14 +1580,14 @@ ASTPtr Parser::parse_equality() {
 
 ASTPtr Parser::parse_comparison() {
     auto left = parse_shift();
-    
-    while (check(TokenType::LT) || check(TokenType::GT) || 
+
+    while (check(TokenType::LT) || check(TokenType::GT) ||
            check(TokenType::LE) || check(TokenType::GE)) {
         OpKind op;
         if (match(TokenType::LT)) op = OpKind::LT;
         else if (match(TokenType::GT)) op = OpKind::GT;
         else if (match(TokenType::LE)) op = OpKind::LE;
-        else op = OpKind::GE;
+        else { match(TokenType::GE); op = OpKind::GE; }
         
         auto bin = std::make_unique<BinaryExprNode>(op, left->line, left->column);
         bin->left = std::move(left);
@@ -1577,7 +1602,9 @@ ASTPtr Parser::parse_shift() {
     auto left = parse_addition();
     
     while (check(TokenType::LSHIFT) || check(TokenType::RSHIFT)) {
-        OpKind op = match(TokenType::LSHIFT) ? OpKind::LSHIFT : OpKind::RSHIFT;
+        OpKind op;
+        if (match(TokenType::LSHIFT)) op = OpKind::LSHIFT;
+        else { match(TokenType::RSHIFT); op = OpKind::RSHIFT; }
         auto bin = std::make_unique<BinaryExprNode>(op, left->line, left->column);
         bin->left = std::move(left);
         bin->right = parse_addition();
@@ -1614,7 +1641,7 @@ ASTPtr Parser::parse_multiplication() {
         OpKind op;
         if (match(TokenType::STAR)) op = OpKind::MUL;
         else if (match(TokenType::SLASH)) op = OpKind::DIV;
-        else op = OpKind::MOD;
+        else { match(TokenType::PERCENT); op = OpKind::MOD; }
         
         auto bin = std::make_unique<BinaryExprNode>(op, left->line, left->column);
         bin->left = std::move(left);
@@ -1787,6 +1814,11 @@ ASTPtr Parser::parse_unary() {
     }
     if (match(TokenType::MINUS_MINUS)) {
         auto unary = std::make_unique<UnaryExprNode>(OpKind::PRE_DEC, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
+        unary->operand = parse_unary();
+        return std::move(unary);
+    }
+    if (match(TokenType::TILDE)) {
+        auto unary = std::make_unique<UnaryExprNode>(OpKind::BIT_NOT, tokens_[pos_ - 1].line, tokens_[pos_ - 1].column);
         unary->operand = parse_unary();
         return std::move(unary);
     }
@@ -1992,7 +2024,9 @@ ASTPtr Parser::parse_primary() {
             int col = tokens_[pos_ - 1].column;
             auto block = parse_block();
             expect(TokenType::RPAREN);
-            return std::make_unique<StmtExprNode>(line, col);
+            auto stmt_expr = std::make_unique<StmtExprNode>(line, col);
+            stmt_expr->body = std::move(block);
+            return std::move(stmt_expr);
         }
         auto expr = parse_expression();
         expect(TokenType::RPAREN);

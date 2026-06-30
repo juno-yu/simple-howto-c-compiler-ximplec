@@ -41,6 +41,7 @@ add_subdirectory(0076-register-auto/tests)
 add_subdirectory(0086-nested-functions/tests)
 add_subdirectory(0043-float-double-bit-pattern/tests)
 add_subdirectory(0043-float-double-sse/tests)
+add_subdirectory(9999-parser-bugfixes/tests)
 add_subdirectory(9999-codegen-coverage/tests)
 add_subdirectory(9999-advanced-integration/tests)
 

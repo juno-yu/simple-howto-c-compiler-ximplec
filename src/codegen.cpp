@@ -1022,73 +1022,133 @@ void CodeGenerator::visit(CompoundAssignExprNode& node) {
     }
     
     // Load current value of target
-    if (auto* id = dynamic_cast<IdentifierExprNode*>(node.target.get())) {
-        if (local_variables_.count(id->name)) {
-            int offset = local_variables_[id->name];
-            emit("mov " + std::to_string(offset) + "(%rbp), %rax");
-        } else {
-            int cap = find_capture_offset(id->name);
-            if (cap >= 0) {
-                int sz = 4;
-                for (const auto& c : current_captures_) {
-                    if (c.name == id->name) { sz = c.size; break; }
-                }
-                emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rdx");
-                if (sz == 1) emit("movzbl " + std::to_string(cap) + "(%rdx), %eax");
-                else if (sz == 2) emit("movzwl " + std::to_string(cap) + "(%rdx), %eax");
-                else if (sz == 4) emit("movl " + std::to_string(cap) + "(%rdx), %eax");
-                else emit("mov " + std::to_string(cap) + "(%rdx), %rax");
-            }
-        }
+    auto* id = dynamic_cast<IdentifierExprNode*>(node.target.get());
+    if (!id) return;
+
+    bool is_local = local_variables_.count(id->name) > 0;
+    bool is_capture = !is_local && find_capture_offset(id->name) >= 0;
+    if (!is_local && !is_capture) return;
+
+    int offset = 0;
+    int cap = -1;
+    if (is_local) {
+        offset = local_variables_[id->name];
+    } else {
+        cap = find_capture_offset(id->name);
     }
 
-    // Save current value
-    emit("push %rax");
+    std::string var_type = "int";
+    if (variable_types_.count(id->name)) {
+        var_type = variable_types_[id->name];
+    }
+    bool target_is_float = is_float_type(var_type);
+    bool target_is_double = is_double_type(var_type);
+
+    // Load current value (float → xmm0 via movss/movsd; int → rax via mov)
+    if (is_local) {
+        if (target_is_float) {
+            if (target_is_double) {
+                emit("movsd " + std::to_string(offset) + "(%rbp), %xmm0");
+            } else {
+                emit("movss " + std::to_string(offset) + "(%rbp), %xmm0");
+            }
+        } else {
+            int sz = get_type_size(var_type);
+            if (sz == 1) emit("movzbl " + std::to_string(offset) + "(%rbp), %eax");
+            else if (sz == 2) emit("movzwl " + std::to_string(offset) + "(%rbp), %eax");
+            else if (sz == 4) emit("movl " + std::to_string(offset) + "(%rbp), %eax");
+            else emit("mov " + std::to_string(offset) + "(%rbp), %rax");
+        }
+    } else {
+        int sz = 4;
+        for (const auto& c : current_captures_) {
+            if (c.name == id->name) { sz = c.size; break; }
+        }
+        emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rdx");
+        if (sz == 1) emit("movzbl " + std::to_string(cap) + "(%rdx), %eax");
+        else if (sz == 2) emit("movzwl " + std::to_string(cap) + "(%rdx), %eax");
+        else if (sz == 4) emit("movl " + std::to_string(cap) + "(%rdx), %eax");
+        else emit("mov " + std::to_string(cap) + "(%rdx), %rax");
+    }
+
+    // Save left side (target's current value) for the operation
+    if (target_is_float) {
+        emit("sub $16, %rsp");
+        emit(target_is_double ? "movsd %xmm0, (%rsp)" : "movss %xmm0, (%rsp)");
+    } else {
+        emit("push %rax");
+    }
 
     // Evaluate right operand
     dispatch(node.value.get());
+    if (!expr_type_stack_.empty()) expr_type_stack_.pop_back();
 
-    // Move right to rcx
-    emit("mov %rax, %rcx");
+    if (target_is_float) {
+        // Right operand is now in %rax (if int) or %xmm0 (if float).
+        // Convert int → float/double if needed.
+        std::string val_type = infer_expr_type(node.value.get());
+        if (!is_float_type(val_type)) {
+            if (target_is_double) {
+                emit("cvtsi2sd %rax, %xmm0");
+            } else {
+                emit("cvtsi2ss %rax, %xmm0");
+            }
+        }
+        // Reload left from stack into %xmm1
+        emit(target_is_double ? "movsd (%rsp), %xmm1" : "movss (%rsp), %xmm1");
+        emit("add $16, %rsp");
 
-    // Pop left (current value) to rax
-    emit("pop %rax");
-
-    // Apply operator
-    switch (node.op) {
-        case OpKind::ADD: emit("add %rcx, %rax"); break;
-        case OpKind::SUB: emit("sub %rcx, %rax"); break;
-        case OpKind::MUL: emit("imul %rcx, %rax"); break;
-        case OpKind::DIV: emit("cqo"); emit("idiv %rcx"); break;
-        case OpKind::MOD: emit("cqo"); emit("idiv %rcx"); emit("mov %rdx, %rax"); break;
-        case OpKind::BIT_AND: emit("and %rcx, %rax"); break;
-        case OpKind::BIT_OR: emit("or %rcx, %rax"); break;
-        case OpKind::BIT_XOR: emit("xor %rcx, %rax"); break;
-        case OpKind::LSHIFT: emit("shl %cl, %rax"); break;
-        case OpKind::RSHIFT: emit("shr %cl, %rax"); break;
-        default: break;
+        const char* sfx = target_is_double ? "sd" : "ss";
+        switch (node.op) {
+            case OpKind::ADD: emit(std::string("add") + sfx + " %xmm1, %xmm0"); break;
+            case OpKind::SUB: emit(std::string("sub") + sfx + " %xmm1, %xmm0"); break;
+            case OpKind::MUL: emit(std::string("mul") + sfx + " %xmm1, %xmm0"); break;
+            case OpKind::DIV: emit(std::string("div") + sfx + " %xmm1, %xmm0"); break;
+            case OpKind::MOD:
+                error_message_ = "MOD not supported for float";
+                break;
+            default:
+                error_message_ = "Operator not supported for float compound assign";
+                break;
+        }
+    } else {
+        // Integer path
+        emit("mov %rax, %rcx");
+        emit("pop %rax");
+        switch (node.op) {
+            case OpKind::ADD: emit("add %rcx, %rax"); break;
+            case OpKind::SUB: emit("sub %rcx, %rax"); break;
+            case OpKind::MUL: emit("imul %rcx, %rax"); break;
+            case OpKind::DIV: emit("cqo"); emit("idiv %rcx"); break;
+            case OpKind::MOD: emit("cqo"); emit("idiv %rcx"); emit("mov %rdx, %rax"); break;
+            case OpKind::BIT_AND: emit("and %rcx, %rax"); break;
+            case OpKind::BIT_OR: emit("or %rcx, %rax"); break;
+            case OpKind::BIT_XOR: emit("xor %rcx, %rax"); break;
+            case OpKind::LSHIFT: emit("shl %cl, %rax"); break;
+            case OpKind::RSHIFT: emit("shr %cl, %rax"); break;
+            default: break;
+        }
     }
 
     // Store result back
-    if (auto* id = dynamic_cast<IdentifierExprNode*>(node.target.get())) {
-        if (local_variables_.count(id->name)) {
-            int offset = local_variables_[id->name];
-            emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
-        } else {
-            int cap = find_capture_offset(id->name);
-            if (cap >= 0) {
-                int sz = 4;
-                for (const auto& c : current_captures_) {
-                    if (c.name == id->name) { sz = c.size; break; }
-                }
-                emit("mov %rax, %rcx");
-                emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rdx");
-                if (sz == 1) emit("mov %cl, " + std::to_string(cap) + "(%rdx)");
-                else if (sz == 2) emit("mov %cx, " + std::to_string(cap) + "(%rdx)");
-                else if (sz == 4) emit("movl %ecx, " + std::to_string(cap) + "(%rdx)");
-                else emit("mov %rcx, " + std::to_string(cap) + "(%rdx)");
+    if (is_local) {
+        if (target_is_float) {
+            if (target_is_double) {
+                emit("movsd %xmm0, " + std::to_string(offset) + "(%rbp)");
+            } else {
+                emit("movss %xmm0, " + std::to_string(offset) + "(%rbp)");
             }
+        } else {
+            emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
         }
+    } else {
+        int sz = get_type_size(var_type);
+        emit("mov %rax, %rcx");
+        emit("mov " + std::to_string(current_ctx_stack_offset_) + "(%rbp), %rdx");
+        if (sz == 1) emit("mov %cl, " + std::to_string(cap) + "(%rdx)");
+        else if (sz == 2) emit("mov %cx, " + std::to_string(cap) + "(%rdx)");
+        else if (sz == 4) emit("movl %ecx, " + std::to_string(cap) + "(%rdx)");
+        else emit("mov %rcx, " + std::to_string(cap) + "(%rdx)");
     }
 }
 

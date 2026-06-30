@@ -6,5 +6,4 @@ target_include_directories(test_function_pointers PRIVATE ${CMAKE_SOURCE_DIR}/sr
 target_link_libraries(test_function_pointers PRIVATE compiler_lib Catch2WithMain)
 
 include(../CTest.cmake OPTIONAL)
-add_test(NAME test_function_pointers COMMAND ${CMAKE_SOURCE_DIR}/.ctest_wrappers/run_test.sh $<TARGET_FILE:test_function_pointers> 30)
-set_tests_properties(test_function_pointers PROPERTIES WILL_FAIL TRUE)
+add_test(NAME test_function_pointers COMMAND test_function_pointers)

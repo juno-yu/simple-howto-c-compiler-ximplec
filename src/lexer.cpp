@@ -61,6 +61,12 @@ const char* token_type_name(TokenType type) {
         case TokenType::MINUS_ASSIGN: return "-=";
         case TokenType::STAR_ASSIGN: return "*=";
         case TokenType::SLASH_ASSIGN: return "/=";
+        case TokenType::PERCENT_ASSIGN: return "%=";
+        case TokenType::AMP_ASSIGN: return "&=";
+        case TokenType::PIPE_ASSIGN: return "|=";
+        case TokenType::CARET_ASSIGN: return "^=";
+        case TokenType::LSHIFT_ASSIGN: return "<<=";
+        case TokenType::RSHIFT_ASSIGN: return ">>=";
         case TokenType::EQ: return "==";
         case TokenType::NE: return "!=";
         case TokenType::LT: return "<";
@@ -308,7 +314,26 @@ Token Lexer::read_number() {
             if (peek() != '\'') num += advance(); else advance();
         }
     }
-    
+
+    // Scientific notation: 1.5e10, 1.5E-3, 1e10, 2E+5
+    if (is_float && !is_at_end() && (peek() == 'e' || peek() == 'E')) {
+        num += advance(); // 'e' or 'E'
+        if (!is_at_end() && (peek() == '+' || peek() == '-')) num += advance();
+        while (!is_at_end() && std::isdigit(peek())) {
+            num += advance();
+        }
+    }
+    // Also allow scientific notation for integers like 1e10
+    if (!is_float && !num.empty() && !is_at_end() && (peek() == 'e' || peek() == 'E') &&
+        std::isdigit(peek_next())) {
+        is_float = true;
+        num += advance();
+        if (!is_at_end() && (peek() == '+' || peek() == '-')) num += advance();
+        while (!is_at_end() && std::isdigit(peek())) {
+            num += advance();
+        }
+    }
+
     if (!is_at_end() && (peek() == 'l' || peek() == 'L' || peek() == 'f' || peek() == 'F')) {
         char suffix = peek();
         advance(); // skip suffix
@@ -429,6 +454,7 @@ Token Lexer::read_operator() {
         case '-':
             if (match('-')) return Token(TokenType::MINUS_MINUS, "--", start_line, start_column);
             if (match('=')) return Token(TokenType::MINUS_ASSIGN, "-=", start_line, start_column);
+            if (match('>')) return Token(TokenType::MINUS_GT, "->", start_line, start_column);
             return Token(TokenType::MINUS, "-", start_line, start_column);
         case '*':
             if (match('=')) return Token(TokenType::STAR_ASSIGN, "*=", start_line, start_column);
@@ -437,6 +463,7 @@ Token Lexer::read_operator() {
             if (match('=')) return Token(TokenType::SLASH_ASSIGN, "/=", start_line, start_column);
             return Token(TokenType::SLASH, "/", start_line, start_column);
         case '%':
+            if (match('=')) return Token(TokenType::PERCENT_ASSIGN, "%=", start_line, start_column);
             return Token(TokenType::PERCENT, "%", start_line, start_column);
         case '=':
             if (match('=')) return Token(TokenType::EQ, "==", start_line, start_column);
@@ -447,20 +474,29 @@ Token Lexer::read_operator() {
         case '?':
             return Token(TokenType::QUESTION, "?", start_line, start_column);
         case '<':
-            if (match('<')) return Token(TokenType::LSHIFT, "<<", start_line, start_column);
+            if (match('<')) {
+                if (match('=')) return Token(TokenType::LSHIFT_ASSIGN, "<<=", start_line, start_column);
+                return Token(TokenType::LSHIFT, "<<", start_line, start_column);
+            }
             if (match('=')) return Token(TokenType::LE, "<=", start_line, start_column);
             return Token(TokenType::LT, "<", start_line, start_column);
         case '>':
-            if (match('>')) return Token(TokenType::RSHIFT, ">>", start_line, start_column);
+            if (match('>')) {
+                if (match('=')) return Token(TokenType::RSHIFT_ASSIGN, ">>=", start_line, start_column);
+                return Token(TokenType::RSHIFT, ">>", start_line, start_column);
+            }
             if (match('=')) return Token(TokenType::GE, ">=", start_line, start_column);
             return Token(TokenType::GT, ">", start_line, start_column);
         case '&':
             if (match('&')) return Token(TokenType::AND, "&&", start_line, start_column);
+            if (match('=')) return Token(TokenType::AMP_ASSIGN, "&=", start_line, start_column);
             return Token(TokenType::AMPERSAND, "&", start_line, start_column);
         case '|':
             if (match('|')) return Token(TokenType::OR, "||", start_line, start_column);
+            if (match('=')) return Token(TokenType::PIPE_ASSIGN, "|=", start_line, start_column);
             return Token(TokenType::PIPE, "|", start_line, start_column);
         case '^':
+            if (match('=')) return Token(TokenType::CARET_ASSIGN, "^=", start_line, start_column);
             return Token(TokenType::CARET, "^", start_line, start_column);
         case '~':
             return Token(TokenType::TILDE, "~", start_line, start_column);
