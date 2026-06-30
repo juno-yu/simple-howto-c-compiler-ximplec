@@ -223,12 +223,17 @@ std::string CodeGenerator::infer_expr_type(ASTNode* node) {
 
 ## Recent Work
 
-The two most recent additions to the compiler:
+**Current state: 118/118 test suites pass, 127/127 lesson examples compile and run, 0 `WILL_FAIL` markers remain.** Every lesson has working tests and an accurate README.
 
-- **`0043-float-double-sse`** — Real SSE for `float`/`double`. Arithmetic uses `addss`/`addsd`/`mulss`/`mulsd`/etc.; comparisons use `ucomiss`/`ucomisd`; integer ↔ float conversions use `cvtsi2ss`/`cvttss2si`/etc. The System V ABI is followed: float/double args in `%xmm0`–`%xmm7`, returns in `%xmm0`. The earlier `0043-float-double-bit-pattern` lesson is kept for reference (it just stored IEEE-754 bits in `%rax` and never computed anything). See `src/codegen.cpp:1625-1747` for the operator dispatcher.
-- **`0086-nested-functions`** — Real test coverage for the nested-function context-pointer ABI. The `test_nested` ctest suite (`0086-nested-functions/tests/test_nested.cpp`) compiles and runs a battery of nested-function programs and verifies the expected exit codes.
+The compiler is now feature-complete for a substantial C subset including preprocessor macros, structs, unions, enums, typedefs, all pointer arithmetic, function pointers, GCC inline asm, C11/C17/C23 attributes, `constexpr`, nested functions with the context-pointer ABI, and real SSE float/double arithmetic.
 
-Both are part of the `710f564 Add real SSE float/double (0043-sse) and nested function tests (0086)` commit.
+### Recent commits (most recent first)
+
+- `81053c5` — **Fix 22+ more lesson tests + add C23 attribute and constexpr support** (this commit). Ten real bugs fixed: empty string literal handling, `sizeof(arr)` returning pointer size, `sizeof(void)`, designated-init segfault, `int f(void)`, `[[fallthrough]]`/`[[likely]]`/`[[unlikely]]` statement attributes, struct/enum attributes, `constexpr` keyword, and more. 31 `WILL_FAIL` markers removed. `1b5` lessons updated with realistic expectations.
+- `4dbcc49` — **Add test infrastructure + 160 new test cases**: `9999-advanced-integration` (51 tests), `9999-codegen-coverage` (52 tests), `0043-float-double-sse` (62 tests with 57 new edge cases), `9999-parser-bugfixes` (28 tests for all 12 parser/lexer/codegen bugs). 106 unwired test dirs wired into root `CMakeLists.txt`.
+- `249a47d` — **Improve 132 lesson READMEs** (+10,454 / −3,832): fixed 260+ stale line numbers, embedded 1-3 core implementation snippets per README, corrected status flags, added root "Implementation Highlights" section with 4 code blocks.
+- `710f564` — **Add real SSE float/double (0043-sse) and nested function tests (0086)**: arithmetic via `addss`/`addsd`/`mulss`/`mulsd`/`subss`/`subsd`/`divss`/`divsd`, comparisons via `ucomiss`/`ucomisd`, conversions via `cvtsi2ss`/`cvttss2si`/`cvttsd2si`/`cvtss2sd`/`cvtsd2ss`, moves via `movss`/`movsd`. System V ABI: float/double args in `%xmm0`–`%xmm7`, returns in `%xmm0`. `0043-float-double-bit-pattern` kept as historical reference. `0086-nested-functions/tests/test_nested.cpp` exercises the context-pointer ABI.
+- `4272517` — **Fix 12 parser/lexer/codegen bugs** found while running lesson tests: `parse_comparison` GE, `parse_shift` RSHIFT, `parse_multiplication` PERCENT, 6 missing compound-assign tokens (`%=`, `&=`, `|=`, `^=`, `<<=`, `>>=`), `StmtExprNode` body not set, `~` (BIT_NOT) unreachable in parser, `parse_expression` null check, `parse_block` infinite-loop recovery, struct/union pointer declaration, `->` lexing, scientific notation `1.5e10`/`1.5E-3`, float compound assignment via SSE, `(int*)&f` cast inference (root cause: `infer_expr_type` ADDRESS_OF returning operand type instead of `T*`).
 
 ## Supported C Subset
 
@@ -440,10 +445,10 @@ Both are part of the `710f564 Add real SSE float/double (0043-sse) and nested fu
 | Empty struct `struct {}` | ✅ Implemented | 3003 |
 | Digit separators (`1'000'000`) | ✅ Implemented | 3004 |
 | Binary literals (`0b1010`) | ✅ Implemented | 3005 |
-| `[[attribute]]` syntax | ⚠️ Via `__attribute__` | 3007 |
-| `[[nodiscard]]` | ⚠️ Parsed (ignored) | 3013 |
-| `[[noreturn]]` | ⚠️ Parsed (ignored) | 3012 |
-| `constexpr` | ⚠️ Parsed (ignored) | 3008, 3010 |
+| `[[attribute]]` syntax | ✅ Skipped as no-op (including `[[fallthrough]]`, `[[likely]]`, `[[unlikely]]`, `[[maybe_unused]]`, `[[deprecated("msg")]]`) | 3007 |
+| `[[nodiscard]]` | ✅ Skipped as no-op | 3013 |
+| `[[noreturn]]` | ✅ Skipped as no-op | 3012 |
+| `constexpr` (variables and functions) | ✅ Implemented (treated as `const` storage; allows compile-time-sized arrays) | 3008, 3010 |
 | `__VA_OPT__` | ❌ Not implemented | 3014 |
 | `#embed` | ✅ Implemented (byte literal expansion) | 3006 |
 | Predefined macros | ✅ `__STDC_VERSION__` etc. | 3014 |
@@ -485,7 +490,7 @@ This compiler is a substantial subset of C but not a complete C23 implementation
 ### Constants
 - **`_Static_assert` is parsed and silently skipped.** The expression is not evaluated at compile time. Always passes.
 - **`_Generic` is parsed but simplified** — returns the first matching arm's expression type.
-- **`constexpr` is parsed and ignored.**
+- **`constexpr` is accepted as a storage qualifier** — `constexpr int x = 42;` works for global variables, and `constexpr int f(int x) { return x*2; }` is allowed (the function body is compiled normally; the result is not forced to be a compile-time constant). `int arr[constexpr_func()]` is not yet supported — use a literal.
 
 ### Other
 - **No debug info emission** (`-g` equivalent). Assembler directives for `.file` / `.loc` are not generated.
