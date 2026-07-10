@@ -2066,8 +2066,13 @@ ASTPtr Parser::parse_primary() {
     }
     
     if (match(TokenType::STRING_LITERAL)) {
-        const Token& tok = tokens_[pos_ - 1];
-        return std::make_unique<StringLiteralNode>(tok.value, tok.line, tok.column);
+        std::string combined = tokens_[pos_ - 1].value;
+        int line = tokens_[pos_ - 1].line;
+        int col = tokens_[pos_ - 1].column;
+        while (match(TokenType::STRING_LITERAL)) {
+            combined += tokens_[pos_ - 1].value;
+        }
+        return std::make_unique<StringLiteralNode>(combined, line, col);
     }
     
     if (match(TokenType::CHAR_LITERAL)) {

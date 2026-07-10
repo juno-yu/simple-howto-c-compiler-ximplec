@@ -1,0 +1,3 @@
+add_executable(test_0091_typedef_funcptr test_0091_typedef_funcptr.cpp)
+target_link_libraries(test_0091_typedef_funcptr compiler_lib Catch2::Catch2WithMain)
+add_test(NAME 0091_typedef_funcptr_tests COMMAND test_0091_typedef_funcptr)

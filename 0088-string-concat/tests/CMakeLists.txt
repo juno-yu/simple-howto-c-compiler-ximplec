@@ -1,0 +1,3 @@
+add_executable(test_0088_string_concat test_0088_string_concat.cpp)
+target_link_libraries(test_0088_string_concat compiler_lib Catch2::Catch2WithMain)
+add_test(NAME 0088_string_concat_tests COMMAND test_0088_string_concat)

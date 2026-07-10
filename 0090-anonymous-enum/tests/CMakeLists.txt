@@ -1,0 +1,3 @@
+add_executable(test_0090_anonymous_enum test_0090_anonymous_enum.cpp)
+target_link_libraries(test_0090_anonymous_enum compiler_lib Catch2::Catch2WithMain)
+add_test(NAME 0090_anonymous_enum_tests COMMAND test_0090_anonymous_enum)

@@ -1,0 +1,3 @@
+add_executable(test_0093_nd_array_init test_0093_nd_array_init.cpp)
+target_link_libraries(test_0093_nd_array_init compiler_lib Catch2::Catch2WithMain)
+add_test(NAME 0093_nd_array_init_tests COMMAND test_0093_nd_array_init)

@@ -1,0 +1,3 @@
+add_executable(test_0089_for_comma test_0089_for_comma.cpp)
+target_link_libraries(test_0089_for_comma compiler_lib Catch2::Catch2WithMain)
+add_test(NAME 0089_for_comma_tests COMMAND test_0089_for_comma)
