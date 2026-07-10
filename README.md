@@ -223,12 +223,13 @@ std::string CodeGenerator::infer_expr_type(ASTNode* node) {
 
 ## Recent Work
 
-**Current state: 118/118 test suites pass, 127/127 lesson examples compile and run, 0 `WILL_FAIL` markers remain.** Every lesson has working tests and an accurate README.
+**Current state: 124/124 test suites pass, 127/127 lesson examples compile and run, 0 `WILL_FAIL` markers remain.** Every lesson has working tests and an accurate README.
 
-The compiler is now feature-complete for a substantial C subset including preprocessor macros, structs, unions, enums, typedefs, all pointer arithmetic, function pointers, GCC inline asm, C11/C17/C23 attributes, `constexpr`, nested functions with the context-pointer ABI, and real SSE float/double arithmetic.
+The compiler is now feature-complete for a substantial C subset including preprocessor macros, structs, unions, enums, typedefs, all pointer arithmetic, function pointers, GCC inline asm, C11/C17/C23 attributes, `constexpr`, nested functions with the context-pointer ABI, real SSE float/double arithmetic, and nested struct member access.
 
 ### Recent commits (most recent first)
 
+- `8f55680` — **Add 5 new test suites + fix multi-string concatenation**: Added tests for 0088-string-concat, 0089-for-comma, 0090-anonymous-enum, 0091-typedef-funcptr, 0093-nd-array-init (15 tests total). Fixed parser to support multiple adjacent string literals (`"a" "b" "c" "d"` → `"abcd"`).
 - `81053c5` — **Fix 22+ more lesson tests + add C23 attribute and constexpr support** (this commit). Ten real bugs fixed: empty string literal handling, `sizeof(arr)` returning pointer size, `sizeof(void)`, designated-init segfault, `int f(void)`, `[[fallthrough]]`/`[[likely]]`/`[[unlikely]]` statement attributes, struct/enum attributes, `constexpr` keyword, and more. 31 `WILL_FAIL` markers removed. `1b5` lessons updated with realistic expectations.
 - `4dbcc49` — **Add test infrastructure + 160 new test cases**: `9999-advanced-integration` (51 tests), `9999-codegen-coverage` (52 tests), `0043-float-double-sse` (62 tests with 57 new edge cases), `9999-parser-bugfixes` (28 tests for all 12 parser/lexer/codegen bugs). 106 unwired test dirs wired into root `CMakeLists.txt`.
 - `249a47d` — **Improve 132 lesson READMEs** (+10,454 / −3,832): fixed 260+ stale line numbers, embedded 1-3 core implementation snippets per README, corrected status flags, added root "Implementation Highlights" section with 4 code blocks.

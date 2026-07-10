@@ -183,9 +183,11 @@ private:
     // Struct layout helpers
     int get_struct_size(const std::string& name);
     int get_field_offset(const std::string& struct_name, const std::string& field_name);
+    std::string get_field_type(const std::string& struct_name, const std::string& field_name);
     int get_type_size(const std::string& type);
     std::string get_struct_name(const std::string& type_name);
     void compute_member_address(MemberExprNode& node);
+    std::string infer_member_expr_type(MemberExprNode& node);
 
     // Nested function support (GCC extension).
     //

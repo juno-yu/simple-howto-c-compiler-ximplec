@@ -1,0 +1,3 @@
+add_executable(test_0092_nested_struct_init test_0092_nested_struct_init.cpp)
+target_link_libraries(test_0092_nested_struct_init compiler_lib Catch2::Catch2WithMain)
+add_test(NAME test_0092_nested_struct_init COMMAND test_0092_nested_struct_init)

@@ -556,8 +556,11 @@ void CodeGenerator::visit(VarDeclNode& node) {
 
 // Helper to compute member address (address of struct + field offset)
 void CodeGenerator::compute_member_address(MemberExprNode& node) {
-    // Load base address of struct
+    // Determine the struct type we're accessing
+    std::string struct_name;
+    
     if (auto* id = dynamic_cast<IdentifierExprNode*>(node.object.get())) {
+        // Base case: object is a variable
         if (local_variables_.count(id->name)) {
             int offset = local_variables_[id->name];
             emit("lea " + std::to_string(offset) + "(%rbp), %rax");
@@ -565,23 +568,31 @@ void CodeGenerator::compute_member_address(MemberExprNode& node) {
             // Global variable
             emit("lea " + id->name + "(%rip), %rax");
         }
+        
+        if (variable_types_.count(id->name)) {
+            struct_name = variable_types_[id->name];
+            if (struct_name.substr(0, 7) == "struct ") {
+                struct_name = struct_name.substr(7);
+            }
+        }
+    } else if (auto* inner_member = dynamic_cast<MemberExprNode*>(node.object.get())) {
+        // Recursive case: object is another member expression (e.g., a.inner.x)
+        // First compute the address of the inner member expression
+        compute_member_address(*inner_member);
+        
+        // Now determine the struct type of the inner member
+        // We need to infer the type of the inner member expression
+        std::string inner_struct = infer_member_expr_type(*inner_member);
+        if (inner_struct.substr(0, 7) == "struct ") {
+            inner_struct = inner_struct.substr(7);
+        }
+        struct_name = inner_struct;
     } else {
         // For other expressions (pointers, etc.)
         dispatch(node.object.get());
         if (node.is_arrow) {
             // Arrow: object is a pointer, dereference it
             emit("mov (%rax), %rax");
-        }
-    }
-    
-    // Determine struct type
-    std::string struct_name;
-    if (auto* id = dynamic_cast<IdentifierExprNode*>(node.object.get())) {
-        if (variable_types_.count(id->name)) {
-            struct_name = variable_types_[id->name];
-            if (struct_name.substr(0, 7) == "struct ") {
-                struct_name = struct_name.substr(7);
-            }
         }
     }
     
@@ -594,6 +605,32 @@ void CodeGenerator::compute_member_address(MemberExprNode& node) {
         emit("lea " + std::to_string(offset) + "(%rax), %rax");
     }
     // If offset is 0, rax already points to the right place
+}
+
+std::string CodeGenerator::infer_member_expr_type(MemberExprNode& node) {
+    // Infer the type of a member expression by looking up the field type
+    std::string object_type;
+    
+    if (auto* id = dynamic_cast<IdentifierExprNode*>(node.object.get())) {
+        // Base case: object is a variable
+        if (variable_types_.count(id->name)) {
+            object_type = variable_types_[id->name];
+        }
+    } else if (auto* inner_member = dynamic_cast<MemberExprNode*>(node.object.get())) {
+        // Recursive case: object is another member expression
+        object_type = infer_member_expr_type(*inner_member);
+    }
+    
+    if (object_type.empty()) return "";
+    
+    // Get the struct name
+    std::string struct_name = object_type;
+    if (struct_name.substr(0, 7) == "struct ") {
+        struct_name = struct_name.substr(7);
+    }
+    
+    // Look up the field type
+    return get_field_type(struct_name, node.member);
 }
 
 void CodeGenerator::visit(StructFieldNode& node) {
@@ -2181,6 +2218,14 @@ int CodeGenerator::get_field_offset(const std::string& struct_name, const std::s
         if (f.name == field_name) return f.offset;
     }
     return -1;
+}
+
+std::string CodeGenerator::get_field_type(const std::string& struct_name, const std::string& field_name) {
+    if (!struct_layouts_.count(struct_name)) return "";
+    for (const auto& f : struct_layouts_[struct_name]) {
+        if (f.name == field_name) return f.type;
+    }
+    return "";
 }
 
 std::string CodeGenerator::get_struct_name(const std::string& type_name) {
