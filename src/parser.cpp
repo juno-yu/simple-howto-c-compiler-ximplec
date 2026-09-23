@@ -337,6 +337,13 @@ ASTPtr Parser::parse_program() {
             decl = parse_statement();
         }
         if (decl) {
+            // Synthetic anonymous struct/union types used by this declaration
+            // must be emitted first so codegen builds their layouts before
+            // the enclosing struct/variable references them.
+            for (auto& pending : pending_type_decls_) {
+                program->declarations.push_back(std::move(pending));
+            }
+            pending_type_decls_.clear();
             program->declarations.push_back(std::move(decl));
         } else {
             break;
@@ -412,23 +419,30 @@ ASTPtr Parser::parse_declaration() {
             while (!check(TokenType::RBRACE) && !is_at_end()) {
                 std::string field_type = parse_type_specifier();
                 
-                // Handle anonymous struct/union: struct { ... } inside a struct
+                // Handle anonymous struct/union field: struct { ... } inside
+                // a struct.  Parse the body into a synthetic named type so
+                // that codegen can build a real layout for it.
                 if (check(TokenType::LBRACE)) {
-                    int depth = 1;
-                    advance(); // consume {
-                    while (depth > 0 && !is_at_end()) {
-                        if (check(TokenType::LBRACE)) depth++;
-                        if (check(TokenType::RBRACE) && depth > 0) depth--;
-                        if (depth > 0) advance();
-                    }
-                    if (!is_at_end()) advance(); // consume }
-                    // Skip optional field name after the anonymous struct
+                    bool is_union_field = (field_type.size() >= 5 &&
+                                          field_type.substr(0, 5) == "union");
+                    std::string anon_type = parse_anon_struct_body(is_union_field);
+                    if (anon_type.empty()) return nullptr;
+                    // Optional field name after the anonymous struct:
+                    //   struct { int x; } inner;   -> named nested member
+                    // Unnamed (C11 anonymous member):
+                    //   struct { int x; };         -> flattened into parent
                     if (check(TokenType::IDENTIFIER)) {
                         const Token& aname = peek();
-                        std::string afname = aname.value;
-                        advance();
                         auto afield = std::make_unique<StructFieldNode>(
-                            field_type, afname, aname.line, aname.column);
+                            anon_type, aname.value, aname.line, aname.column);
+                        struct_decl->fields.push_back(std::move(afield));
+                        advance();
+                    } else {
+                        // C11 anonymous member: codegen flattens its fields
+                        // into the parent layout (see visit(StructDeclNode)).
+                        auto afield = std::make_unique<StructFieldNode>(
+                            anon_type, "_anon_member_" + std::to_string(anon_type_counter_ - 1),
+                            tokens_[pos_].line, tokens_[pos_].column);
                         struct_decl->fields.push_back(std::move(afield));
                     }
                     if (match(TokenType::SEMICOLON)) {}
@@ -449,15 +463,18 @@ ASTPtr Parser::parse_declaration() {
                     if (check(TokenType::INTEGER)) advance();
                 }
                 
-                // Handle flexible array member: int data[]
-                if (check(TokenType::LBRACKET)) {
+                // Handle array fields and flexible array members:
+                // int data[];  struct P ps[2];  int m[2][3];
+                while (check(TokenType::LBRACKET)) {
                     advance(); // consume [
                     if (check(TokenType::RBRACKET)) {
                         advance(); // consume ] — flexible array
                         field_type += "[]";
+                    } else if (check(TokenType::INTEGER)) {
+                        field_type += "[" + peek().value + "]";
+                        advance();
+                        expect(TokenType::RBRACKET);
                     } else {
-                        // Regular array field
-                        if (check(TokenType::INTEGER)) advance();
                         expect(TokenType::RBRACKET);
                     }
                 }
@@ -511,6 +528,27 @@ ASTPtr Parser::parse_declaration() {
             expect(TokenType::LBRACE);
             while (!check(TokenType::RBRACE) && !is_at_end()) {
                 std::string field_type = parse_type_specifier();
+
+                // Anonymous struct/union field inside a union
+                if (check(TokenType::LBRACE)) {
+                    bool is_union_field = (field_type.size() >= 5 &&
+                                          field_type.substr(0, 5) == "union");
+                    std::string anon_type = parse_anon_struct_body(is_union_field);
+                    if (anon_type.empty()) return nullptr;
+                    if (check(TokenType::IDENTIFIER)) {
+                        const Token& aname = peek();
+                        union_decl->fields.push_back(std::make_unique<StructFieldNode>(
+                            anon_type, aname.value, aname.line, aname.column));
+                        advance();
+                    } else {
+                        union_decl->fields.push_back(std::make_unique<StructFieldNode>(
+                            anon_type, "_anon_member_" + std::to_string(anon_type_counter_ - 1),
+                            tokens_[pos_].line, tokens_[pos_].column));
+                    }
+                    if (match(TokenType::SEMICOLON)) {}
+                    continue;
+                }
+
                 if (!check(TokenType::IDENTIFIER)) {
                     error("Expected field name");
                     return nullptr;
@@ -701,6 +739,7 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name, bool is_extern) {
     
     // Check for array declaration (supports multi-dim: int arr[2][3][4])
     if (match(TokenType::LBRACKET)) {
+        var->is_array = true;
         std::vector<int> dims;
         // First dimension
         if (check(TokenType::INTEGER)) {
@@ -738,6 +777,7 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name, bool is_extern) {
         } else {
             var->initializer = parse_assignment();
         }
+        infer_unsized_array_length(*var);
     }
 
     // Handle multiple declarators: int a, b, c; or char *p, *q;
@@ -761,6 +801,7 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name, bool is_extern) {
             advance();
             // Array (multi-dim)
             if (match(TokenType::LBRACKET)) {
+                next_var->is_array = true;
                 std::vector<int> ndims;
                 if (check(TokenType::INTEGER)) {
                     ndims.push_back(std::stoi(peek().value));
@@ -796,6 +837,7 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name, bool is_extern) {
                 } else {
                     next_var->initializer = parse_assignment();
                 }
+                infer_unsized_array_length(*next_var);
             }
             block->statements.push_back(std::move(next_var));
         }
@@ -805,6 +847,83 @@ ASTPtr Parser::parse_var_decl(const std::string& type_name, bool is_extern) {
 
     expect(TokenType::SEMICOLON);
     return std::move(var);
+}
+
+// For `int a[] = {…}` / `char s[] = "…"`: infer the array length from the
+// initializer (positional element count, largest [i]= designator, or string
+// length + NUL) so codegen allocates correct storage.
+void Parser::infer_unsized_array_length(VarDeclNode& var) {
+    if (!var.is_array || var.array_size != 0 || !var.initializer) return;
+    if (multidim_dims_.count(var.name)) return;  // multi-dim: leave to caller
+    if (var.initializer->type == NodeType::INITIALIZER_LIST) {
+        auto* list = static_cast<InitializerListNode*>(var.initializer.get());
+        int count = 0;
+        for (auto& elem : list->elements) {
+            ++count;
+            if (auto* d = dynamic_cast<DesignatedInitNode*>(elem.get())) {
+                if (d->array_index >= count) count = d->array_index + 1;
+            }
+        }
+        var.array_size = count;
+    } else if (var.initializer->type == NodeType::STRING_LITERAL) {
+        var.array_size =
+            static_cast<StringLiteralNode*>(var.initializer.get())->value.size() + 1;
+    }
+}
+
+// Parse the body of an anonymous struct/union field into a synthetic named
+// type.  The `{` has not been consumed yet.  Returns the synthetic type
+// name (e.g. "struct _anon_0") and registers the declaration in
+// pending_type_decls_ so parse_program() splices it in before the
+// enclosing struct declaration (codegen needs the layout to exist first).
+std::string Parser::parse_anon_struct_body(bool is_union) {
+    int id = anon_type_counter_++;
+    std::string name = (is_union ? "_anon_union_" : "_anon_struct_") + std::to_string(id);
+
+    auto decl = std::make_unique<StructDeclNode>(
+        name, tokens_[pos_].line, tokens_[pos_].column);
+
+    expect(TokenType::LBRACE);
+    while (!check(TokenType::RBRACE) && !is_at_end()) {
+        std::string field_type = parse_type_specifier();
+
+        // Nested anonymous struct/union inside this anonymous body
+        if (check(TokenType::LBRACE)) {
+            bool is_union_field = (field_type.size() >= 5 &&
+                                  field_type.substr(0, 5) == "union");
+            std::string nested_type = parse_anon_struct_body(is_union_field);
+            if (nested_type.empty()) return "";
+            if (check(TokenType::IDENTIFIER)) {
+                const Token& aname = peek();
+                decl->fields.push_back(std::make_unique<StructFieldNode>(
+                    nested_type, aname.value, aname.line, aname.column));
+                advance();
+            } else {
+                decl->fields.push_back(std::make_unique<StructFieldNode>(
+                    nested_type, "_anon_member_" + std::to_string(anon_type_counter_ - 1),
+                    tokens_[pos_].line, tokens_[pos_].column));
+            }
+            if (match(TokenType::SEMICOLON)) {}
+            continue;
+        }
+
+        if (!check(TokenType::IDENTIFIER)) {
+            error("Expected field name");
+            return "";
+        }
+        const Token& field_name = peek();
+        std::string fname = field_name.value;
+        advance();
+
+        decl->fields.push_back(std::make_unique<StructFieldNode>(
+            field_type, fname, field_name.line, field_name.column));
+
+        expect(TokenType::SEMICOLON);
+    }
+    expect(TokenType::RBRACE);
+
+    pending_type_decls_.push_back(std::move(decl));
+    return (is_union ? "union " : "struct ") + name;
 }
 
 ASTPtr Parser::parse_brace_initializer() {
@@ -1102,7 +1221,11 @@ ASTPtr Parser::parse_statement() {
     // GCC inline assembly: asm("...") or asm volatile("...")
     if (check(TokenType::IDENTIFIER) && peek().value == "asm") {
         advance(); // consume 'asm'
-        if (check(TokenType::IDENTIFIER) && peek().value == "volatile") {
+        // Optional qualifier: asm volatile(...) / __asm__ __volatile__(...).
+        // The lexer emits the keyword token KW_VOLATILE for "volatile", so
+        // accept either form (older code also allowed the identifier form).
+        if (check(TokenType::KW_VOLATILE) ||
+            (check(TokenType::IDENTIFIER) && peek().value == "volatile")) {
             advance(); // consume 'volatile' (optional)
         }
         if (!match(TokenType::LPAREN)) {
@@ -1471,11 +1594,13 @@ std::string Parser::parse_asm_operands() {
         // Skip the operand string and expression
         if (check(TokenType::STRING_LITERAL)) advance();
         if (match(TokenType::LPAREN)) {
+            // Skip the parenthesized operand expression, consuming the
+            // matching closing ')' so the caller sees the token after it.
             int depth = 1;
             while (depth > 0 && !is_at_end()) {
                 if (check(TokenType::LPAREN)) depth++;
-                if (check(TokenType::RPAREN)) depth--;
-                if (depth > 0) advance();
+                else if (check(TokenType::RPAREN)) depth--;
+                advance();
             }
         }
     }

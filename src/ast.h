@@ -249,9 +249,11 @@ struct VarDeclNode : ASTNode {
     ASTPtr initializer;
     int array_size; // 0 = not an array, >0 = array size
     bool is_extern;
+    bool is_array;  // true if the declarator had [] (unsized arrays included)
     
     VarDeclNode(const std::string& type, const std::string& n, int l, int c)
-        : ASTNode(NodeType::VAR_DECL, l, c), type_name(type), name(n), array_size(0), is_extern(false) {}
+        : ASTNode(NodeType::VAR_DECL, l, c), type_name(type), name(n), initializer(),
+          array_size(0), is_extern(false), is_array(false) {}
     void accept(ASTVisitor& visitor);
 };
 

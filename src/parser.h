@@ -55,6 +55,17 @@ private:
     ASTPtr parse_for_stmt();
     ASTPtr parse_initializer_list();
     ASTPtr parse_brace_initializer();
+    // For `int a[] = {…}` / `char s[] = "…"`: infer the array length from
+    // the initializer so codegen can allocate correct storage.
+    void infer_unsized_array_length(VarDeclNode& var);
+    // Parse the body of an anonymous struct/union field:
+    // struct Name { struct { ... } field; };
+    // The caller has already consumed `struct`/`union` (and parse_type_specifier
+    // generated a provisional name); this parses `{ fields }` into a synthetic
+    // StructDeclNode, registers it in pending_type_decls_ (spliced into the
+    // program before the enclosing declaration), and returns the synthetic
+    // type name (e.g. "struct _anon_0").
+    std::string parse_anon_struct_body(bool is_union);
     
     // Expression parsing (precedence climbing)
     ASTPtr parse_expression();
@@ -93,6 +104,11 @@ private:
 
     // Multi-dim array dimension tracking (full vector for any depth)
     std::map<std::string, std::vector<int>> multidim_dims_;
+
+    // Synthetic type declarations (anonymous struct/union field bodies),
+    // spliced into the program before the declaration that contains them.
+    std::vector<ASTPtr> pending_type_decls_;
+    int anon_type_counter_ = 0;
 
     // Function nesting stack: tracks which function bodies we are currently
     // inside, so that nested function definitions can be marked is_nested.

@@ -7,8 +7,8 @@
 Support C99 designated initializer syntax: `.field = value` and
 `[index] = value` inside braced initializer lists. Each designator
 maps to a specific field offset or element index; unspecified
-fields/elements are zero-initialised because the storage is
-freshly allocated and the codegen only writes the named values.
+fields/elements are left untouched because the codegen only writes
+the named values (see Status for the zero-fill caveat).
 
 ## Implementation Status
 

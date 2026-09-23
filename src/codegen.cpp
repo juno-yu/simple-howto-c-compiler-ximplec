@@ -18,6 +18,17 @@ std::string CodeGenerator::generate(ProgramNode& program) {
     function_return_type_.clear();
     function_param_types_.clear();
 
+    // Pass 0: collect type information (struct layouts, typedefs) so that
+    // global variable sizes and struct member offsets are known before the
+    // .data section is emitted.  These visits emit no code.
+    for (auto& decl : program.declarations) {
+        if (decl->type == NodeType::STRUCT_DECL ||
+            decl->type == NodeType::TYPEDEF_DECL ||
+            decl->type == NodeType::ENUM_DECL) {
+            dispatch(decl.get());
+        }
+    }
+
     // First pass: collect global variables and function signatures (for ABI)
     for (auto& decl : program.declarations) {
         if (decl->type == NodeType::VAR_DECL) {
@@ -27,10 +38,35 @@ std::string CodeGenerator::generate(ProgramNode& program) {
             gvar.type = var->type_name;
             gvar.initialized = (var->initializer != nullptr);
             gvar.is_extern = var->is_extern;
+            gvar.array_size = var->array_size;
+            gvar.decl = var;
             if (gvar.initialized && var->initializer->type == NodeType::INTEGER_LITERAL) {
                 gvar.init_value = std::to_string(static_cast<IntegerLiteralNode*>(var->initializer.get())->value);
             }
+            // Infer the length of an unsized array from its initializer:
+            // int g[] = {10, 20, 30} -> length 3.
+            if (var->is_array && gvar.array_size == 0 && gvar.initialized &&
+                var->initializer->type == NodeType::INITIALIZER_LIST) {
+                auto* list = static_cast<InitializerListNode*>(var->initializer.get());
+                int count = 0;
+                for (auto& elem : list->elements) {
+                    ++count;
+                    if (auto* desig = dynamic_cast<DesignatedInitNode*>(elem.get())) {
+                        if (desig->array_index >= count) count = desig->array_index + 1;
+                    }
+                }
+                gvar.array_size = count;
+            }
             global_variables_.push_back(gvar);
+
+            // Register global array-ness so that identifier expressions decay
+            // to the array's address (lea) instead of loading its first
+            // element, and so sizeof()/indexing use the element size.
+            if (var->is_array || gvar.array_size > 0) {
+                array_info_[var->name] = {get_type_size(var->type_name), gvar.array_size};
+            }
+            // Register the declared type for member access on globals.
+            variable_types_[var->name] = var->type_name;
         } else if (decl->type == NodeType::FUNCTION_DECL) {
             auto* fn = static_cast<FunctionDeclNode*>(decl.get());
             function_return_type_[fn->name] = fn->return_type;
@@ -58,12 +94,9 @@ std::string CodeGenerator::generate(ProgramNode& program) {
         for (const auto& gvar : global_variables_) {
             if (gvar.is_extern) continue; // Skip extern variables
             emit(".globl " + gvar.name);
+            emit(".align 8");
             emit_label(gvar.name);
-            if (gvar.initialized) {
-                emit(".long " + gvar.init_value);
-            } else {
-                emit(".zero 4");
-            }
+            emit_global_var(gvar);
         }
     }
     
@@ -488,47 +521,12 @@ void CodeGenerator::visit(VarDeclNode& node) {
     }
 
     if (node.initializer) {
-        if (auto* init_list = dynamic_cast<InitializerListNode*>(node.initializer.get())) {
-            // Flatten nested InitializerListNodes into a single list
-            std::vector<ASTNode*> flat_elements;
-            std::function<void(InitializerListNode&)> collect = [&](InitializerListNode& list) {
-                for (auto& elem : list.elements) {
-                    if (auto* sub = dynamic_cast<InitializerListNode*>(elem.get())) {
-                        collect(*sub);
-                    } else {
-                        flat_elements.push_back(elem.get());
-                    }
-                }
-            };
-            collect(*init_list);
-
-            // Emit each flat element to its slot
-            int elem_index = 0;
-            for (ASTNode* elem : flat_elements) {
-                if (auto* desig = dynamic_cast<DesignatedInitNode*>(elem)) {
-                    if (!desig->field_name.empty()) {
-                        int field_off = get_field_offset(get_struct_name(node.type_name), desig->field_name);
-                        if (field_off < 0) field_off = 0;
-                        dispatch(desig->value.get());
-                        emit("mov %rax, " + std::to_string(base_offset + field_off) + "(%rbp)");
-                        continue;
-                    } else if (desig->array_index >= 0) {
-                        elem_index = desig->array_index;
-                    }
-                }
-                if (elem_index < node.array_size || node.array_size == 0) {
-                    dispatch(elem);
-                    int slot = base_offset + elem_index * elem_size;
-                    if (elem_size == 1) {
-                        emit("mov %al, " + std::to_string(slot) + "(%rbp)");
-                    } else if (elem_size == 4) {
-                        emit("movl %eax, " + std::to_string(slot) + "(%rbp)");
-                    } else {
-                        emit("mov %rax, " + std::to_string(slot) + "(%rbp)");
-                    }
-                }
-                elem_index++;
-            }
+        if (dynamic_cast<InitializerListNode*>(node.initializer.get())) {
+            // Brace initializer (positional and/or designated) — handled by
+            // the recursive initializer emitter, which knows how to walk
+            // struct fields and array elements, including nested lists.
+            emit_local_initializer(node.initializer.get(), base_offset,
+                                   node.type_name, node.array_size);
         } else {
             // Simple expression initializer
             std::string init_type = infer_expr_type(node.initializer.get());
@@ -587,6 +585,84 @@ void CodeGenerator::compute_member_address(MemberExprNode& node) {
             inner_struct = inner_struct.substr(7);
         }
         struct_name = inner_struct;
+    } else if (auto* idx_expr = dynamic_cast<IndexExprNode*>(node.object.get())) {
+        // Object is an array element (e.g., a[i].member or arr[i]->member).
+        // Compute the ADDRESS of the element (do not load its value), then
+        // add the member offset.
+        int elem_size = 8;
+        std::string elem_type;
+        if (auto* arr_member = dynamic_cast<MemberExprNode*>(idx_expr->array.get())) {
+            // The array is a struct field (e.g., q.ps[i]): compute the
+            // field's ADDRESS (dispatching a MemberExpr would load its
+            // value) and find the element type from the field's type
+            // (stripping any [N] array suffix).
+            compute_member_address(*arr_member);
+            std::string ft = infer_member_expr_type(*arr_member);
+            if (!ft.empty()) {
+                ft = strip_array_suffix(ft);
+                elem_type = ft;
+                elem_size = get_type_size(ft);
+            }
+        } else if (auto* id = dynamic_cast<IdentifierExprNode*>(idx_expr->array.get())) {
+            if (array_info_.count(id->name)) {
+                elem_size = array_info_[id->name].elem_size;
+            } else if (variable_types_.count(id->name)) {
+                std::string vt = variable_types_[id->name];
+                if (vt.find('*') != std::string::npos) {
+                    std::string pointee = vt;
+                    size_t p = pointee.find('*');
+                    while (p != std::string::npos) { pointee.erase(p, 1); p = pointee.find('*'); }
+                    size_t s = pointee.find_first_not_of(" \t");
+                    size_t e = pointee.find_last_not_of(" \t");
+                    if (s != std::string::npos) pointee = pointee.substr(s, e - s + 1);
+                    elem_size = get_type_size(pointee);
+                    elem_type = pointee;
+                } else {
+                    elem_size = get_type_size(vt);
+                    elem_type = vt;
+                }
+            }
+        }
+        // Evaluate the array/pointer expression to get the base address.
+        // For member expressions this was done above (compute_member_address);
+        // identifiers dispatch to a lea (array) or value load (pointer).
+        if (!dynamic_cast<MemberExprNode*>(idx_expr->array.get())) {
+            dispatch(idx_expr->array.get());
+        }
+        emit("push %rax");
+        // Evaluate the index and scale it by the element size.
+        dispatch(idx_expr->index.get());
+        if (elem_size > 1) {
+            emit("imul $" + std::to_string(elem_size) + ", %rax");
+        }
+        emit("pop %rcx");
+        emit("add %rcx, %rax");
+        if (node.is_arrow) {
+            // arr[i]->member: the element is a pointer; dereference it.
+            emit("mov (%rax), %rax");
+            // The pointee type is the struct we access a member of.
+            std::string pointee = elem_type;
+            size_t p = pointee.find('*');
+            if (p != std::string::npos) pointee.erase(p, 1);
+            size_t s = pointee.find_first_not_of(" \t");
+            size_t e = pointee.find_last_not_of(" \t");
+            if (s != std::string::npos) pointee = pointee.substr(s, e - s + 1);
+            elem_type = pointee;
+        }
+        // Determine the element's struct type for the member offset.
+        if (elem_type.empty()) {
+            if (auto* id2 = dynamic_cast<IdentifierExprNode*>(idx_expr->array.get())) {
+                if (variable_types_.count(id2->name)) {
+                    elem_type = variable_types_[id2->name];
+                }
+            }
+        }
+        if (!elem_type.empty()) {
+            struct_name = elem_type;
+            if (struct_name.substr(0, 7) == "struct ") {
+                struct_name = struct_name.substr(7);
+            }
+        }
     } else {
         // For other expressions (pointers, etc.)
         dispatch(node.object.get());
@@ -644,13 +720,32 @@ void CodeGenerator::visit(StructDeclNode& node) {
     for (auto& field_ast : node.fields) {
         auto* field = static_cast<StructFieldNode*>(field_ast.get());
         int field_size = get_type_size(field->type_name);
+
+        // C11 anonymous struct/union member (parser names it
+        // "_anon_member_N"): flatten its fields into the parent layout so
+        // that `parent_obj.member_of_anon` resolves to the right offset.
+        if (field->name.rfind("_anon_member", 0) == 0 &&
+            field->type_name.substr(0, 7) == "struct ") {
+            std::string anon_name = field->type_name.substr(7);
+            if (struct_layouts_.count(anon_name)) {
+                for (const auto& af : struct_layouts_[anon_name]) {
+                    FieldInfo flat = af;
+                    flat.offset += offset;
+                    fields.push_back(flat);
+                }
+                offset += field_size;
+                continue;
+            }
+        }
+        // Union members all overlay offset 0 (all fields share storage).
+        bool is_union = (node.name.rfind("_anon_union_", 0) == 0);
         FieldInfo fi;
         fi.name = field->name;
         fi.type = field->type_name;
-        fi.offset = offset;
+        fi.offset = is_union ? 0 : offset;
         fi.size = field_size;
         fields.push_back(fi);
-        offset += field_size;
+        if (!is_union) offset += field_size;
     }
     struct_layouts_[node.name] = fields;
 }
@@ -2176,8 +2271,45 @@ void CodeGenerator::generate_unary(UnaryExprNode& node) {
 }
 
 // Helper methods for struct/enum/typedef
+int CodeGenerator::array_count_of(const std::string& type) {
+    size_t lb = type.find('[');
+    if (lb == std::string::npos) return 0;
+    int count = 1;
+    bool has_group = false;
+    size_t i = lb;
+    while (i < type.size() && type[i] == '[') {
+        size_t rb = type.find(']', i);
+        if (rb == std::string::npos) break;
+        std::string inner = type.substr(i + 1, rb - i - 1);
+        has_group = true;
+        if (!inner.empty()) {
+            int n = std::atoi(inner.c_str());
+            if (n > 0) count *= n;
+        }
+        i = rb + 1;
+    }
+    return has_group ? count : 0;
+}
+
+std::string CodeGenerator::strip_array_suffix(const std::string& type) {
+    size_t lb = type.find('[');
+    if (lb == std::string::npos) return type;
+    std::string s = type.substr(0, lb);
+    // trim trailing whitespace
+    size_t e = s.find_last_not_of(" \t");
+    if (e != std::string::npos) s = s.substr(0, e + 1);
+    return s;
+}
+
 int CodeGenerator::get_type_size(const std::string& type) {
     if (type.find('*') != std::string::npos) return 8;
+    // Array-typed values ("struct P[2]", "int[3]", "int[]"):
+    // element size × element count.
+    if (type.find('[') != std::string::npos) {
+        int esz = get_type_size(strip_array_suffix(type));
+        int count = array_count_of(type);
+        return esz * (count > 0 ? count : 1);
+    }
     if (type == "int" || type == "const int") return 4;
     if (type == "char" || type == "const char") return 1;
     if (type == "bool" || type == "const bool") return 1;
@@ -2208,8 +2340,14 @@ int CodeGenerator::get_struct_size(const std::string& name) {
     if (!struct_layouts_.count(name)) return 0;
     const auto& fields = struct_layouts_[name];
     if (fields.empty()) return 0;
-    const auto& last = fields.back();
-    return last.offset + last.size;
+    // Use max(offset + size) instead of just the last field, so that
+    // union-style layouts (all fields at offset 0) report the correct size.
+    int size = 0;
+    for (const auto& f : fields) {
+        int end = f.offset + f.size;
+        if (end > size) size = end;
+    }
+    return size;
 }
 
 int CodeGenerator::get_field_offset(const std::string& struct_name, const std::string& field_name) {
@@ -2518,6 +2656,271 @@ std::string CodeGenerator::infer_expr_type(ASTNode* node) {
         }
         default:
             return "int";
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Constant evaluation (for global .data initializers)
+// ──────────────────────────────────────────────────────────────────────
+
+bool CodeGenerator::eval_const_int(ASTNode* node, long long& out) {
+    if (!node) return false;
+    if (node->type == NodeType::INTEGER_LITERAL) {
+        out = static_cast<IntegerLiteralNode*>(node)->value;
+        return true;
+    }
+    if (node->type == NodeType::CHAR_LITERAL) {
+        out = static_cast<CharLiteralNode*>(node)->value;
+        return true;
+    }
+    if (node->type == NodeType::UNARY_EXPR) {
+        auto* u = static_cast<UnaryExprNode*>(node);
+        long long v;
+        if (u->op == OpKind::SUB && eval_const_int(u->operand.get(), v)) {
+            out = -v;
+            return true;
+        }
+        if (u->op == OpKind::BIT_NOT && eval_const_int(u->operand.get(), v)) {
+            out = ~v;
+            return true;
+        }
+    }
+    if (node->type == NodeType::BINARY_EXPR) {
+        auto* b = static_cast<BinaryExprNode*>(node);
+        long long l, r;
+        if (!eval_const_int(b->left.get(), l) || !eval_const_int(b->right.get(), r))
+            return false;
+        switch (b->op) {
+            case OpKind::ADD: out = l + r; return true;
+            case OpKind::SUB: out = l - r; return true;
+            case OpKind::MUL: out = l * r; return true;
+            case OpKind::DIV: out = r ? l / r : 0; return true;
+            case OpKind::MOD: out = r ? l % r : 0; return true;
+            case OpKind::BIT_AND: out = l & r; return true;
+            case OpKind::BIT_OR:  out = l | r; return true;
+            case OpKind::BIT_XOR: out = l ^ r; return true;
+            case OpKind::LSHIFT:  out = l << (r & 63); return true;
+            case OpKind::RSHIFT:  out = l >> (r & 63); return true;
+            default: return false;
+        }
+    }
+    return false;
+}
+
+// Emit the GAS directive for a scalar value of the given byte width.
+static void emit_scalar_directive(std::stringstream& out, int size, long long value) {
+    switch (size) {
+        case 1: out << "    .byte " << value << "\n"; break;
+        case 2: out << "    .word " << value << "\n"; break;
+        case 4: out << "    .long " << value << "\n"; break;
+        default: out << "    .quad " << value << "\n"; break;
+    }
+}
+
+void CodeGenerator::emit_global_var(const GlobalVar& gvar) {
+    const VarDeclNode* var = gvar.decl;
+    std::string type = gvar.type;
+    std::string struct_name = get_struct_name(type);
+    bool is_struct = (type.size() >= 7 && type.substr(0, 7) == "struct " &&
+                      struct_layouts_.count(struct_name) > 0);
+    int elem_size = get_type_size(type);
+
+    // char s[] = "text" / char *s = "text" -> .asciz
+    if (var && var->initializer && var->initializer->type == NodeType::STRING_LITERAL &&
+        elem_size == 1 && gvar.array_size != 0) {
+        output_ << "    .asciz \"" << static_cast<StringLiteralNode*>(var->initializer.get())->value << "\"\n";
+        return;
+    }
+
+    if (var && var->initializer && var->initializer->type == NodeType::INITIALIZER_LIST) {
+        auto* list = static_cast<InitializerListNode*>(var->initializer.get());
+
+        if (is_struct) {
+            // Struct initializer: emit values at field offsets, zero-fill gaps.
+            const auto& fields = struct_layouts_[struct_name];
+            std::vector<long long> values(fields.size(), 0);
+            std::vector<bool> has_value(fields.size(), false);
+            for (auto& elem : list->elements) {
+                auto* desig = dynamic_cast<DesignatedInitNode*>(elem.get());
+                if (!desig || desig->field_name.empty()) continue;
+                long long v;
+                if (!eval_const_int(desig->value.get(), v)) continue;
+                for (size_t i = 0; i < fields.size(); ++i) {
+                    if (fields[i].name == desig->field_name) {
+                        values[i] = v;
+                        has_value[i] = true;
+                        break;
+                    }
+                }
+            }
+            int struct_size = get_struct_size(struct_name);
+            int cursor = 0;
+            for (size_t i = 0; i < fields.size(); ++i) {
+                if (fields[i].offset > cursor)
+                    emit(".zero " + std::to_string(fields[i].offset - cursor));
+                emit_scalar_directive(output_, fields[i].size,
+                                       has_value[i] ? values[i] : 0);
+                cursor = fields[i].offset + fields[i].size;
+            }
+            if (struct_size > cursor)
+                emit(".zero " + std::to_string(struct_size - cursor));
+            return;
+        }
+
+        // Array initializer: positional + [index] designated elements.
+        int n = gvar.array_size;
+        if (n <= 0) n = 1;
+        std::vector<long long> values(static_cast<size_t>(n), 0);
+        int index = 0;
+        for (auto& elem : list->elements) {
+            ASTNode* value_node = elem.get();
+            if (auto* desig = dynamic_cast<DesignatedInitNode*>(elem.get())) {
+                if (desig->array_index >= 0) index = desig->array_index;
+                else if (!desig->field_name.empty()) continue;
+                value_node = desig->value.get();
+            }
+            if (index >= 0 && index < n) {
+                long long v;
+                if (eval_const_int(value_node, v)) values[index] = v;
+            }
+            ++index;
+        }
+        for (int i = 0; i < n; ++i)
+            emit_scalar_directive(output_, elem_size, values[i]);
+        return;
+    }
+
+    // Zero-init aggregate: reserve the full size.
+    if (gvar.array_size > 0) {
+        emit(".zero " + std::to_string(elem_size * gvar.array_size));
+        return;
+    }
+    if (is_struct) {
+        int struct_size = get_struct_size(struct_name);
+        emit(".zero " + std::to_string(struct_size > 0 ? struct_size : 8));
+        return;
+    }
+
+    // Scalar: literal value or zero.
+    long long value = 0;
+    if (var && var->initializer && !eval_const_int(var->initializer.get(), value))
+        value = 0;
+    emit_scalar_directive(output_, elem_size, value);
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Local (stack) initializer emission
+// ──────────────────────────────────────────────────────────────────────
+
+void CodeGenerator::emit_store_at(int offset, const std::string& store_type,
+                                  const std::string& value_type) {
+    bool val_is_float = is_float_type(value_type);
+    if (is_float_type(store_type) && val_is_float) {
+        if (is_double_type(store_type)) {
+            emit("movsd %xmm0, " + std::to_string(offset) + "(%rbp)");
+        } else {
+            emit("movss %xmm0, " + std::to_string(offset) + "(%rbp)");
+        }
+        if (!expr_type_stack_.empty()) expr_type_stack_.pop_back();
+        return;
+    }
+    int sz = get_type_size(store_type);
+    if (sz == 1) emit("mov %al, " + std::to_string(offset) + "(%rbp)");
+    else if (sz == 2) emit("mov %ax, " + std::to_string(offset) + "(%rbp)");
+    else if (sz == 4) emit("movl %eax, " + std::to_string(offset) + "(%rbp)");
+    else emit("mov %rax, " + std::to_string(offset) + "(%rbp)");
+    if (val_is_float && !expr_type_stack_.empty()) expr_type_stack_.pop_back();
+}
+
+void CodeGenerator::emit_local_initializer(ASTNode* init, int base_offset,
+                                            const std::string& type, int array_size) {
+    if (!init) return;
+
+    auto* list = dynamic_cast<InitializerListNode*>(init);
+    if (!list) {
+        // Scalar expression initializer (or string literal for char*).
+        std::string init_type = infer_expr_type(init);
+        dispatch(init);
+        std::string actual_type = expr_type_stack_.empty() ? init_type : expr_type_stack_.back();
+        emit_store_at(base_offset, type, actual_type);
+        return;
+    }
+
+    // Normalize array-typed values ("struct P[2]"): split into element
+    // type and element count so the branches below work on the element.
+    std::string elem_type = type;
+    if (type.find('[') != std::string::npos) {
+        int count = array_count_of(type);
+        elem_type = strip_array_suffix(type);
+        if (count > 0 && array_size == 0) array_size = count;
+    }
+
+    std::string struct_name = get_struct_name(elem_type);
+    bool is_struct = (elem_type.size() >= 7 && elem_type.substr(0, 7) == "struct " &&
+                      struct_layouts_.count(struct_name) > 0);
+
+    // An array declaration (array_size > 0) takes precedence over struct
+    // member walking: `struct P a[2]` is an array whose elements are
+    // structs, so each element (positional or [i]= designated) recurses
+    // with the element type.
+    if (array_size > 0 || !is_struct) {
+        // Array (or scalar type with brace list — treat elements as
+        // consecutive slots of elem_size).
+        int stride = get_type_size(elem_type);
+        if (array_size < 0) array_size = 0;
+        // array_size == 0 means "unsized": allow writes past it
+        // (pre-existing behavior for e.g. partially-inferred arrays).
+        auto in_bounds = [&](int i) { return array_size == 0 || i < array_size; };
+        int index = 0;
+        for (auto& elem : list->elements) {
+            auto* desig = dynamic_cast<DesignatedInitNode*>(elem.get());
+            if (desig && desig->array_index >= 0) {
+                index = desig->array_index;
+                if (in_bounds(index)) {
+                    emit_local_initializer(desig->value.get(),
+                                            base_offset + index * stride, elem_type, 0);
+                }
+                ++index;
+                continue;
+            }
+            if (desig && !desig->field_name.empty()) continue;
+            ASTNode* value_node = elem.get();
+            if (in_bounds(index)) {
+                emit_local_initializer(value_node,
+                                        base_offset + index * stride, elem_type, 0);
+            }
+            ++index;
+        }
+        return;
+    }
+
+    // Struct: walk fields positionally (nested lists consume one field) and
+    // honor .field designators (including out-of-order ones).
+    {
+        const auto& fields = struct_layouts_[struct_name];
+        size_t field_idx = 0;  // positional cursor
+        for (auto& elem : list->elements) {
+            auto* desig = dynamic_cast<DesignatedInitNode*>(elem.get());
+            if (desig && !desig->field_name.empty()) {
+                // .field = value or .field = {nested}
+                for (size_t i = 0; i < fields.size(); ++i) {
+                    if (fields[i].name == desig->field_name) {
+                        emit_local_initializer(desig->value.get(),
+                                                base_offset + fields[i].offset,
+                                                fields[i].type, 0);
+                        break;
+                    }
+                }
+                continue;
+            }
+            ASTNode* value_node = elem.get();
+            if (desig) value_node = desig->value.get();
+            if (field_idx >= fields.size()) break;
+            const FieldInfo& field = fields[field_idx];
+            emit_local_initializer(value_node, base_offset + field.offset,
+                                    field.type, 0);
+            ++field_idx;
+        }
     }
 }
 

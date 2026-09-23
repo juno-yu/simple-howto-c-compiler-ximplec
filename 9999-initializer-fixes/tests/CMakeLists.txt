@@ -1,0 +1,3 @@
+add_executable(test_initializer_fixes test_initializer_fixes.cpp)
+target_link_libraries(test_initializer_fixes compiler_lib Catch2::Catch2WithMain)
+add_test(NAME test_initializer_fixes COMMAND test_initializer_fixes)

@@ -223,14 +223,15 @@ std::string CodeGenerator::infer_expr_type(ASTNode* node) {
 
 ## Recent Work
 
-**Current state: 124/124 test suites pass, 127/127 lesson examples compile and run, 0 `WILL_FAIL` markers remain.** Every lesson has working tests and an accurate README.
+**Current state: 124/124 ctest tests pass, 126/126 lesson examples (`src/example.c`) compile and run, 0 `WILL_FAIL` markers remain.** Every lesson has working tests. The 5 lessons without an example (0001-0005, the tokenizer/AST/parser/codegen/integration infrastructure) are covered by the unit-test suites.
 
-The compiler is now feature-complete for a substantial C subset including preprocessor macros, structs, unions, enums, typedefs, all pointer arithmetic, function pointers, GCC inline asm, C11/C17/C23 attributes, `constexpr`, nested functions with the context-pointer ABI, real SSE float/double arithmetic, and nested struct member access.
+The compiler is now feature-complete for a substantial C subset including preprocessor macros, structs, unions, enums, typedefs, all pointer arithmetic, function pointers, basic GCC inline asm, C11/C17/C23 attributes, `constexpr`, nested functions with the context-pointer ABI, real SSE float/double arithmetic, and nested struct member access. Known gaps and verified limitations are catalogued under [Known Limitations](#known-limitations).
 
 ### Recent commits (most recent first)
 
+- `a0f740f` — **Fix nested struct member access and add 0092 test suite**: Fixed the runtime segfault for nested member access (`a.inner.x` where `inner` is an anonymous struct) by adding a recursive `compute_member_address()`, an `infer_member_expr_type()` type-walker, and a `get_field_type()` helper. Added a 3-test suite for `0092-nested-struct-init` (now 124 ctest tests total). Nested *brace initialization* remains zero-init (see Known Limitations).
 - `8f55680` — **Add 5 new test suites + fix multi-string concatenation**: Added tests for 0088-string-concat, 0089-for-comma, 0090-anonymous-enum, 0091-typedef-funcptr, 0093-nd-array-init (15 tests total). Fixed parser to support multiple adjacent string literals (`"a" "b" "c" "d"` → `"abcd"`).
-- `81053c5` — **Fix 22+ more lesson tests + add C23 attribute and constexpr support** (this commit). Ten real bugs fixed: empty string literal handling, `sizeof(arr)` returning pointer size, `sizeof(void)`, designated-init segfault, `int f(void)`, `[[fallthrough]]`/`[[likely]]`/`[[unlikely]]` statement attributes, struct/enum attributes, `constexpr` keyword, and more. 31 `WILL_FAIL` markers removed. `1b5` lessons updated with realistic expectations.
+- `81053c5` — **Fix 22+ more lesson tests + add C23 attribute and constexpr support**: Ten real bugs fixed: empty string literal handling, `sizeof(arr)` returning pointer size, `sizeof(void)`, designated-init segfault, `int f(void)`, `[[fallthrough]]`/`[[likely]]`/`[[unlikely]]` statement attributes, struct/enum attributes, `constexpr` keyword, and more. 31 `WILL_FAIL` markers removed. `1b5` lessons updated with realistic expectations.
 - `4dbcc49` — **Add test infrastructure + 160 new test cases**: `9999-advanced-integration` (51 tests), `9999-codegen-coverage` (52 tests), `0043-float-double-sse` (62 tests with 57 new edge cases), `9999-parser-bugfixes` (28 tests for all 12 parser/lexer/codegen bugs). 106 unwired test dirs wired into root `CMakeLists.txt`.
 - `249a47d` — **Improve 132 lesson READMEs** (+10,454 / −3,832): fixed 260+ stale line numbers, embedded 1-3 core implementation snippets per README, corrected status flags, added root "Implementation Highlights" section with 4 code blocks.
 - `710f564` — **Add real SSE float/double (0043-sse) and nested function tests (0086)**: arithmetic via `addss`/`addsd`/`mulss`/`mulsd`/`subss`/`subsd`/`divss`/`divsd`, comparisons via `ucomiss`/`ucomisd`, conversions via `cvtsi2ss`/`cvttss2si`/`cvttsd2si`/`cvtss2sd`/`cvtsd2ss`, moves via `movss`/`movsd`. System V ABI: float/double args in `%xmm0`–`%xmm7`, returns in `%xmm0`. `0043-float-double-bit-pattern` kept as historical reference. `0086-nested-functions/tests/test_nested.cpp` exercises the context-pointer ABI.
@@ -348,12 +349,13 @@ The compiler is now feature-complete for a substantial C subset including prepro
 |---------|-------|--------|---------|--------|
 | Variable declarations | ✅ | ✅ | ✅ | 0001 |
 | Initializers (`int x = 5`) | ✅ | ✅ | ✅ | 0001 |
-| Array init (`{1,2,3}`) | ✅ | ⚠️ Parsed (values skipped) | ⚠️ Zero-init | 0041 |
-| Struct init (`{.x=1}`) | ✅ | ⚠️ Parsed (values skipped) | ⚠️ Zero-init | 0038 |
+| Array init (`{1,2,3}`, `[i]=v`) | ✅ | ✅ | ✅ (locals) | 0041 |
+| Struct init designated (`.x=1`) | ✅ | ✅ | ✅ (locals) | 0038 |
+| Struct init positional (`{1,2}`) | ✅ | ✅ | ⚠️ Only first field emitted | 0038 |
 | Bitfields (`int x : 1`) | ✅ | ✅ | ⚠️ Parsed | 0040 |
 | Multiple declarators (`int a,b`) | ✅ | ✅ | ✅ | 0001 |
 | Function pointers (`int (*fp)(int)`) | ✅ | ✅ | ✅ | 0036 |
-| Compound literals (`(int[]){1,2}`) | ✅ | ✅ | ⚠️ Returns 0 | 0039 |
+| Compound literals (`(int[]){1,2}`) | ✅ | ✅ | ✅ | 0039 |
 
 ### Preprocessor
 
@@ -465,8 +467,15 @@ This compiler is a substantial subset of C but not a complete C23 implementation
 - Math library functions (`sin`, `cos`, `sqrt`, etc.) are declared `extern` but not implemented — calls link against system libm.
 
 ### Initializers
-- **Braced initializers produce zero-initialized storage.** `int a[3] = {1, 2, 3}` reserves 3 ints of space but emits 0s. Designated initializers (`.x = 1`) are parsed but produce zero-init.
-- **Compound literals `(int[]){1, 2, 3}`** parse and type-check but produce 0 at runtime.
+Initializer support is partial and asymmetric (verified by compiling and running each form):
+
+- **Local array initializers work** — both positional `int a[3] = {1,2,3}` and designated `int a[4] = {[2]=9}` emit per-element stores.
+- **Local designated struct initializers work** — `.field = v`, out-of-order, and nested `.inner = {.y = 7}` forms emit the correct slots. Unspecified members are *not* explicitly zeroed (they hold whatever was on the stack), so use `= {0}` if a clean slate is required.
+- **Compound literals `(int[]){1,2,3}` work** — storage is allocated, initialized, and its address returned; `(compound_literal)[i]` reads back correctly.
+- **Positional struct initializers are incomplete** — `struct P p = {10,20}` emits only the first field; remaining fields stay zero. Use designated initializers.
+- **Anonymous nested-struct positional init does not work** — for `struct A { struct { int x; } inner; }`, `struct A a = {{5}}` leaves `a.inner.x` at zero. (A *named* nested struct, e.g. `struct O { struct I inner; }`, does accept `struct O o = {{7}}`.)
+- **Array-of-struct designated init segfaults** — `struct P a[2] = {[1]={.y=9}}` crashes at runtime.
+- **Global aggregate initializers are broken** — a global array `int g[3]` is emitted with only one element's storage (`.zero 4`) and accessed as a scalar (`mov g(%rip)` instead of `lea g(%rip)`), so *any* `g[i]` access segfaults (even without an initializer). Global struct initializers are ignored (fields read as zero). Only scalar globals (`int g = 42;`) are correct.
 
 ### Variadic Functions
 - `...` parameter lists are accepted; `va_start` / `va_arg` / `va_end` are not implemented. Variadic functions are emitted as zero-argument functions.
@@ -482,8 +491,10 @@ This compiler is a substantial subset of C but not a complete C23 implementation
 - Standard library functions are linked via system `gcc`/`ld` from libc/libm.
 
 ### Inline Assembly
-- **Basic form `asm("nop")` works** — assembly text is passed through to output.
-- **Extended form `asm("..." : "=r"(x) : "r"(y) : "eax")`** parses but operand strings and clobbers are dropped. No register allocation for inputs/outputs.
+- **Basic form `asm("nop")` works** — the string literal is emitted verbatim into the output.
+- **`asm volatile("...")` currently fails to parse** — the parser checks for an `IDENTIFIER` named `volatile`, but the lexer emits the `KW_VOLATILE` token, so it reports `Expected ( after asm`.
+- **Extended form `asm("..." : "=r"(x) : "r"(y) : "eax")` currently fails to parse** — `parse_asm_operands()` does not consume the operand's closing `)`, so the parser then reports `Expected ; but found )`. The `AsmStmtNode` operand/clobber fields and the `parse_asm_operands`/`parse_asm_clobbers` helpers exist but are effectively unreachable.
+- **No operand binding or clobber tracking** — even once parsing is fixed, `%0`/`%1` substitution and caller-saved-register preservation are not implemented.
 
 ### Nested Functions (GCC extension)
 - **Trampolines not implemented** (no `mprotect` to make stack executable). The compiler instead uses a hidden context-pointer ABI: the nested function receives a pointer (in `%rdi`) to a stack-allocated struct of the captured variables' current values. This works for one level of nesting with simple captures, but not for taking the address of a nested function as a first-class function pointer.
@@ -605,11 +616,11 @@ int main() {
 
 ## Lesson Progress
 
-**Lesson count:** 131 lesson directories (`0001`-`0093`, `1000`-`1015`, `2000`-`2005`, `3000`-`3014`). 113 of them are marked ✅ in the table below, 18 are ⚠️ (partial implementation), and 1 of the ✅ is the legacy `0043-float-double-bit-pattern` lesson that is kept for reference. See each lesson's README for details of what is and is not implemented.
+**Lesson count:** 131 lesson directories (`0001`-`0093`, `1000`-`1015`, `2000`-`2005`, `3000`-`3014`, including the legacy `0043-float-double-bit-pattern` kept for reference). 121 of them are marked ✅ in the table below and 10 are ⚠️ (partial implementation). The per-lesson README status lines are: 100 ✅ Complete, 30 ⚠️ Partial/Skeleton/Legacy, and 1 ❌ Not implemented. See each lesson's README for details of what is and is not implemented.
 
-**Compilation status:** 127/127 lessons with `src/example.c` compile and run correctly (the 4 lessons without `example.c` are the infrastructure lessons 0001-0005 — tokenizer, AST, parser, codegen — which are covered by the unit-test suite).
+**Compilation status:** 126/126 lessons with `src/example.c` compile, link, and run correctly. The 5 lessons without `example.c` are the infrastructure lessons 0001-0005 — tokenizer, AST, parser, codegen, and CLI/integration — which are covered by the unit-test suites.
 
-**Test status:** 9/9 ctest test suites pass — `tokenizer_tests`, `ast_tests`, `parser_tests`, `codegen_tests`, `integration_tests`, `test_lessons_0076_1014`, `test_nested`, `test_float_double`, `test_sse`.
+**Test status:** 124/124 ctest tests pass (`ctest` from `build/`). These include the five infrastructure suites (`tokenizer_tests`, `ast_tests`, `parser_tests`, `codegen_tests`, `integration_tests`), the coverage/fix suites (`test_parser_bugfixes`, `codegen_coverage_tests`, `test_advanced`), the cross-cutting feature suites (`test_lessons_0076_1014`, `test_nested`, `test_float_double`, `test_sse`), and one test executable per wired lesson directory. Note: run a fresh `cmake --build build` before `ctest` — an interrupted build can leave empty/missing test binaries and produce spurious failures.
 
 ### Core Lessons (0001-0005) — ✅ Complete
 
@@ -687,8 +698,8 @@ int main() {
 |--------|-------|---------|
 | 0036 | Function Pointers | ✅ |
 | 0037 | Void Pointers | ✅ |
-| 0038 | Designated Init | ⚠️ Partial |
-| 0039 | Compound Literals | ⚠️ Partial |
+| 0038 | Designated Init | ✅ |
+| 0039 | Compound Literals | ✅ |
 | 0040 | Bitfields | ✅ |
 | 0041 | 2D Arrays | ✅ |
 | 0042 | Array-Pointer Decay | ✅ |
@@ -709,10 +720,10 @@ int main() {
 |--------|-------|---------|
 | 0088 | String Concatenation | ✅ |
 | 0089 | For-Loop Comma | ✅ |
-| 0090 | Anonymous Enum | ⚠️ Partial |
-| 0091 | Typedef Func Ptr | ⚠️ Partial |
-| 0092 | Nested Struct Init | ⚠️ Partial |
-| 0093 | ND Array Init | ⚠️ Partial |
+| 0090 | Anonymous Enum | ✅ |
+| 0091 | Typedef Func Ptr | ✅ |
+| 0092 | Nested Struct Access | ✅ |
+| 0093 | ND Array Init | ✅ |
 
 ### System & Functions (0046-0065)
 
@@ -720,7 +731,7 @@ int main() {
 |--------|-------|---------|
 | 0046 | Variadic | ✅ |
 | 0047 | Statement Expr | ✅ |
-| 0048 | Inline ASM | ⚠️ Partial |
+| 0048 | Inline ASM | ✅ (basic form) |
 | 0049 | Multi-File | ✅ |
 | 0050 | Static Linkage | ✅ |
 | 0051 | Volatile Qualifier | ✅ |
@@ -768,7 +779,7 @@ int main() {
 | 0083 | Label-as-Value | ✅ |
 | 0084 | Attribute (GCC) | ✅ |
 | 0085 | Builtin Functions | ✅ |
-| 0086 | Nested Functions | ⚠️ Partial |
+| 0086 | Nested Functions | ✅ (one level) |
 
 ### C11 Standard Lessons (1000-1015)
 
@@ -825,17 +836,24 @@ int main() {
 ## Test Results
 
 ```
-1/9 Test #1: tokenizer_tests ..................   Passed
-2/9 Test #2: ast_tests ........................   Passed
-3/9 Test #3: parser_tests .....................   Passed
-4/9 Test #4: codegen_tests ....................   Passed
-5/9 Test #5: integration_tests ................   Passed
-6/9 Test #6: test_lessons_0076_1014 ...........   Passed
-7/9 Test #7: test_nested ......................   Passed
-8/9 Test #8: test_float_double ................   Passed
-9/9 Test #9: test_sse .........................   Passed
+        Start   1: tokenizer_tests
+  1/124 Test   #1: tokenizer_tests ..................   Passed    0.05 sec
+  2/124 Test   #2: ast_tests ........................   Passed    0.03 sec
+  3/124 Test   #3: parser_tests .....................   Passed    0.04 sec
+  4/124 Test   #4: codegen_tests ....................   Passed    0.04 sec
+  5/124 Test   #5: integration_tests ................   Passed    0.05 sec
+  6/124 Test   #6: test_lessons_0076_1014 ...........   Passed    0.06 sec
+  7/124 Test   #7: test_nested ......................   Passed    0.05 sec
+  8/124 Test   #8: test_float_double ................   Passed    0.05 sec
+  9/124 Test   #9: test_sse .........................   Passed    0.08 sec
+ 10/124 Test  #10: test_parser_bugfixes .............   Passed    0.06 sec
+ 11/124 Test  #11: codegen_coverage_tests ...........   Passed    0.07 sec
+ 12/124 Test  #12: test_advanced ....................   Passed    5.23 sec
+        ... one test executable per wired lesson directory ...
+124/124 Test #124: test_c23_predef_macros ...........   Passed    0.02 sec
 
-100% tests passed, 0 tests failed out of 9
+100% tests passed, 0 tests failed out of 124
+Total Test time (real) =   7.70 sec
 ```
 
 ## References

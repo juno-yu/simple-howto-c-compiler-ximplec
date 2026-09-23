@@ -121,8 +121,25 @@ private:
         bool initialized;
         std::string init_value;
         bool is_extern;
+        int array_size = 0;       // >0 = array of `type`, 0 = scalar/unsized
+        const VarDeclNode* decl = nullptr;  // for aggregate initializers
     };
     std::vector<GlobalVar> global_variables_;
+
+    // Emit .data directives for one global variable (correct total size,
+    // per-element array initializers, struct zero-fill / field values).
+    void emit_global_var(const GlobalVar& gvar);
+    // Evaluate a compile-time integer constant (literals, char literals,
+    // unary minus). Returns false for anything else.
+    bool eval_const_int(ASTNode* node, long long& out);
+    // Emit a local initializer (recursive: positional/designated struct
+    // fields, array elements, nested lists) at `base_offset` for `type`.
+    void emit_local_initializer(ASTNode* init, int base_offset,
+                                const std::string& type, int array_size);
+    // Store the expression result currently in %rax/%xmm0 at offset(%rbp)
+    // using the width and float-ness of `store_type`.
+    void emit_store_at(int offset, const std::string& store_type,
+                       const std::string& value_type);
     
     // Struct layouts for member access
     struct FieldInfo {
@@ -188,6 +205,12 @@ private:
     std::string get_struct_name(const std::string& type_name);
     void compute_member_address(MemberExprNode& node);
     std::string infer_member_expr_type(MemberExprNode& node);
+    // Array-typed helpers: "T[2][3]" has element type "T" and 6 elements.
+    // Returns the product of the [N] groups (0 if there are none; a bare
+    // "[]" group contributes 1 element since its length is unknown).
+    static int array_count_of(const std::string& type);
+    // Returns the type with all [N] suffixes removed.
+    static std::string strip_array_suffix(const std::string& type);
 
     // Nested function support (GCC extension).
     //

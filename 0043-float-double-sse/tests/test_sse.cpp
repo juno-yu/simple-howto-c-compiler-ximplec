@@ -491,7 +491,9 @@ TEST_CASE("Float array with init list bits", "[sse][array]") {
         }
     )");
     REQUIRE(r.success);
-    REQUIRE(r.assembly.find("movl %eax") != std::string::npos);
+    // Float array elements are initialized with real SSE stores (movss),
+    // which preserve the IEEE 754 bit pattern exactly.
+    REQUIRE(r.assembly.find("movss %xmm0") != std::string::npos);
 }
 
 TEST_CASE("Float array assignment via index", "[sse][array]") {

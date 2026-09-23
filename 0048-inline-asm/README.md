@@ -1,6 +1,6 @@
 # Lesson 0048: Inline Assembly
 
-## Status: ✅ Complete | Phase: System Integration | Effort: Medium
+## Status: ✅ Complete (basic form) | Phase: System Integration | Effort: Medium
 
 ## Objective
 
@@ -11,14 +11,15 @@ arbitrary x86-64 instructions into a function body.
 ## Syntax
 
 ```c
-// Basic form
+// Basic form — works
 asm("mov $42, %rax");
 
-// Volatile form (the optional `volatile` is recognised and ignored)
+// Volatile form — BROKEN: `volatile` lexes as KW_VOLATILE but the parser
+// only checks for the identifier "volatile", so this errors out.
 asm volatile("nop");
 
-// Extended form — operands are parsed and stored on the AST node, but not
-// used during codegen. The body string is still emitted verbatim.
+// Extended form — BROKEN: parse_asm_operands() leaves the operand's closing
+// ')', so parsing fails before the AST node is built.
 asm("mov %1, %0" : "=r"(result) : "r"(input) : "eax");
 ```
 
@@ -41,9 +42,9 @@ struct AsmStmtNode : ASTNode {
 ## Parsing
 
 The parser treats `asm` as a statement-level keyword and consumes the
-optional `volatile` and the mandatory string literal. Extended-asm operand
-lists are parsed so the code round-trips through the AST, even though only
-the body string is emitted:
+mandatory string literal. The intended `volatile` and extended-operand
+handling is present in the code below but currently non-functional (see
+Limitations):
 
 ```cpp
 // src/parser.cpp:1025
@@ -98,10 +99,17 @@ void CodeGenerator::visit(AsmStmtNode& node) {
 
 ## Limitations
 
-- **No operand binding.** Extended-asm constraint strings, expressions, and
-  clobber lists are parsed and stored on the AST node but never used. The
-  output contains only the body string. To use `"=r"(x)` or clobbers the
-  user must write the assembly by hand using actual register names.
+- **`asm volatile` does not parse.** The check is for an `IDENTIFIER` named
+  `volatile`, but the lexer produces `KW_VOLATILE`, so `asm volatile("nop")`
+  fails with `Expected ( after asm`.
+- **Extended-asm lists do not parse.** `parse_asm_operands()` stops before
+  consuming the operand's closing `)`, so `asm("..." : "=r"(x))` fails with
+  `Expected ; but found )`. The `output`/`input`/`clobber` fields on
+  `AsmStmtNode` are therefore never populated in practice.
+- **No operand binding.** Even if the extended form parsed, constraint
+  strings, expressions, and clobber lists would not be used: the output
+  contains only the body string. To use `"=r"(x)` or clobbers the user must
+  write the assembly by hand using actual register names.
 - **No clobber tracking.** Caller-saved registers that the asm touches are
   not marked. The user's `asm` text is responsible for preserving `%rbp`,
   `%rsp`, `%rbx`, and any callee-saved register it uses.
